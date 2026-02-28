@@ -1,0 +1,54 @@
+name: Property Scraper — Weekly Run
+
+on:
+  schedule:
+    - cron: '0 1 * * 0'    # Sunday 01:00 UTC = 02:00 Lagos WAT
+  workflow_dispatch:          # Manual trigger
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+
+    env:
+      DATABASE_URL:          ${{ secrets.DATABASE_URL }}
+      TELEGRAM_BOT_TOKEN:    ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID:      ${{ secrets.TELEGRAM_CHAT_ID }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install Playwright browsers (Chromium only)
+        run: playwright install chromium --with-deps
+
+      - name: Apply DB schema (idempotent — IF NOT EXISTS guards)
+        run: |
+          python - <<'EOF'
+          import psycopg2, os
+          conn = psycopg2.connect(os.environ["DATABASE_URL"])
+          conn.autocommit = True
+          with conn.cursor() as cur, open("schema/001_raw_data_schema.sql") as f:
+              cur.execute(f.read())
+          conn.close()
+          print("Schema applied.")
+          EOF
+
+      - name: Run scraper
+        run: python -m scraper.orchestrator
+
+      - name: Upload error log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scraper-error-log-${{ github.run_number }}
+          path: scraper.log
+          retention-days: 14
