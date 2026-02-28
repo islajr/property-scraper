@@ -28,7 +28,11 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Install Playwright browsers (Chromium only)
-        run: playwright install chromium --with-deps
+        run: |
+          # Ubuntu 24.04 (Noble) renamed libasound2 → libasound2t64.
+          # Pre-install it so playwright's --with-deps doesn't choke on the old name.
+          sudo apt-get install -y libasound2t64
+          playwright install chromium --with-deps
 
       - name: Apply DB schema (idempotent — IF NOT EXISTS guards)
         run: |
