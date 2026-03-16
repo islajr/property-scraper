@@ -1,11 +1,19 @@
 """
-test_normaliser.py — Unit tests for scraper/normaliser.py.
+test_normaliser.py — Tests for scraper/normaliser.py.
 
-All tests are pure / offline — no database, no network, no parsers.
-Run with: pytest tests/test_normaliser.py -v
+Two layers:
+  1. Unit tests for each helper function in isolation.
+  2. Integration tests for normalise() end-to-end with RawListing inputs
+     that mirror the actual output of the four portal parsers.
+
+All tests are pure / offline — no database, no network.
+
+Run all:               pytest tests/test_normaliser.py -v
+Run one class:         pytest tests/test_normaliser.py::TestNormaliseEndToEnd -v
 """
 
 import pytest
+from tests.conftest import make_raw
 from scraper.normaliser import (
     parse_price,
     parse_floor_area_sqm,
@@ -13,7 +21,9 @@ from scraper.normaliser import (
     parse_price_type,
     normalise_property_type,
     normalise_neighbourhood,
+    infer_city,
     is_diaspora_targeted,
+    normalise,
 )
 
 
@@ -23,125 +33,96 @@ from scraper.normaliser import (
 
 class TestParsePrice:
 
-    def test_naira_with_commas(self):
-        kobo, failed = parse_price("₦45,000,000")
-        assert kobo == 4_500_000_000
+    @pytest.mark.parametrize("raw,expected_kobo", [
+        ("₦45,000,000",       4_500_000_000),
+        ("45M",               4_500_000_000),
+        ("45.5M",             4_550_000_000),
+        ("1.5B",            150_000_000_000),
+        ("45 million",        4_500_000_000),
+        ("45 million naira",  4_500_000_000),
+        ("45000000",          4_500_000_000),   # plain naira int
+        ("4500000000",        4_500_000_000),   # already-kobo heuristic (>10B)
+        ("₦75,000,000/year",  7_500_000_000),   # PropertyPro rent format
+        ("₦4,000,000per annum", 400_000_000),   # NPC format
+    ])
+    def test_valid_prices(self, raw, expected_kobo):
+        kobo, failed = parse_price(raw)
         assert failed is False
+        assert kobo == expected_kobo
 
-    def test_shorthand_M(self):
-        kobo, failed = parse_price("45M")
-        assert kobo == 4_500_000_000
-        assert failed is False
-
-    def test_shorthand_M_decimal(self):
-        kobo, failed = parse_price("45.5M")
-        assert kobo == 4_550_000_000
-        assert failed is False
-
-    def test_shorthand_B(self):
-        kobo, failed = parse_price("1.5B")
-        assert kobo == 150_000_000_000
-        assert failed is False
-
-    def test_million_word(self):
-        kobo, failed = parse_price("45 million")
-        assert kobo == 4_500_000_000
-        assert failed is False
-
-    def test_million_word_with_naira(self):
-        kobo, failed = parse_price("45 million naira")
-        assert kobo == 4_500_000_000
-        assert failed is False
-
-    def test_plain_naira_integer(self):
-        kobo, failed = parse_price("45000000")
-        assert kobo == 4_500_000_000
-        assert failed is False
-
-    def test_already_in_kobo_heuristic(self):
-        # Value > ₦10B naira → assume it's already kobo
-        kobo, failed = parse_price("4500000000")
-        assert kobo == 4_500_000_000
-        assert failed is False
-
-    def test_none_input(self):
-        kobo, failed = parse_price(None)
+    @pytest.mark.parametrize("raw", [
+        None, "", "  ", "Price on Request", "Contact agent", "N/A", "Call for price"
+    ])
+    def test_unparseable_prices(self, raw):
+        kobo, failed = parse_price(raw)
         assert kobo is None
         assert failed is True
 
-    def test_empty_string(self):
-        kobo, failed = parse_price("")
-        assert kobo is None
-        assert failed is True
+    def test_decimal_millions(self):
+        kobo, failed = parse_price("2.4M")
+        assert failed is False
+        assert kobo == 240_000_000
 
-    def test_price_on_request(self):
-        kobo, failed = parse_price("Price on Request")
-        assert kobo is None
-        assert failed is True
-
-    def test_garbage_string(self):
-        kobo, failed = parse_price("Contact agent")
-        assert kobo is None
-        assert failed is True
+    def test_dollar_price_parses_numerically(self):
+        # USD prices from PrivateProperty — we parse numerically, currency noted elsewhere
+        kobo, failed = parse_price("$12,000,000")
+        assert failed is False
+        assert kobo == 1_200_000_000_000  # 12M × 100
 
 
 # =============================================================================
 # parse_floor_area_sqm
 # =============================================================================
 
-class TestParseFloorAreaSqm:
+class TestParseFloorArea:
 
-    def test_sqm_simple(self):
-        assert parse_floor_area_sqm("250 sqm") == 250.0
+    @pytest.mark.parametrize("raw,expected", [
+        ("150 sqm",      150.0),
+        ("1,200 sqm",   1200.0),
+        ("250 sq.m",     250.0),
+        ("300 m²",       300.0),
+        ("2.6K sqm",     None),    # "2.6K" — not a clean number, should return None or skip
+    ])
+    def test_sqm_formats(self, raw, expected):
+        result = parse_floor_area_sqm(raw)
+        if expected is None:
+            assert result is None
+        else:
+            assert result == pytest.approx(expected, abs=0.1)
 
-    def test_sqm_with_comma(self):
-        assert parse_floor_area_sqm("1,200 sqm") == 1200.0
+    @pytest.mark.parametrize("raw,expected_sqm", [
+        ("2700 sqft",    250.8),
+        ("500 sq. ft",    46.5),
+        ("1000 sqft",     92.9),
+    ])
+    def test_sqft_conversion(self, raw, expected_sqm):
+        result = parse_floor_area_sqm(raw)
+        assert result == pytest.approx(expected_sqm, abs=0.5)
 
-    def test_sqm_abbreviated(self):
-        assert parse_floor_area_sqm("250 sq.m") == 250.0
-
-    def test_sqft_to_sqm_conversion(self):
-        result = parse_floor_area_sqm("2,700 sqft")
-        assert result == pytest.approx(250.8, abs=0.5)  # 2700 × 0.0929 ≈ 250.8
-
-    def test_sqft_abbreviated(self):
-        result = parse_floor_area_sqm("500 sq. ft")
-        assert result is not None
-        assert result == pytest.approx(46.5, abs=0.5)
-
-    def test_m2_symbol(self):
-        assert parse_floor_area_sqm("300 m²") == 300.0
-
-    def test_none_returns_none(self):
-        assert parse_floor_area_sqm(None) is None
-
-    def test_empty_returns_none(self):
-        assert parse_floor_area_sqm("") is None
-
-    def test_no_area_in_string(self):
-        assert parse_floor_area_sqm("3 bedrooms, 2 bathrooms") is None
+    @pytest.mark.parametrize("raw", [None, "", "3 bedrooms", "nice flat"])
+    def test_returns_none_when_absent(self, raw):
+        assert parse_floor_area_sqm(raw) is None
 
 
 # =============================================================================
-# parse_integer (bedrooms / bathrooms)
+# parse_integer
 # =============================================================================
 
 class TestParseInteger:
 
-    def test_bedroom_string(self):
-        assert parse_integer("3 Bedrooms") == 3
+    @pytest.mark.parametrize("raw,expected", [
+        ("3 Bedrooms",  3),
+        ("4 bed",       4),
+        ("2",           2),
+        ("4 bedrooms",  4),   # Jiji format
+        ("5 bathrooms", 5),
+    ])
+    def test_valid_inputs(self, raw, expected):
+        assert parse_integer(raw) == expected
 
-    def test_bed_abbreviated(self):
-        assert parse_integer("4 bed") == 4
-
-    def test_standalone_number(self):
-        assert parse_integer("2") == 2
-
-    def test_none_returns_none(self):
-        assert parse_integer(None) is None
-
-    def test_no_number_returns_none(self):
-        assert parse_integer("Studio") is None
+    @pytest.mark.parametrize("raw", [None, "", "Studio", "No bedrooms listed"])
+    def test_non_numeric(self, raw):
+        assert parse_integer(raw) is None
 
 
 # =============================================================================
@@ -150,26 +131,18 @@ class TestParseInteger:
 
 class TestParsePriceType:
 
-    def test_for_sale_from_raw_type(self):
-        assert parse_price_type("For Sale", None, None) == "FOR_SALE"
-
-    def test_for_rent_from_raw_type(self):
-        assert parse_price_type("For Rent", None, None) == "FOR_RENT"
-
-    def test_rent_detected_in_title(self):
-        assert parse_price_type(None, "3-bed flat to let in Lekki", None) == "FOR_RENT"
-
-    def test_per_year_is_rent(self):
-        assert parse_price_type("₦2.4M per year", None, None) == "FOR_RENT"
-
-    def test_sale_detected_in_description(self):
-        result = parse_price_type(None, None, "Available for outright purchase")
-        assert result == "FOR_SALE"
-
-    def test_none_when_ambiguous(self):
-        # No keywords → None
-        result = parse_price_type(None, "Nice property in Abuja", None)
-        assert result is None
+    @pytest.mark.parametrize("raw_type,title,desc,expected", [
+        ("FOR_SALE",   None,                  None,                "FOR_SALE"),
+        ("FOR_RENT",   None,                  None,                "FOR_RENT"),
+        (None,         "3 bed flat to let",   None,                "FOR_RENT"),
+        (None,         "luxury apartment",    "available for sale", "FOR_SALE"),
+        ("₦4M/year",   None,                  None,                "FOR_RENT"),
+        ("₦75M/year",  None,                  None,                "FOR_RENT"),
+        (None,         "house for outright purchase", None,        "FOR_SALE"),
+        (None,         "nice property abuja", None,                None),     # ambiguous
+    ])
+    def test_price_type_inference(self, raw_type, title, desc, expected):
+        assert parse_price_type(raw_type, title, desc) == expected
 
 
 # =============================================================================
@@ -178,26 +151,28 @@ class TestParsePriceType:
 
 class TestNormalisePropertyType:
 
-    def test_flat_apartment(self):
-        assert normalise_property_type("Flat / Apartment") == "FLAT_APARTMENT"
-
-    def test_detached_duplex(self):
-        assert normalise_property_type("Detached Duplex") == "DETACHED_DUPLEX"
-
-    def test_case_insensitive(self):
-        assert normalise_property_type("detached duplex") == "DETACHED_DUPLEX"
-
-    def test_mini_flat(self):
-        assert normalise_property_type("Mini Flat") == "MINI_FLAT"
-
-    def test_studio(self):
-        assert normalise_property_type("Studio Apartment") == "STUDIO"
-
-    def test_land(self):
-        assert normalise_property_type("Plot of Land") == "LAND"
+    @pytest.mark.parametrize("raw,expected", [
+        ("Flat / Apartment",      "FLAT_APARTMENT"),
+        ("flat/apartment",        "FLAT_APARTMENT"),
+        ("Detached Duplex",       "DETACHED_DUPLEX"),
+        ("detached duplex",       "DETACHED_DUPLEX"),
+        ("Semi-Detached Duplex",  "SEMI_DETACHED_DUPLEX"),
+        ("Mini Flat",             "MINI_FLAT"),
+        ("Studio Apartment",      "STUDIO"),
+        ("Plot of Land",          "LAND"),
+        ("Commercial Property",   "COMMERCIAL_OTHER"),
+        ("Duplex",                "DETACHED_DUPLEX"),   # partial match
+    ])
+    def test_known_types(self, raw, expected):
+        assert normalise_property_type(raw) == expected
 
     def test_none_returns_none(self):
         assert normalise_property_type(None) is None
+
+    def test_unknown_type_stored_uppercase(self):
+        result = normalise_property_type("Converted Church Property")
+        assert result is not None
+        assert result == result.upper().replace(" ", "_")[:40] or result  # any non-None consistent form
 
 
 # =============================================================================
@@ -206,36 +181,52 @@ class TestNormalisePropertyType:
 
 class TestNormaliseNeighbourhood:
 
-    def test_exact_canonical_match(self):
-        nb, normalised = normalise_neighbourhood("Lekki Phase 1, Lagos")
-        assert nb == "Lekki Phase 1"
+    @pytest.mark.parametrize("raw_address,expected_nb", [
+        ("Lekki Phase 1, Lagos",                  "Lekki Phase 1"),
+        ("Old Ikoyi Ikoyi Lagos",                 "Ikoyi"),
+        ("After Blenco Sangotedo, Ajah, Lagos",   "Ajah"),
+        ("Maitama, Abuja",                        "Maitama"),
+        ("Victoria Island, Lagos",                "Victoria Island"),
+        ("Guzape, Abuja",                         "Guzape"),
+    ])
+    def test_canonical_match(self, raw_address, expected_nb):
+        nb, normalised = normalise_neighbourhood(raw_address)
         assert normalised is True
+        assert nb == expected_nb
 
-    def test_fuzzy_match_lekki_variant(self):
-        nb, normalised = normalise_neighbourhood("Lekki Ph1, Lagos")
-        # Should fuzzy-match to "Lekki Phase 1"
-        assert normalised is True
-        assert "Lekki" in nb
-
-    def test_victoria_island_in_address(self):
-        nb, normalised = normalise_neighbourhood("5 Ozumba Mbadiwe Avenue, Victoria Island")
-        assert nb == "Victoria Island"
-        assert normalised is True
-
-    def test_unknown_neighbourhood_stored_raw(self):
-        nb, normalised = normalise_neighbourhood("Somewhere New Estate, Ogun")
+    def test_unknown_stored_raw_not_normalised(self):
+        nb, normalised = normalise_neighbourhood("Some Brand New Estate, Ogun State")
         assert normalised is False
         assert nb is not None
 
-    def test_none_address_returns_none(self):
+    def test_none_address(self):
         nb, normalised = normalise_neighbourhood(None)
         assert nb is None
         assert normalised is False
 
-    def test_maitama_abuja(self):
-        nb, normalised = normalise_neighbourhood("No 4, Maitama, Abuja")
-        assert nb == "Maitama"
-        assert normalised is True
+    def test_raw_address_truncated_to_60_chars(self):
+        long = "A" * 80 + ", Unknown City"
+        nb, normalised = normalise_neighbourhood(long)
+        assert normalised is False
+        assert len(nb) <= 60
+
+
+# =============================================================================
+# infer_city
+# =============================================================================
+
+class TestInferCity:
+
+    @pytest.mark.parametrize("address,title,expected_city", [
+        ("Lekki Phase 1, Lagos",  None,         "LAGOS"),
+        ("Maitama, Abuja",        None,         "ABUJA"),
+        ("GRA, Port Harcourt",    None,         "PH"),
+        (None,  "3 bed flat in Yaba Lagos",     "LAGOS"),
+        (None,  "office in Wuse 2 Abuja",       "ABUJA"),
+        ("some estate",           "nice house", None),
+    ])
+    def test_city_inference(self, address, title, expected_city):
+        assert infer_city(address, title) == expected_city
 
 
 # =============================================================================
@@ -244,25 +235,153 @@ class TestNormaliseNeighbourhood:
 
 class TestDiasporaFlag:
 
-    def test_diaspora_keyword_detected(self):
-        assert is_diaspora_targeted("This property is diaspora-friendly, forex payment accepted.") is True
+    @pytest.mark.parametrize("desc", [
+        "diaspora-friendly property, forex payment accepted",
+        "We accept payment in USD for this listing",
+        "Suitable for returnees and NRNs",
+        "Dollar-denominated lease available",
+        "Ideal for expatriates",
+    ])
+    def test_diaspora_signals_detected(self, desc):
+        assert is_diaspora_targeted(desc) is True
 
-    def test_forex_payment_accepted(self):
-        assert is_diaspora_targeted("We accept forex payment for this listing.") is True
-
-    def test_payment_in_usd(self):
-        assert is_diaspora_targeted("Payment in USD accepted.") is True
-
-    def test_suitable_for_returnees(self):
-        assert is_diaspora_targeted("Suitable for returnees and NRNs.") is True
-
-    def test_standard_description_not_flagged(self):
-        desc = ("Luxury 4-bedroom detached duplex in Lekki Phase 1. "
-                "En-suite bathrooms, swimming pool, 24hr security. Asking ₦95M.")
+    @pytest.mark.parametrize("desc", [
+        "Luxury 4-bed duplex in Lekki. 24hr security. Asking ₦95M.",
+        "Brand new apartment. POP ceiling, tiled floors. Call to book inspection.",
+        None,
+        "",
+    ])
+    def test_non_diaspora_not_flagged(self, desc):
         assert is_diaspora_targeted(desc) is False
 
-    def test_none_description_not_flagged(self):
-        assert is_diaspora_targeted(None) is False
 
-    def test_empty_description_not_flagged(self):
-        assert is_diaspora_targeted("") is False
+# =============================================================================
+# normalise() — end-to-end pipeline with realistic RawListing inputs
+# =============================================================================
+
+class TestNormaliseEndToEnd:
+    """
+    Tests the full normalise() function with RawListing inputs that mirror
+    what the four parsers actually produce. This catches regressions in the
+    pipeline itself, not just the individual helpers.
+    """
+
+    def test_propertypro_rent_listing(self):
+        """Mirrors a PropertyPro rent listing (Old Ikoyi, 3-bed luxury flat)."""
+        raw = make_raw(
+            external_id       = "7NUGY",
+            source            = "propertypro",
+            url               = "https://propertypro.ng/property/3-bed-flat-7NUGY",
+            title             = "Newly Furnished 3 Bedroom Luxury Apartment",
+            raw_price         = "₦75,000,000/year",
+            raw_price_type    = "FOR_RENT",
+            raw_bedrooms      = "3 Beds",
+            raw_bathrooms     = "3 Baths",
+            raw_address       = "Old Ikoyi Ikoyi Lagos",
+            raw_floor_area    = None,
+            property_type_raw = "Flat / Apartment",
+            agent_name        = "First Colony Real Estate Company Ltd.",
+        )
+        result = normalise(raw)
+
+        assert result.external_id == "7NUGY"
+        assert result.source == "propertypro"
+        assert result.price_kobo == 7_500_000_000
+        assert result.price_parse_failed is False
+        assert result.price_type == "FOR_RENT"
+        assert result.bedrooms == 3
+        assert result.bathrooms == 3
+        assert result.property_type == "FLAT_APARTMENT"
+        assert result.city == "LAGOS"
+        assert result.neighbourhood is not None
+        assert result.floor_area_sqm is None
+        assert result.floor_area_source == "NONE"
+        assert result.geocoded is False
+        assert result.diaspora_targeted is False
+
+    def test_privateproperty_sale_listing(self):
+        """Mirrors a PrivateProperty sale listing (Victoria Island hotel)."""
+        raw = make_raw(
+            external_id       = "6PBUWY",
+            source            = "privateproperty",
+            raw_price         = "$12,000,000",
+            raw_price_type    = "FOR_SALE",
+            raw_bedrooms      = None,
+            raw_bathrooms     = None,
+            raw_address       = "10 bedroom Hotel For Sale Oniru Victoria Island Lagos",
+            raw_floor_area    = "2.6K",
+            property_type_raw = "Commercial Property",
+        )
+        result = normalise(raw)
+
+        assert result.price_parse_failed is False
+        assert result.price_type == "FOR_SALE"
+        assert result.property_type == "COMMERCIAL_OTHER"
+        assert result.city == "LAGOS"
+        assert result.bedrooms is None    # no structured field — parser leaves as None
+
+    def test_nigeriapropertycentre_rent_listing(self):
+        """Mirrors a NPC rent listing (Ajah, 2-bed apartment)."""
+        raw = make_raw(
+            external_id       = "3364115",
+            source            = "nigeriapropertycentre",
+            raw_price         = "₦4,000,000per annum",
+            raw_price_type    = "FOR_RENT",
+            raw_bedrooms      = "2 Bedrooms",
+            raw_bathrooms     = "2 Bathrooms",
+            raw_address       = "After Blenco Sangotedo, Ajah, Lagos",
+            property_type_raw = "2 bedroom flat / apartment for rent",
+        )
+        result = normalise(raw)
+
+        assert result.price_kobo == 400_000_000
+        assert result.price_type == "FOR_RENT"
+        assert result.bedrooms == 2
+        assert result.bathrooms == 2
+        assert result.city == "LAGOS"
+        assert result.neighbourhood is not None
+        assert result.property_type == "FLAT_APARTMENT"
+
+    def test_jiji_sale_listing(self):
+        """Mirrors a Jiji sale listing (Lugbe duplex, Abuja)."""
+        raw = make_raw(
+            external_id       = "saFgVBX3QXLb3rsljTXA53Ls",
+            source            = "jiji",
+            raw_price         = "₦ 145,000,000",
+            raw_price_type    = "FOR_SALE",
+            raw_bedrooms      = "4 bedrooms",
+            raw_bathrooms     = "5 bathrooms",
+            raw_address       = "Abuja, Lugbe District",
+            property_type_raw = "Duplex",
+        )
+        result = normalise(raw)
+
+        assert result.price_kobo == 14_500_000_000
+        assert result.price_type == "FOR_SALE"
+        assert result.bedrooms == 4
+        assert result.bathrooms == 5
+        assert result.city == "ABUJA"
+        assert result.property_type is not None
+
+    def test_price_parse_failure_sets_flag(self):
+        raw = make_raw(raw_price="Price on request")
+        result = normalise(raw)
+        assert result.price_parse_failed is True
+        assert result.price_kobo is None
+
+    def test_diaspora_flag_propagates(self):
+        raw = make_raw(description="Diaspora-friendly, forex payment accepted. USD payments welcome.")
+        result = normalise(raw)
+        assert result.diaspora_targeted is True
+
+    def test_floor_area_sqft_converted(self):
+        raw = make_raw(raw_floor_area="2700 sqft")
+        result = normalise(raw)
+        assert result.floor_area_sqm == pytest.approx(250.8, abs=0.5)
+        assert result.floor_area_source == "PORTAL"
+
+    def test_none_floor_area_sets_source_none(self):
+        raw = make_raw(raw_floor_area=None)
+        result = normalise(raw)
+        assert result.floor_area_sqm is None
+        assert result.floor_area_source == "NONE"

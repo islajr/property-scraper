@@ -1,76 +1,54 @@
 """
-test_db_writer.py — Unit tests for scraper/db_writer.py.
+test_db_writer.py — Tests for scraper/db_writer.py business logic.
 
-Uses a real SQLite in-memory DB as a substitute for PostgreSQL.
-The SQL dialect differences are minor for the logic being tested here.
+Strategy: mock the psycopg2 connection entirely. We test the Python-level
+logic — what decisions the writer makes — not the SQL it generates.
+For SQL correctness, use the schema integration test (test_pipeline.py).
 
-Alternatively: use pytest-postgresql or psycopg2 pointed at a local test DB.
-These tests use the mock pattern to avoid any external dependency.
-
-Run with: pytest tests/test_db_writer.py -v
+Run all:               pytest tests/test_db_writer.py -v
+Run one class:         pytest tests/test_db_writer.py::TestUpsertRouting -v
 """
 
 import pytest
 from datetime import datetime, timezone, timedelta
 from unittest.mock import MagicMock, patch, call
 
-from scraper.models import NormalisedListing
+from tests.conftest import make_normalised
 import config
 
 
-def _make_listing(**overrides) -> NormalisedListing:
-    defaults = dict(
-        external_id="EXT001", source="propertypro",
-        url="https://example.com/property/1",
-        title="Test Listing", description="Nice flat in Lekki",
-        price_kobo=4_500_000_000, price_parse_failed=False,
-        price_type="FOR_SALE", property_type="FLAT_APARTMENT",
-        bedrooms=3, bathrooms=2, floor_area_sqm=120.0, floor_area_source="PORTAL",
-        raw_address="Lekki Phase 1, Lagos",
-        neighbourhood="Lekki Phase 1", neighbourhood_normalised=True,
-        city="LAGOS", lat=6.4698, lng=3.5852, geocoded=True,
-        agent_name="Test Agent", diaspora_targeted=False,
-        first_seen_at=None, last_seen_at=None,
-        listing_status="ACTIVE", suspected_sold=False, missed_run_count=0,
-    )
-    defaults.update(overrides)
-    return NormalisedListing(**defaults)
+# ── Shared helper ─────────────────────────────────────────────────────────────
+
+def _make_writer():
+    """DatabaseWriter with a fully mocked psycopg2 connection."""
+    from scraper.db_writer import DatabaseWriter
+    with patch("scraper.db_writer.psycopg2.connect") as mock_connect:
+        mock_conn   = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.fetchone.return_value = None
+        mock_cursor.fetchall.return_value = []
+        mock_conn.cursor.return_value.__enter__ = lambda s: mock_cursor
+        mock_conn.cursor.return_value.__exit__  = MagicMock(return_value=False)
+        mock_connect.return_value = mock_conn
+        writer = DatabaseWriter("postgresql://fake/db")
+        writer._conn        = mock_conn
+        writer._mock_cursor = mock_cursor
+    return writer
 
 
 # =============================================================================
-# Upsert logic
+# Upsert routing: new vs existing
 # =============================================================================
 
-class TestUpsertLogic:
-    """
-    Test the business logic of upsert() without a real DB.
-    We inspect what SQL the cursor is asked to execute.
-    """
+class TestUpsertRouting:
 
-    def _make_db_writer_with_mock_conn(self):
-        """Return a DatabaseWriter with a fully mocked psycopg2 connection."""
-        from scraper.db_writer import DatabaseWriter
-        with patch("scraper.db_writer.psycopg2.connect") as mock_connect:
-            mock_conn = MagicMock()
-            mock_cursor = MagicMock()
-            mock_conn.cursor.return_value.__enter__ = lambda s: mock_cursor
-            mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
-            mock_connect.return_value = mock_conn
-            writer = DatabaseWriter("postgresql://fake/db")
-            writer._mock_cursor = mock_cursor
-            writer._mock_conn   = mock_conn
-            return writer
+    def test_new_listing_calls_insert_not_update(self):
+        writer  = _make_writer()
+        listing = make_normalised()
+        active  = {}   # empty — listing is brand new
 
-    def test_new_listing_triggers_insert(self):
-        """A (source, ext_id) NOT in active_listings should trigger INSERT."""
-        writer = self._make_db_writer_with_mock_conn()
-        listing = _make_listing()
-        active  = {}   # empty — listing is new
-
-        # _insert_new is called when key not in active_listings
-        # We patch it to observe the call
-        writer._insert_new = MagicMock(return_value=1)
-        writer._update_existing = MagicMock()
+        writer._insert_new         = MagicMock(return_value=None)
+        writer._update_existing    = MagicMock()
         writer._insert_history_events = MagicMock()
 
         stats = writer.upsert([listing], active)
@@ -80,14 +58,13 @@ class TestUpsertLogic:
         assert stats["new"] == 1
         assert stats["updated"] == 0
 
-    def test_existing_listing_triggers_update(self):
-        """A (source, ext_id) IN active_listings should trigger UPDATE."""
-        writer = self._make_db_writer_with_mock_conn()
-        listing = _make_listing()
-        active  = {("propertypro", "EXT001"): 4_500_000_000}  # same price
+    def test_existing_listing_calls_update_not_insert(self):
+        writer  = _make_writer()
+        listing = make_normalised()
+        active  = {("propertypro", "TEST001"): 4_500_000_000}
 
-        writer._insert_new = MagicMock(return_value=None)
-        writer._update_existing = MagicMock()
+        writer._insert_new         = MagicMock()
+        writer._update_existing    = MagicMock()
         writer._insert_history_events = MagicMock()
 
         stats = writer.upsert([listing], active)
@@ -97,125 +74,179 @@ class TestUpsertLogic:
         assert stats["updated"] == 1
         assert stats["new"] == 0
 
-    def test_price_change_creates_history_event(self):
-        """When price differs from active_listings price → PRICE_CHANGE event emitted."""
-        writer = self._make_db_writer_with_mock_conn()
-        listing = _make_listing(price_kobo=4_000_000_000)  # dropped from 4.5B to 4B
-        active  = {("propertypro", "EXT001"): 4_500_000_000}
+    def test_multiple_listings_routed_correctly(self):
+        writer  = _make_writer()
+        new_one = make_normalised(external_id="NEW001")
+        existing = make_normalised(external_id="EX001")
+        active  = {("propertypro", "EX001"): 4_500_000_000}
 
-        history_events_captured = []
+        inserts = []
+        updates = []
+        writer._insert_new         = MagicMock(side_effect=lambda l: inserts.append(l))
+        writer._update_existing    = MagicMock(side_effect=lambda l, p: updates.append(l))
+        writer._insert_history_events = MagicMock()
 
-        def capture_history(events):
-            history_events_captured.extend(events)
+        stats = writer.upsert([new_one, existing], active)
 
-        writer._insert_new = MagicMock(return_value=None)
-        writer._update_existing = MagicMock()
-        writer._insert_history_events = capture_history
+        assert len(inserts) == 1
+        assert len(updates) == 1
+        assert stats["new"] == 1
+        assert stats["updated"] == 1
 
-        stats = writer.upsert([listing], active)
+    def test_empty_listing_list_returns_zero_stats(self):
+        writer = _make_writer()
+        writer._insert_new         = MagicMock()
+        writer._update_existing    = MagicMock()
+        writer._insert_history_events = MagicMock()
 
-        assert stats["price_changes"] == 1
-        price_change_events = [e for e in history_events_captured if e["event_type"] == "PRICE_CHANGE"]
-        assert len(price_change_events) == 1
-        assert price_change_events[0]["old_value"] == 4_500_000_000
-        assert price_change_events[0]["new_value"] == 4_000_000_000
+        stats = writer.upsert([], {})
 
-    def test_no_price_change_when_prices_equal(self):
-        """Same price as in active_listings → no PRICE_CHANGE event."""
-        writer = self._make_db_writer_with_mock_conn()
-        listing = _make_listing(price_kobo=4_500_000_000)
-        active  = {("propertypro", "EXT001"): 4_500_000_000}
-
-        history_events_captured = []
-        writer._insert_new = MagicMock()
-        writer._update_existing = MagicMock()
-        writer._insert_history_events = lambda e: history_events_captured.extend(e)
-
-        stats = writer.upsert([listing], active)
-
-        price_change_events = [e for e in history_events_captured if e.get("event_type") == "PRICE_CHANGE"]
-        assert len(price_change_events) == 0
+        assert stats["new"] == 0
+        assert stats["updated"] == 0
         assert stats["price_changes"] == 0
 
 
 # =============================================================================
-# Suspected sold logic
+# Price change detection
+# =============================================================================
+
+class TestPriceChangeDetection:
+
+    def test_price_drop_emits_price_change_event(self):
+        writer  = _make_writer()
+        listing = make_normalised(price_kobo=4_000_000_000)   # dropped from 4.5B
+        active  = {("propertypro", "TEST001"): 4_500_000_000}
+
+        captured_events = []
+        writer._insert_new         = MagicMock()
+        writer._update_existing    = MagicMock()
+        writer._insert_history_events = lambda evts: captured_events.extend(evts)
+
+        stats = writer.upsert([listing], active)
+
+        price_changes = [e for e in captured_events if e.get("event_type") == "PRICE_CHANGE"]
+        assert len(price_changes) == 1
+        assert price_changes[0]["old_value"] == 4_500_000_000
+        assert price_changes[0]["new_value"] == 4_000_000_000
+        assert stats["price_changes"] == 1
+
+    def test_price_increase_also_emits_price_change_event(self):
+        writer  = _make_writer()
+        listing = make_normalised(price_kobo=5_000_000_000)   # increased from 4.5B
+        active  = {("propertypro", "TEST001"): 4_500_000_000}
+
+        captured_events = []
+        writer._insert_new         = MagicMock()
+        writer._update_existing    = MagicMock()
+        writer._insert_history_events = lambda evts: captured_events.extend(evts)
+
+        stats = writer.upsert([listing], active)
+
+        price_changes = [e for e in captured_events if e.get("event_type") == "PRICE_CHANGE"]
+        assert len(price_changes) == 1
+        assert stats["price_changes"] == 1
+
+    def test_same_price_no_price_change_event(self):
+        writer  = _make_writer()
+        listing = make_normalised(price_kobo=4_500_000_000)
+        active  = {("propertypro", "TEST001"): 4_500_000_000}
+
+        captured_events = []
+        writer._insert_new         = MagicMock()
+        writer._update_existing    = MagicMock()
+        writer._insert_history_events = lambda evts: captured_events.extend(evts)
+
+        stats = writer.upsert([listing], active)
+
+        price_changes = [e for e in captured_events if e.get("event_type") == "PRICE_CHANGE"]
+        assert len(price_changes) == 0
+        assert stats["price_changes"] == 0
+
+    def test_null_price_no_price_change_event(self):
+        """Listings with unparseable price should not emit a PRICE_CHANGE event."""
+        writer  = _make_writer()
+        listing = make_normalised(price_kobo=None, price_parse_failed=True)
+        active  = {("propertypro", "TEST001"): 4_500_000_000}
+
+        captured_events = []
+        writer._insert_new         = MagicMock()
+        writer._update_existing    = MagicMock()
+        writer._insert_history_events = lambda evts: captured_events.extend(evts)
+
+        writer.upsert([listing], active)
+
+        price_changes = [e for e in captured_events if e.get("event_type") == "PRICE_CHANGE"]
+        assert len(price_changes) == 0
+
+
+# =============================================================================
+# Suspected sold evaluation
 # =============================================================================
 
 class TestSuspectedSold:
+    """
+    _evaluate_suspected_sold(listing_id, first_seen, now) → bool
 
-    def test_suspected_sold_requires_price_reduction_and_active_30d(self):
-        """
-        _evaluate_suspected_sold returns True only when:
-          - listing was active >= 30 days
-          - had at least one downward PRICE_CHANGE
-        """
+    Rules:
+      - Must be active >= SUSPECTED_SOLD_MIN_DAYS (30) days
+      - Must have at least one downward PRICE_CHANGE in history
+    """
+
+    def _writer_with_price_history(self, has_reduction: bool):
+        """Build a writer whose DB cursor reports presence/absence of a price reduction."""
         from scraper.db_writer import DatabaseWriter
         with patch("scraper.db_writer.psycopg2.connect") as mock_connect:
-            mock_conn = MagicMock()
+            mock_conn   = MagicMock()
             mock_cursor = MagicMock()
-            mock_cursor.fetchone.return_value = (1,)   # price reduction found
+            mock_cursor.fetchone.return_value = (1,) if has_reduction else None
             mock_conn.cursor.return_value.__enter__ = lambda s: mock_cursor
-            mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+            mock_conn.cursor.return_value.__exit__  = MagicMock(return_value=False)
             mock_connect.return_value = mock_conn
-
             writer = DatabaseWriter("postgresql://fake/db")
+            writer._conn = mock_conn
+        return writer
 
-            now        = datetime.now(timezone.utc)
-            first_seen = now - timedelta(days=75)
+    def test_returns_true_when_old_enough_and_price_reduced(self):
+        writer     = self._writer_with_price_history(has_reduction=True)
+        now        = datetime.now(timezone.utc)
+        first_seen = now - timedelta(days=45)
+        assert writer._evaluate_suspected_sold(listing_id=1, first_seen=first_seen, now=now) is True
 
-            result = writer._evaluate_suspected_sold(listing_id=1, first_seen=first_seen, now=now)
-            assert result is True
+    def test_returns_false_when_too_recent(self):
+        writer     = self._writer_with_price_history(has_reduction=True)
+        now        = datetime.now(timezone.utc)
+        first_seen = now - timedelta(days=10)   # only 10 days — below threshold
+        assert writer._evaluate_suspected_sold(listing_id=1, first_seen=first_seen, now=now) is False
 
-    def test_suspected_sold_false_when_too_recent(self):
-        """Listing active < 30 days → suspected_sold must be False regardless of price history."""
-        from scraper.db_writer import DatabaseWriter
-        with patch("scraper.db_writer.psycopg2.connect") as mock_connect:
-            mock_conn = MagicMock()
-            mock_cursor = MagicMock()
-            mock_cursor.fetchone.return_value = (1,)
-            mock_conn.cursor.return_value.__enter__ = lambda s: mock_cursor
-            mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
-            mock_connect.return_value = mock_conn
+    def test_returns_false_when_no_price_reduction(self):
+        writer     = self._writer_with_price_history(has_reduction=False)
+        now        = datetime.now(timezone.utc)
+        first_seen = now - timedelta(days=60)   # old enough, but no price drop
+        assert writer._evaluate_suspected_sold(listing_id=1, first_seen=first_seen, now=now) is False
 
-            writer = DatabaseWriter("postgresql://fake/db")
-
-            now        = datetime.now(timezone.utc)
-            first_seen = now - timedelta(days=10)   # too recent
-
-            result = writer._evaluate_suspected_sold(listing_id=1, first_seen=first_seen, now=now)
-            assert result is False
-
-    def test_suspected_sold_false_when_no_price_reduction(self):
-        """No downward price change in history → suspected_sold=False."""
-        from scraper.db_writer import DatabaseWriter
-        with patch("scraper.db_writer.psycopg2.connect") as mock_connect:
-            mock_conn = MagicMock()
-            mock_cursor = MagicMock()
-            mock_cursor.fetchone.return_value = None   # no price reduction found
-            mock_conn.cursor.return_value.__enter__ = lambda s: mock_cursor
-            mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
-            mock_connect.return_value = mock_conn
-
-            writer = DatabaseWriter("postgresql://fake/db")
-
-            now        = datetime.now(timezone.utc)
-            first_seen = now - timedelta(days=75)
-
-            result = writer._evaluate_suspected_sold(listing_id=1, first_seen=first_seen, now=now)
-            assert result is False
+    def test_exactly_at_threshold_qualifies(self):
+        writer     = self._writer_with_price_history(has_reduction=True)
+        now        = datetime.now(timezone.utc)
+        first_seen = now - timedelta(days=config.SUSPECTED_SOLD_MIN_DAYS)
+        assert writer._evaluate_suspected_sold(listing_id=1, first_seen=first_seen, now=now) is True
 
 
 # =============================================================================
-# Missed run / removal logic
+# Missed run / removal threshold
 # =============================================================================
 
-class TestMissedRunLogic:
+class TestMissedRunConfig:
+    """
+    These tests guard the config constants that control removal behaviour.
+    If someone accidentally changes MISSED_RUN_REMOVAL_THRESHOLD, a test fails
+    immediately rather than silently starting to remove listings too early/late.
+    """
 
-    def test_missed_3_runs_sets_removed(self):
-        """
-        After MISSED_RUN_REMOVAL_THRESHOLD consecutive misses, the listing
-        status should be set to REMOVED.
-        This tests the threshold constant from config.
-        """
+    def test_removal_threshold_is_3(self):
         assert config.MISSED_RUN_REMOVAL_THRESHOLD == 3
+
+    def test_suspected_sold_min_days_is_30(self):
+        assert config.SUSPECTED_SOLD_MIN_DAYS == 30
+
+    def test_pagination_stop_after_known_is_5(self):
+        assert config.PAGINATION_STOP_AFTER_KNOWN == 5
