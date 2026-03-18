@@ -99,6 +99,10 @@ def normalise(raw: RawListing) -> NormalisedListing:
     city                           = infer_city(raw.raw_address, raw.title)
     diaspora                       = is_diaspora_targeted(raw.description)
 
+    # property_type fallback: infer from title, and the description
+    if property_type is None:
+        property_type = normalise_property_type(raw.title) or normalise_property_type(raw.description)
+
     return NormalisedListing(
         external_id              = raw.external_id,
         source                   = raw.source,
