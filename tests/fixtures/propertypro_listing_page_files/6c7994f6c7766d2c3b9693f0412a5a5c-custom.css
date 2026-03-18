@@ -1,0 +1,1094 @@
+iframe html {
+    zoom: 1;
+}
+
+.top_strip {
+    display: none;
+}
+
+.dialog-ovelay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.50);
+    z-index: 999999
+}
+.dialog-ovelay .dialog {
+    width: 400px;
+    margin: 100px auto 0;
+    background-color: #fff;
+    box-shadow: 0 0 20px rgba(0,0,0,.2);
+    border-radius: 3px;
+    overflow: hidden
+}
+.dialog-ovelay .dialog header {
+    padding: 10px 8px;
+    background-color: #f6f7f9;
+    border-bottom: 1px solid #e5e5e5
+}
+.dialog-ovelay .dialog header h3 {
+    font-size: 14px;
+    margin: 0;
+    color: #555;
+    display: inline-block
+}
+.dialog-ovelay .dialog header .fa-close {
+    float: right;
+    color: #c4c5c7;
+    cursor: pointer;
+    transition: all .5s ease;
+    padding: 0 2px;
+    border-radius: 1px
+}
+.dialog-ovelay .dialog header .fa-close:hover {
+    color: #b9b9b9
+}
+.dialog-ovelay .dialog header .fa-close:active {
+    box-shadow: 0 0 5px #673AB7;
+    color: #a2a2a2
+}
+.dialog-ovelay .dialog .dialog-msg {
+    padding: 12px 10px
+}
+.dialog-ovelay .dialog .dialog-msg p{
+    margin: 0;
+    font-size: 15px;
+    color: #333
+}
+.dialog-ovelay .dialog footer {
+    border-top: 1px solid #e5e5e5;
+    padding: 8px 10px
+}
+.dialog-ovelay .dialog footer .controls {
+    direction: rtl
+}
+.dialog-ovelay .dialog footer .controls .button {
+    padding: 5px 15px;
+    border-radius: 3px
+}
+.dialog-ovelay .button {
+    cursor: pointer
+}
+.dialog-ovelay .button-default {
+    background-color: rgb(248, 248, 248);
+    border: 1px solid rgba(204, 204, 204, 0.5);
+    color: #5D5D5D;
+}
+.dialog-ovelay .button-danger {
+    background-color: #f44336;
+    border: 1px solid #d32f2f;
+    color: #f5f5f5
+}
+.dialog-ovelay button {
+    float: right;
+}
+.dialog-ovelay footer {
+    background: inherit;
+}
+.dialog-ovelay .controls {
+    overflow: hidden;
+}
+
+@media (max-width: 575px) {
+    .dialog-ovelay .dialog {
+        width: 300px;
+    }
+}
+
+.home-banner-area {
+    background-image: url(../img/bg/Desktop-Background.jpg);
+}
+
+.breadcrumb {
+    padding: 0;
+    margin-bottom: 0;
+    background-color: inherit;
+    border-radius: 0;
+}
+
+.breadcrumb a small{
+    font-size: inherit;
+    font-weight: inherit;
+}
+
+@media (max-width: 575px) {
+    .breadcrumb a {
+        font-size: 13px;
+        background-color: #fff;
+    }
+}
+
+.refine-btn button {
+    width: 100%;
+}
+
+.error {
+    border: 1px solid red !important;
+}
+
+.no-result-card-container {
+    width: 100%;
+    overflow: auto;
+    margin-bottom: 20px;
+}
+
+.no-result-card {
+    width: 48%;
+    float: left;
+    border: 1px solid #eaebec;
+    border-radius: 10px;
+    padding: 20px;
+    background: white;
+}
+
+.no-result-card p, .no-result-card i.fa-4x {
+    padding-bottom: 15px;
+}
+
+.no-result-card h2 {
+    font-weight: bold;
+}
+
+.no-result-card .btn-icon-right {
+    width: 260px;
+    display: inline-block;
+    background: #639;
+    text-align: center;
+    cursor: pointer;
+    margin-left: 8px;
+    color: #fff;
+    padding: 10px;
+    margin-top: 50px;
+    margin-bottom: 50px;
+}
+
+.no-result-card-container > div:first-child {
+    margin-right: 4%;
+}
+
+.btn-icon {
+    position: relative;
+}
+
+.btn-icon-right span {
+    margin-right: 12px;
+}
+
+@media(max-width: 768px) {
+    .no-result-card {
+        width: 100%;
+        float: none;
+    }
+    .no-result-card-container > div:first-child {
+        margin-right: 0;
+    }
+}
+
+.create-alert {
+    padding-top: 15px;
+    padding-bottom: 15px;
+}
+
+.create-alert span {
+    color: #639;
+}
+
+.create-alert span a {
+    color: #639 !important;
+}
+
+.hide {
+    display: none;
+}
+.has-error .help-block {
+    color: red;
+}
+.agent-banners {
+    width: 294px;
+    height: 119px;
+    background: #fff;
+}
+
+.agent-banners img {
+    height: 79px;
+    display: block;
+    margin: 19px auto;
+}
+
+.featured-property img {
+    width: 403px;
+    height: 332px;
+}
+.abuja-text h3 {
+    color: #ffffff;
+    font-size: 32px;
+    font-weight: 500;
+}
+
+.site-map-title a {
+    color: inherit;
+}
+
+.listings-title {
+    color: #000000;
+    font-size: 30px;
+    font-weight: 500;
+    margin-bottom: 15px;
+}
+
+@media(max-width: 768px) {
+    .listings-title {
+        font-size: 20px;
+    }
+}
+
+.extra-listings {
+    list-style-type: none;
+}
+.extra-listings li {
+    display: inline-block;
+}
+
+/*
+.listings-property .single-room-img {
+    padding: 0 30px 20px 30px;
+}
+.listings-property .single-room-img-a {
+    display: block;
+    width: 100%;
+    max-height: 250px;
+    overflow: hidden;
+}
+.listings-property .listings-img {
+    display: block;
+    width: 100%;
+}
+ */
+
+.listings-property .room-icons {
+    left: 34px
+}
+.listings-property .save-heart {
+    right: 34px
+}
+.listings-property-title {
+    font-size: 18px;
+}
+.listings-property-title2 {
+    margin: 20px 0 20px 30px;
+    font-size: 18px;
+    text-transform: capitalize;
+}
+@media (max-width: 575px) {
+    .listings-property-title2 {
+        display: none;
+    }
+    .listings-property .single-room-img {
+        padding-top: 20px;
+    }
+    .listings-property .save-heart {
+        top: 22px
+    }
+    .listings-property-title {
+        font-size: 15px;
+    }
+}
+@media (min-width: 991px) {
+    .listings-property .single-room-text {
+        padding-top: 0;
+        padding-left: 0;
+    }
+}
+.single-room-text h4 {
+    text-transform: capitalize;
+}
+/**/
+
+.listings-property .elite-icon img {
+    height: 31px;
+}
+
+.area-specialist .jane-doe-img {
+    width: 260px;
+}
+
+.area-specialist .jane-doe-img img {
+    max-width: 250px;
+    max-height: 250px;
+    display: block;
+    margin: 0 auto;
+}
+
+@media (max-width: 575px) {
+    .area-specialist .jane-doe-img {
+        width: 130px;
+    }
+
+    .area-specialist .jane-doe-img img {
+        max-width: 120px;
+        max-height: 120px;
+    }
+}
+
+.area-specialist .jane-doe-title-text img {
+    width: 177px;
+}
+
+.area-specialist .jane-title {
+    text-transform: capitalize;
+}
+
+
+.sponsored-listing {
+    -webkit-box-shadow: 10px 11px 15px #999;
+    box-shadow: 10px 11px 15px #999;
+    background: #f2f2f2;
+}
+
+
+.neighbourhood-top-left {
+    width: 49%;
+}
+
+.neighbourhood-top-right {
+    width: 49%;
+}
+
+@media (max-width: 737px) {
+    .neighbourhood-top-left {
+        width: auto;
+    }
+}
+@media (max-width: 737px) {
+    .neighbourhood-top-right {
+        /* width: calc(100% - 305px); */
+        width: auto;
+        padding-right: 15px;
+    }
+}
+
+.neighbourhood-top-right-left {
+    width: auto;
+}
+
+.pagination-area nav {
+    text-align: center;
+    display: inline-block;
+}
+
+.page-link {
+    text-decoration: none;
+    text-align: center;
+    display: inline-block;
+    min-width: 50px;
+    margin: 0 3px;
+    line-height: 50px;
+    height: 50px;
+    padding: 0;
+    background: #fff;
+    color: #676767;
+    font-size: 27px;
+    font-weight: 500;
+}
+
+@media (max-width: 575px) {
+    .page-link {
+        font-size: 16px;
+        width: 30px;
+        height: 35px;
+        line-height: 35px;
+        vertical-align: middle;
+        min-width: 0px;
+    }
+}
+
+.page-active {
+    background-color: #330066;
+    color: #fff;
+    display: inline-block;
+}
+
+.page-link:hover {
+    background-color: #330066;
+    color: #fff;
+}
+
+.property-slider {
+    position: relative;
+}
+
+.property-slider .upper-tag {
+    position: absolute;
+    top: 2px;
+    width: 100%;
+    text-align: center;
+    z-index: 1000;
+}
+
+.property-slider .disposed-tag {
+    display: inline-block;
+    width: auto;
+    margin: 0 auto;
+    padding: 5px 10px 5px 10px;
+    font-weight: bold;
+    border-radius: 5px;
+    background-color: #a30618;
+    color: #fff;
+    text-transform: uppercase;
+    font-size: 20px;
+}
+
+.result-img {
+    position: relative;
+}
+
+.result-img .disposed-tag {
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    padding: 5px 10px 5px 10px;
+    font-weight: bold;
+    border-radius: 5px;
+    background-color: #a30618;
+    color: #fff;
+    text-transform: uppercase;
+}
+
+.property-slider .slider-for .slider-img {
+    display: block;
+    margin: 0 auto;
+}
+@media (max-width: 575px) {
+    .property-slider .slider-for .slider-img {
+        max-height: 308px;
+    }
+}
+
+.property-slider .slider-nav .slider-nav-img {
+    height: 150px;
+    width: 100%;
+}
+.property-slider .slider-nav .slick-track {
+    margin: 0 auto;
+}
+
+
+.property-top h1 {
+    margin: 10px 0;
+    font-size: 20px;
+}
+
+@media (max-width: 737px) {
+    .property-top h1 {
+        font-size: 10px;
+        margin: 10px 10px;
+    }
+}
+
+.sim-img {
+    height: 288px;
+}
+
+.single-key-features li a {
+    color: inherit;
+}
+
+.surrounding-areas li a {
+    color: inherit;
+}
+
+.consulting-top .agent-logo img {
+    height: 100px
+}
+
+.vendors-page .single-service-icon img {
+    max-width: 184px;
+    max-height: 201px;
+    display: block;
+    margin: 0 auto;
+}
+
+@media (max-width: 737px) {
+    .vendors-page .single-service-icon img {
+        height: auto;
+    }
+}
+
+.vendors-page .slider-icon img {
+    width: 60px;
+    height: 60px;
+}
+
+.single-service-select .submit-button {
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: 500;
+    text-align: center;
+    display: inline-block;
+    background: #330066;
+    line-height: 50px;
+    width: 100%;
+    border: none;
+}
+
+.services-text h2 {
+    font-size: 20px;
+}
+
+@media (max-width: 1200px) {
+    .services-text h2 {
+        font-size: 20px;
+    }
+}
+
+.others-slide-text h3 {
+    font-size: 25px;
+}
+
+.others-slide-text h6 {
+    font-size: 15px;
+}
+
+@media (max-width: 575px) {
+    .others-slide-text h3 {
+        font-size: 15px;
+    }
+
+    .others-slide-text h6 {
+        font-size: 15px;
+    }
+}
+
+.slider-text h3 {
+    font-size: 15px !important;
+}
+
+.slider-text {
+    padding-left: 10px;
+}
+
+.graph-left {
+    overflow: hidden;
+}
+
+.single-graph h3 {
+    font-size: 25px;
+}
+
+.single-agent-rp-left .rp-left-icon {
+    width: 255px;
+    display: inline-block;
+}
+
+.single-agent-rp-left .rp-left-icon img {
+    max-width: 250px;
+    max-height: 200px;
+    display: block;
+    margin: 0 auto;
+}
+
+.morton-img img {
+    border-radius: 50%;
+    width: 185px;
+    height: 185px;
+    display: block;
+}
+
+.agent-feature-top a {
+    color: inherit;
+}
+
+.mobile-refine-search {
+    background: #FF7F7F;
+}
+
+.mobile-refine-search a {
+    color: #fff;
+}
+
+.fixed-services .single-service-block .call-footer {
+    background: #306;
+    color: #fff;
+    display: block;
+}
+
+.call-whatsapp {
+    font-size: 25px;
+    padding: 10px 12px;
+    display: block;
+}
+
+@media (max-width: 575px) {
+    .description-area .show-date {
+        font-size: 13px;
+    }
+}
+
+.contact-agent-title h6 {
+    color: #191919;
+    margin-bottom: 10px;
+}
+
+
+.banner-left-text h6 {
+    cursor: pointer;
+}
+
+.consulting-area .request-call  a {
+    font-size: 20px;
+}
+
+@media (max-width: 575px) {
+    .fixed-services .single-service-block span+span {
+        padding-left: 0px;
+    }
+}
+
+.single-service-text h2 {
+    font-size: 20px;
+}
+
+@media (max-width: 1199px) {
+    .single-service-text h2 {
+        font-size: 20px;
+    }
+}
+
+@media (max-width: 380px) {
+    .vendors-page .single-service-icon img {
+        width: inherit;
+    }
+
+    .single-servicepage .single-service-text h2 {
+        font-size: 15px;
+    }
+}
+
+.single-servicepage .single-service-block {
+    cursor: pointer;
+}
+
+@media (max-width: 991px) {
+    .single-home-btn.selection:last-child {
+        display: inline-block;
+    }
+
+    .shortlet-select {
+        display: none;
+    }
+}
+
+.contact_page, .terms-page, .unsubscribe-page, .sitemap-page {
+    margin-top: 150px;
+    margin-bottom: 200px;
+}
+
+.contact_title {
+    margin-bottom: 100px;
+}
+.contact_info {
+    padding: 50px;
+}
+.contact_form label {
+    margin-top: 20px;
+    display: block;
+    font-weight: bold;
+    font-size: 20px;
+}
+
+.terms-page .card-header a {
+    font-size: 20px;
+    color: #306;
+}
+
+.unsubscribe-page label {
+    font-weight: bold;
+    font-size: 20px;
+}
+
+.sitemap-page a {
+    font-size: 20px;
+    color: #306;
+    text-decoration: underline;
+}
+.sitemap-page ul {
+    list-style: none;
+}
+.sitemap-page li {
+    padding-right: 10px;
+    display: inline-block;
+}
+.sitemap-unit {
+    margin-top: 20px;
+    margin-bottom: 20px;
+}
+.sitemap-state {
+    margin-bottom: 50px;
+}
+
+
+@media (min-width: 585px) {
+    .property-sale-top-text p {
+        font-size: 13px;
+    }
+
+    .extra-listings a {
+        font-size: 18px;
+        margin: 7px 5px;
+        display: inline-block;
+    }
+
+    .single-room-text h4 {
+        margin-bottom: 10px;
+        font-size: 20px;
+        color: #000;
+    }
+
+    .listings-price {
+        font-size: 20px;
+    }
+
+    .duplex-view-text a {
+        font-size: 20px;
+    }
+
+    .duplex-text h6 {
+        font-size: 25px;
+        margin-top: 10px;
+        margin-bottom: 10px;
+        color: #000;
+    }
+}
+
+@media (max-width: 1200px) {
+    .single-room-text h4 {
+        font-size: 20px;
+        color: #000;
+    }
+}
+
+@media (max-width: 575px) {
+    .single-room-text h2 {
+        font-size: 15px !important;
+    }
+    .single-room-text h4 {
+        font-size: 14px;
+    }
+    .listings-property-title2 {
+        font-size: 13px;
+    }
+}
+
+.refine-title h1 {
+    font-size: 60px;
+    color: #ffffff;
+    font-weight: 500;
+}
+
+.refine-area .single-service-select select {
+    font-size: 20px
+}
+
+.desk-nav ul.navbar-menu li a {
+    font-size: 20px;
+}
+
+.home-banner-area .refine-area .single-service-select select {
+    font-size: 17px;
+}
+
+.refine-area .form-group input {
+    font-size: 17px;
+}
+
+.property-sale-top-text p {
+    font-size: 16px;
+    line-height: 20px;
+}
+
+.banner-left-text h1 {
+    color: #fff;
+    font-size: 35px;
+    font-weight: 500;
+}
+
+.single-service-block span+span b {
+    color: #fff;
+    background: #330066;
+    border-radius: 5px;
+    font-weight: normal;
+    font-size: 20px;
+    margin-left: 10px;
+    width: 170px;
+    text-align: center;
+    display: inline-block;
+    padding: 10px 0;
+}
+
+.contact-agent-gallery .call-hide span {
+    margin-top: 10px !important;
+}
+
+@media (max-width: 585px) {
+    .single-servicepage .contact-agent-inner {
+        max-width: 100%;
+    }
+
+    .single-service-block span + span {
+        padding-left: 0;
+    }
+
+    .contact-agent-inner .single-service-bottom p, .contact-agent-inner .single-service-bottom a {
+        text-align: center;
+    }
+
+    .contact-agent-inner .single-service-bottom p, .contact-agent-inner .single-service-bottom a {
+        height: 46px;
+    }
+
+    .single-service-block span+span b {
+        width: 128px;
+        font-size: 14px;
+    }
+
+    .call-show span+span {
+        font-size: 20px;
+    }
+}
+@media (max-width: 320px) {
+    .contact-agent-inner .icon-bg img {
+        display: none !important;
+    }
+}
+
+.similar-agents {
+    font-size: 20px;
+}
+
+.similar-agents a {
+    font-size: 20px;
+    display: inline-block;
+    color: #fff;
+    background: #330066;
+    border-radius: 5px;
+    font-weight: normal;
+    text-align: center;
+    padding: 10px 20px;
+}
+
+@media (max-width: 585px) {
+    .similar-agents {
+        font-size: 15px;
+        padding: 0 10px;
+    }
+
+    .similar-agents a {
+        font-size: 15px;
+    }
+
+}
+
+.call-sim img {
+    width: 25px;
+}
+
+.call-sim a {
+    font-size: 20px;
+    display: inline-block;
+    color: #fff;
+    background: #330066;
+    border-radius: 5px;
+    font-weight: normal;
+    text-align: center;
+    padding: 10px 20px;
+}
+
+@media (max-width: 585px) {
+    .call-sim img {
+        width: 20px;
+    }
+    .call-sim a {
+        font-size: 15px;
+        padding: 10px;
+    }
+}
+
+@media (max-width: 320px) {
+    .call-sim a {
+        font-size: 12px;
+        padding: 5px;
+    }
+}
+
+.call-sim-name {
+    text-transform: capitalize;
+}
+
+.safety-module ol {
+    padding-left: 25px;
+    font-size: 17px;
+    font-weight: normal;
+    line-height: 25px;
+    color: #464b4f;
+}
+
+.safety-module h4 {
+    font-size: 25px;
+    padding-left: 10px;
+    padding-bottom: 10px;
+}
+
+.sm-1 {
+    margin-bottom: 30px;
+}
+
+.sm-2 h4 {
+    text-align: center;
+}
+
+@media (max-width: 585px) {
+    .safety-module h4 {
+        font-size: 20px !important;
+    }
+    .safety-module ol {
+        font-size: 13px;
+        line-height: 20px;
+    }
+}
+
+.question-text {
+    font-size: 20px;
+}
+
+.question-ans {
+    font-size: 18px;
+    margin-bottom: 10px;
+}
+
+@media (max-width: 575px) {
+    .question-text {
+        font-size: 13px;
+    }
+    .question-ans {
+        font-size: 12px;
+    }
+}
+
+.extra-more {
+    color: #330066;
+    display: block;
+    margin-left: 5px;
+    text-decoration: underline;
+}
+
+@media (max-width: 575px) {
+    .extra-more {
+        margin-left: auto;
+    }
+}
+
+.extra-estates {
+    overflow: hidden;
+}
+
+.estate-less {
+    max-height: 90px;
+}
+
+.estate-properties {
+    margin-bottom: 30px;
+}
+
+.estate-properties ul {
+    list-style-type: none;
+}
+
+.estate-properties li {
+    display: inline-block;
+}
+
+.estate-properties li a {
+    color: #666666;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 15px;
+}
+
+@media (min-width: 585px) {
+    .estate-properties li a {
+        font-size: 18px;
+        display: inline-block;
+        margin: 7px 5px;
+    }
+}
+
+.safety-module2 {
+    overflow: hidden;
+    background-color: #d1ecf1;
+    border-color: #bee5eb;
+    color: #0c5460;
+}
+
+@media (max-width: 767px) {
+    .safety-module2 .report-text {
+        line-height: inherit;
+        padding-right: 20px;
+    }
+    .safety-module2 .report-text > a {
+        display: inline;
+    }
+}
+
+.description-text {
+    color: #000;
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 23px;
+    margin-bottom: 25px;
+    text-align: justify;
+}
+
+.description-text p {
+    margin-bottom: 10px;
+}
+
+@media (max-width: 380px) {
+    .description-text {
+        font-size: 13px;
+    }
+}
+@media (max-width: 575px) {
+    .description-text {
+        font-size: 14px;
+        margin-bottom: 10px;
+    }
+}
+
+.phone-icon {
+    float: right;
+    padding: 0 5px 5px 0;
+}
+.listings-property {
+    clear: both;
+}
+.property-table h2 {
+    font-size: 20px;
+}
+.graph-area h2 {
+    font-size: 27px;
+    margin-bottom: 10px;
+}
+.property-top h2 {
+    font-size: 20px;
+}
+
+.duplex-text h1 {
+    font-size: 27px;
+}
+@media (max-width: 767px) {
+    .duplex-text h1 {
+        font-size: 19px;
+    }
+}
