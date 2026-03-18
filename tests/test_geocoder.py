@@ -159,6 +159,7 @@ class TestErrorHandling:
         resp = MagicMock()
         resp.json.return_value    = []
         resp.raise_for_status.return_value = None
+        geo.session = MagicMock()
         geo.session.get.return_value = resp
 
         with patch("scraper.geocoder.time.sleep"):
@@ -170,6 +171,7 @@ class TestErrorHandling:
 
     def test_network_exception_handled_gracefully(self):
         geo = _geo()
+        geo.session = MagicMock()
         geo.session.get.side_effect = Exception("Connection refused")
 
         with patch("scraper.geocoder.time.sleep"):
