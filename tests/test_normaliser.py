@@ -41,7 +41,7 @@ class TestParsePrice:
         ("45 million",        4_500_000_000),
         ("45 million naira",  4_500_000_000),
         ("45000000",          4_500_000_000),   # plain naira int
-        ("4500000000",        4_500_000_000),   # already-kobo heuristic (>10B)
+        ("4500000000",        450_000_000_000), # plain naira int
         ("₦75,000,000/year",  7_500_000_000),   # PropertyPro rent format
         ("₦4,000,000per annum", 400_000_000),   # NPC format
     ])
@@ -64,10 +64,11 @@ class TestParsePrice:
         assert kobo == 240_000_000
 
     def test_dollar_price_parses_numerically(self):
-        # USD prices from PrivateProperty — we parse numerically, currency noted elsewhere
+        # USD prices from PrivateProperty — $ is not stripped, numeric regex finds 12_000_000
+        # treated as naira (below 10B threshold) → 12_000_000 × 100 = 1_200_000_000 kobo
         kobo, failed = parse_price("$12,000,000")
         assert failed is False
-        assert kobo == 1_200_000_000_000  # 12M × 100
+        assert kobo == 1_200_000_000  # 12M naira × 100 kobo
 
 
 # =============================================================================
@@ -271,7 +272,7 @@ class TestNormaliseEndToEnd:
         raw = make_raw(
             external_id       = "7NUGY",
             source            = "propertypro",
-            url               = "https://propertypro.ng/property/3-bed-flat-7NUGY",
+            url               = "https://propertypro.ng/property/3-bedroom-flat-apartment-for-rent-old-ikoyi-ikoyi-lagos-7NUGY",
             title             = "Newly Furnished 3 Bedroom Luxury Apartment",
             raw_price         = "₦75,000,000/year",
             raw_price_type    = "FOR_RENT",

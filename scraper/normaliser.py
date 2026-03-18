@@ -28,7 +28,7 @@ log = logging.getLogger(__name__)
 DIASPORA_PATTERNS = re.compile(
     r'\b(diaspora|dollar[\s-]denominated|forex\s+accepted|forex\s+payment\s+accepted|'
     r'payment\s+in\s+usd|suitable\s+for\s+returnees|diaspora[\s-]friendly|'
-    r'diaspora[\s-]targeted|expatriate|returning\s+nig(?:erian)?|'
+    r'diaspora[\s-]targeted|expatriates?|returning\s+nig(?:erian)?|'
     r'payment\s+in\s+foreign\s+currency|usd\s+payment)\b',
     re.IGNORECASE
 )
@@ -41,6 +41,7 @@ PROPERTY_TYPE_MAP = {
     "semi detached duplex":  "SEMI_DETACHED_DUPLEX",
     "terraced duplex":       "TERRACED_DUPLEX",
     "terraced bungalow":     "TERRACED_BUNGALOW",
+    "duplex":                "DETACHED_DUPLEX",
     "detached bungalow":     "DETACHED_BUNGALOW",
     "semi-detached bungalow":"SEMI_DETACHED_BUNGALOW",
     "flat / apartment":      "FLAT_APARTMENT",
@@ -67,7 +68,7 @@ PROPERTY_TYPE_MAP = {
 }
 
 # ── Price type normalisation ───────────────────────────────────────────────────
-RENT_KEYWORDS = re.compile(r'\b(rent|per\s+year|per\s+annum|p\.?a\.?|lease|to\s+let)\b', re.IGNORECASE)
+RENT_KEYWORDS = re.compile(r'\b(rent|per\s+year|\/year|per\s+annum|p\.?a\.?|lease|to\s+let)\b', re.IGNORECASE)
 SALE_KEYWORDS = re.compile(r'\b(sale|for\s+sale|outright|buy|purchase)\b', re.IGNORECASE)
 
 # ── City normalisation ─────────────────────────────────────────────────────────
@@ -157,8 +158,10 @@ def parse_price(raw: Optional[str]) -> Tuple[Optional[int], bool]:
         .strip()
     )
 
-    # "45M" / "45.5M"
-    if cleaned.upper().endswith("M"):
+    # "45M" / "45.5M" — only trigger when M is immediately after a digit
+    # Guards against "per annum" whose cleaned form ends with 'm'
+    upper = cleaned.upper()
+    if upper.endswith("M") and len(upper) >= 2 and upper[-2].isdigit():
         try:
             naira = float(cleaned[:-1]) * 1_000_000
             return int(naira * 100), False
@@ -181,14 +184,11 @@ def parse_price(raw: Optional[str]) -> Tuple[Optional[int], bool]:
         except ValueError:
             return None, True
 
-    # Plain numeric — could be naira or kobo
-    # Heuristic: if > 10_000_000_000 naira (₦10B), assume it's already in kobo
+    # Plain numeric — treat as naira unconditionally
     numeric_match = re.search(r'[\d.]+', cleaned)
     if numeric_match:
         try:
             value = float(numeric_match.group())
-            if value > 10_000_000_000:
-                return int(value), False     # already in kobo
             return int(value * 100), False   # naira → kobo
         except ValueError:
             return None, True
@@ -243,8 +243,13 @@ def parse_price_type(raw_type: Optional[str],
                      description: Optional[str]) -> Optional[str]:
     """
     Classify as FOR_SALE or FOR_RENT.
-    Checks raw_type first, then title, then description.
+    Checks raw_type first as a direct value, then falls back to keyword
+    scanning across raw_type, title, and description.
     """
+    # Direct value — parsers that already know the type pass it explicitly
+    if raw_type in ("FOR_SALE", "FOR_RENT"):
+        return raw_type
+
     combined = " ".join(filter(None, [raw_type, title, description]))
     if RENT_KEYWORDS.search(combined):
         return "FOR_RENT"
