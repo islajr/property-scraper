@@ -24,25 +24,29 @@ from scraper.parsers.base_parser import BaseParser
 log = logging.getLogger(__name__)
 
 # ── Selector constants — update these when portal HTML changes ─────────────────
-LISTING_CARD_SELECTOR   = "div.single-room-info.listing"
-LISTING_LINK_SELECTOR   = "a.single-room-info--image"          # href on the card
-PRICE_SELECTOR          = "h3.price-name"
-BEDROOMS_SELECTOR       = "span[data-tooltip='Bedrooms'] strong"
-BATHROOMS_SELECTOR      = "span[data-tooltip='Bathrooms'] strong"
-FLOOR_AREA_SELECTOR     = "span[data-tooltip='Size'] strong"
-ADDRESS_SELECTOR        = "h4.listings-property--address"
-TITLE_SELECTOR          = "h3.listings-property--title a"
-DESCRIPTION_SELECTOR    = "div.listings-property-text--description"
-PROPERTY_TYPE_SELECTOR  = "div.fur-areea span.fur-areea-bed:first-child"
-AGENT_NAME_SELECTOR     = "div.agent-name"
-EXTERNAL_ID_PATTERN     = re.compile(r'/property/[a-z0-9-]+-(\d+)', re.IGNORECASE)
+LISTING_CARD_SELECTOR   = ".pl-title"
+# LISTING_LINK_SELECTOR   = "a.single-room-info--image"
+PRICE_CURRENCY_SELECTOR = ".property-pricing>.pricing>h2>strong"
+PRICE_SELECTOR          = ".property-pricing>.pricing>h2>strong"
+BEDROOMS_SELECTOR       = ".property-contact-block>.property-pros ul li"
+BATHROOMS_SELECTOR      = ".property-contact-block>.property-pros ul li"
+FLOOR_AREA_SELECTOR     = "span[data-tooltip='Size'] strong"    # None
+ADDRESS_SELECTOR        = ".content-block>p"
+TITLE_SELECTOR          = "h1.page-heading"
+DESCRIPTION_SELECTOR    = ".des-inner"
+# PROPERTY_TYPE_SELECTOR  = TITLE_SELECTOR    # gotten from title
+AGENT_NAME_SELECTOR     = "#sidebar .flex-grow-1>a>h4"
+EXTERNAL_ID_PATTERN     = re.compile(r'/property/[^?#]+-([A-Za-z0-9]{4,10})(?:[?#/]|$)', re.IGNORECASE)
 NEXT_PAGE_SELECTOR      = "a.next.page-numbers"
 
 
 class PropertyProParser(BaseParser):
     source      = "propertypro"
-    base_url    = "https://www.propertypro.ng"
-    search_url  = "https://www.propertypro.ng/property-for-sale?per_page=24"
+    base_url    = "https://propertypro.ng"
+    search_urls  = [
+        "https://propertypro.ng/property-for-sale",
+        "https://propertypro.ng/property-for-rent"
+    ]
 
     def get_listing_urls(self, page_soup: BeautifulSoup) -> List[str]:
         urls = []
@@ -61,34 +65,38 @@ class PropertyProParser(BaseParser):
             log.warning("[propertypro] Could not extract external_id from: %s", url)
             return None
 
-        title        = _text(soup, TITLE_SELECTOR)
-        raw_price    = _text(soup, PRICE_SELECTOR)
-        raw_bedrooms = _text(soup, BEDROOMS_SELECTOR)
-        raw_bathrooms= _text(soup, BATHROOMS_SELECTOR)
-        raw_floor    = _text(soup, FLOOR_AREA_SELECTOR)
-        raw_address  = _text(soup, ADDRESS_SELECTOR)
-        description  = _text(soup, DESCRIPTION_SELECTOR)
-        prop_type    = _text(soup, PROPERTY_TYPE_SELECTOR)
-        agent        = _text(soup, AGENT_NAME_SELECTOR)
+        title           = _text(soup, TITLE_SELECTOR)
+        price_currency  = second_text(soup, PRICE_CURRENCY_SELECTOR)
+        raw_price       = _text(soup, PRICE_SELECTOR)
+        raw_bedrooms    = _text(soup, BEDROOMS_SELECTOR)
+        raw_bathrooms   = _text(soup, BATHROOMS_SELECTOR)
+        raw_floor       = _text(soup, FLOOR_AREA_SELECTOR)
+        raw_address     = _text(soup, ADDRESS_SELECTOR)
+        description     = _text(soup, DESCRIPTION_SELECTOR)
+        # prop_type       = _text(soup, PROPERTY_TYPE_SELECTOR)
+        agent           = _text(soup, AGENT_NAME_SELECTOR)
 
         # Price type — PropertyPro encodes in the search URL / breadcrumb
-        raw_price_type = "FOR_SALE"  # default; override if rental signals present
-        if raw_price and "per year" in raw_price.lower():
+        if "for-sale" in url:
+            raw_price_type = "FOR_SALE"
+        elif "for-rent" in url:
             raw_price_type = "FOR_RENT"
+        else:
+            raw_price_type = None
 
         return RawListing(
             external_id       = ext_id,
             source            = self.source,
             url               = url,
-            title             = title or "",
-            raw_price         = raw_price,
+            title             = title,
+            raw_price         = price_currency + raw_price,
             raw_price_type    = raw_price_type,
             raw_bedrooms      = raw_bedrooms,
             raw_bathrooms     = raw_bathrooms,
             raw_address       = raw_address,
             raw_floor_area    = raw_floor,
             description       = description,
-            property_type_raw = prop_type,
+            property_type_raw = None,
             agent_name        = agent,
         )
 
@@ -96,7 +104,7 @@ class PropertyProParser(BaseParser):
         # PropertyPro uses ?page=N pagination
         if page_number > 50:   # safety cap
             return None
-        return f"{self.search_url}&page={page_number}"
+        return f"{base_search_url}&page={page_number}"
 
     def _extract_external_id(self, url: str) -> Optional[str]:
         m = EXTERNAL_ID_PATTERN.search(url)
@@ -106,4 +114,9 @@ class PropertyProParser(BaseParser):
 def _text(soup: BeautifulSoup, selector: str) -> Optional[str]:
     """Select first matching element and return stripped text, or None."""
     el = soup.select_one(selector)
+    return el.get_text(strip=True) if el else None
+
+def second_text(soup: BeautifulSoup, selector: str) -> Optional[str]:
+    """Select second matching element and return stripped text, or None"""
+    el = soup.select_one(selector + ":nth-of-type(2)")
     return el.get_text(strip=True) if el else None
