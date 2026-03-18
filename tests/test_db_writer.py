@@ -82,8 +82,8 @@ class TestUpsertRouting:
 
         inserts = []
         updates = []
-        writer._insert_new         = MagicMock(side_effect=lambda l: inserts.append(l))
-        writer._update_existing    = MagicMock(side_effect=lambda l, p: updates.append(l))
+        writer._insert_new         = MagicMock(side_effect=lambda cur, l, now: inserts.append(l))
+        writer._update_existing    = MagicMock(side_effect=lambda cur, l, now: updates.append(l))
         writer._insert_history_events = MagicMock()
 
         stats = writer.upsert([new_one, existing], active)
