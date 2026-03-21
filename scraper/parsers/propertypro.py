@@ -75,6 +75,11 @@ class PropertyProParser(BaseParser):
         description     = _text(soup, DESCRIPTION_SELECTOR)
         # prop_type       = _text(soup, PROPERTY_TYPE_SELECTOR)
         agent           = _text(soup, AGENT_NAME_SELECTOR)
+        
+        # Pre-check for possible null page through marked signs like null prices and currencies
+        if raw_price == None or price_currency == None:
+            log.warning("[%s] Null Listing: %s. Skipping", self.source, url)    # null listing
+            return
 
         # Price type — PropertyPro encodes in the search URL / breadcrumb
         if "for-sale" in url:
