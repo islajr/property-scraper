@@ -33,7 +33,7 @@ BATHROOMS_SELECTOR      = ".property-contact-block>.property-pros ul li"
 FLOOR_AREA_SELECTOR     = "span[data-tooltip='Size'] strong"    # None
 ADDRESS_SELECTOR        = ".content-block>p"
 TITLE_SELECTOR          = "h1.page-heading"
-DESCRIPTION_SELECTOR    = ".des-inner"
+DESCRIPTION_SELECTOR    = ".content-block>.line-paragraph"
 # PROPERTY_TYPE_SELECTOR  = TITLE_SELECTOR    # gotten from title
 AGENT_NAME_SELECTOR     = "#sidebar .flex-grow-1>a>h4"
 EXTERNAL_ID_PATTERN     = re.compile(r'/property/[^?#]+-([A-Za-z0-9]{4,10})(?:[?#/]|$)', re.IGNORECASE)

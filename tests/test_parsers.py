@@ -55,6 +55,10 @@ class TestPropertyProParser:
     def test_title(self):
         assert "3 Bedroom" in self.result.title
         assert "Luxury" in self.result.title
+        
+    def test_description(self):
+        assert self.result.description != None
+        assert "Newly furnished 3 Bedroom Apartment" in self.result.description 
 
     def test_price_raw(self):
         # Fixture: ₦75,000,000/year — must be present and contain the amount
