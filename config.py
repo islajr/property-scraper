@@ -62,7 +62,8 @@ CANONICAL_NEIGHBOURHOODS = [
     "Satellite Town", "Ojodu Berger", "Omole Phase 1", "Omole Phase 2",
     "Isheri North", "Berger", "Ogba", "Ikeja", "Allen Avenue",
     "Agidingbi", "Oregun", "Ogudu", "Ketu", "Alapere",
-    "Agboville", "Bariga", "Akoka", "Abule Ijesha",
+    "Agboville", "Bariga", "Akoka", "Abule Ijesha", "Agege", "Alimosho", "Ikota", 
+    "Ojo", "Orchid", "VGC", "Isolo"
     # Abuja
     "Maitama", "Asokoro", "Wuse 2", "Wuse", "Garki",
     "Jabi", "Utako", "Gwarinpa", "Apo", "Lugbe",
@@ -70,6 +71,9 @@ CANONICAL_NEIGHBOURHOODS = [
     "Life Camp", "Kubwa", "Dutse", "Mpape", "Lokogoma",
     "Galadimawa", "Durumi", "Gudu", "Wumba", "Kado",
     "Dawaki", "Guzape", "Mabushi", "Aminu Kano Crescent",
+    # Ibadan
+    "Ring Road", "Dugbe", "Felele", "Ibadan", "Akala", "Oluyole", 
+    "Jericho", "Sango", ""
     # Port Harcourt / others
     "GRA Port Harcourt", "Trans Amadi", "Rumuola", "Rumuigbo",
     "Eliozu", "Rumuokoro", "Enugu GRA", "Independence Layout",
