@@ -19,29 +19,36 @@ from scraper.parsers.base_parser import BaseParser
 log = logging.getLogger(__name__)
 
 # ── Selector constants ─────────────────────────────────────────────────────────
-LISTING_CARD_SELECTOR   = "article.property-listing"
-PRICE_SELECTOR          = "strong.price"
-BEDROOMS_SELECTOR       = "li.bedrooms"
-BATHROOMS_SELECTOR      = "li.bathrooms"
-FLOOR_AREA_SELECTOR     = "li.size"
-ADDRESS_SELECTOR        = "address.property-address"
-TITLE_SELECTOR          = "h2.listing-name a"
-DESCRIPTION_SELECTOR    = "div.property-description"
-PROPERTY_TYPE_SELECTOR  = "span.property-type"
-AGENT_NAME_SELECTOR     = "span.agent-name"
+LISTING_CARD_SELECTOR   = ".wp-block-title"
+PRICE_CURRENCY_SELECTOR = ".property-details-price span[itemprop='priceCurrency']"
+PRICE_SELECTOR          = ".property-details-price span[itemprop='price']"
+BEDROOMS_SELECTOR_VAL   = ".fa-bed+span"
+BEDROOMS_SELECTOR_NAME  = ".fa-bed+span"
+BATHROOMS_SELECTOR_VAL  = "i.fa-bath+span[itemprop='value']"
+BATHROOMS_SELECTOR_NAME = "i.fa-bath+span[itemprop='name']"
+FLOOR_AREA_SELECTOR_VAL = "i.fa-square+span[itemprop='value']"
+FLOOR_AREA_SELECTOR_UNIT= "i.fa-square+span[itemprop='unitText']"
+ADDRESS_SELECTOR        = ".property-details>address"
+TITLE_SELECTOR          = ".property-details>h4"
+DESCRIPTION_SELECTOR    = "p[itemprop='description']"
+PROPERTY_TYPE_SELECTOR  = "span.property-type"  # Not Found
+AGENT_NAME_SELECTOR     = ".disclaimer .voffset-bottom-0>strong"
 PRICE_TYPE_SELECTOR     = "span.listing-type"
-EXTERNAL_ID_PATTERN     = re.compile(r'-(\d{5,})(?:\.html)?(?:[/?#]|$)')
+EXTERNAL_ID_PATTERN    = re.compile(r'/(\d{5,})(?:-[a-z0-9-]+)?(?:\.html)?$', re.IGNORECASE)
 
 
 class NigeriaPropertyCentreParser(BaseParser):
-    source     = "nigeriapropertycentre"
-    base_url   = "https://nigeriapropertycentre.com"
-    search_url = "https://nigeriapropertycentre.com/for-sale"
+    source      = "nigeriapropertycentre"
+    base_url    = "https://nigeriapropertycentre.com"
+    search_urls = [
+        "https://nigeriapropertycentre.com/for-sale", 
+        "https://nigeriapropertycentre.com/for-rent"
+    ]
 
     def get_listing_urls(self, page_soup: BeautifulSoup) -> List[str]:
         urls = []
         for article in page_soup.select(LISTING_CARD_SELECTOR):
-            link = article.find("a", href=True)
+            link = article.select_one("a[href]")
             if link:
                 href = link["href"]
                 if not href.startswith("http"):
@@ -53,30 +60,43 @@ class NigeriaPropertyCentreParser(BaseParser):
         ext_id = self._extract_external_id(url)
         if not ext_id:
             log.warning("[nigeriapropertycentre] Could not extract external_id from: %s", url)
-            return None
+            # return None
 
-        title          = _text(soup, TITLE_SELECTOR)
-        raw_price      = _text(soup, PRICE_SELECTOR)
-        raw_price_type = _text(soup, PRICE_TYPE_SELECTOR)
-        raw_bedrooms   = _text(soup, BEDROOMS_SELECTOR)
-        raw_bathrooms  = _text(soup, BATHROOMS_SELECTOR)
-        raw_floor      = _text(soup, FLOOR_AREA_SELECTOR)
-        raw_address    = _text(soup, ADDRESS_SELECTOR)
-        description    = _text(soup, DESCRIPTION_SELECTOR)
-        prop_type      = _text(soup, PROPERTY_TYPE_SELECTOR)
-        agent          = _text(soup, AGENT_NAME_SELECTOR)
+        title               = _text(soup, TITLE_SELECTOR)
+        raw_price_currency  = _text(soup, PRICE_CURRENCY_SELECTOR)
+        raw_price           = _text(soup, PRICE_SELECTOR)
+        # raw_price_type      = _text(soup, PRICE_TYPE_SELECTOR)
+        raw_bedrooms_val    = _text(soup, BEDROOMS_SELECTOR_VAL)
+        raw_bedrooms_name   = next_sibling_text(soup, BEDROOMS_SELECTOR_VAL)
+        raw_bathrooms_val   = _text(soup, BATHROOMS_SELECTOR_VAL)
+        raw_bathrooms_name  = next_sibling_text(soup, BATHROOMS_SELECTOR_VAL)
+        raw_floor_val       = _text(soup, FLOOR_AREA_SELECTOR_VAL)
+        raw_floor_unit      = _text(soup, FLOOR_AREA_SELECTOR_UNIT)
+        raw_address         = _text(soup, ADDRESS_SELECTOR)
+        description         = _text(soup, DESCRIPTION_SELECTOR)
+        prop_type           = _text(soup, PROPERTY_TYPE_SELECTOR)
+        agent               = _text(soup, AGENT_NAME_SELECTOR)
+        
+
+        # Price type — NigeriaPropertyCentre encodes in the search URL / breadcrumb
+        if "for-sale" in url:
+            raw_price_type = "FOR_SALE"
+        elif "for-rent" in url:
+            raw_price_type = "FOR_RENT"
+        else:
+            raw_price_type = None
 
         return RawListing(
             external_id       = ext_id,
             source            = self.source,
             url               = url,
             title             = title or "",
-            raw_price         = raw_price,
+            raw_price         = raw_price_currency + raw_price,
             raw_price_type    = raw_price_type,
-            raw_bedrooms      = raw_bedrooms,
-            raw_bathrooms     = raw_bathrooms,
+            raw_bedrooms      = raw_bedrooms_val + raw_bedrooms_name,
+            raw_bathrooms     = raw_bathrooms_val + raw_bathrooms_name,
             raw_address       = raw_address,
-            raw_floor_area    = raw_floor,
+            raw_floor_area    = None if raw_floor_val is None else raw_floor_val + raw_floor_unit,
             description       = description,
             property_type_raw = prop_type,
             agent_name        = agent,
@@ -85,14 +105,19 @@ class NigeriaPropertyCentreParser(BaseParser):
     def next_page_url(self, base_search_url: str, page_number: int) -> Optional[str]:
         if page_number > 50:
             return None
-        # NPC uses /page-N/ suffix pattern
-        return f"{self.search_url}/page-{page_number}"
+        # NPC uses ?page=N pagination
+        return f"{base_search_url}?page={page_number}"
 
     def _extract_external_id(self, url: str) -> Optional[str]:
-        m = EXTERNAL_ID_PATTERN.search(url)
+        m = EXTERNAL_ID_PATTERN.search(url.rstrip("/"))
         return m.group(1) if m else None
 
 
 def _text(soup: BeautifulSoup, selector: str) -> Optional[str]:
     el = soup.select_one(selector)
+    return el.get_text(strip=True) if el else None
+
+def next_sibling_text(soup: BeautifulSoup, selector: str) -> Optional[str]:
+    """ Finds the next sibling of the provided element and returns the embedded text as a str, or None """
+    el = soup.select_one(selector).find_next_sibling()
     return el.get_text(strip=True) if el else None
