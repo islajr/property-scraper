@@ -36,7 +36,7 @@ class BaseParser(ABC):
     # Subclasses must define these
     source: str          # 'propertypro' | 'privateproperty' | etc.
     base_url: str        # portal root URL e.g. "https://propertypro.ng"
-    search_url: str      # starting search results URL
+    search_urls: List[str]  # override in subclass — one entry per search type (sale, rent, etc.)
 
     HEADERS = {
         "User-Agent": (
@@ -81,64 +81,72 @@ class BaseParser(ABC):
 
     def scrape(self) -> List[RawListing]:
         """
-        Paginate through search results and parse each listing.
-        Stops pagination after encountering PAGINATION_STOP_AFTER_KNOWN
-        consecutive listings already present in active_listings.
+        Paginate through all search_urls (sale + rent) and parse each listing.
+
+        Each URL in search_urls is scraped independently, with its own
+        page counter and consecutive-known tracker. This means the
+        PAGINATION_STOP_AFTER_KNOWN early-exit applies per search type,
+        not across both — so a fully-cached sale feed doesn't prevent
+        the rent feed from running.
         """
         results: List[RawListing] = []
-        consecutive_known = 0
-        page_number = 1
 
-        current_url = self.search_url
+        for base_search_url in self.search_urls:
+            log.info("[%s] Starting search feed: %s", self.source, base_search_url)
+            consecutive_known = 0
+            page_number = 1
+            current_url = base_search_url
 
-        while current_url:
-            log.info("[%s] Fetching page %d: %s", self.source, page_number, current_url)
-            page_html = self._get(current_url)
-            if not page_html:
-                log.warning("[%s] Empty response on page %d — stopping", self.source, page_number)
-                break
+            while current_url:
+                log.info("[%s] Fetching page %d: %s", self.source, page_number, current_url)
+                page_html = self._get(current_url)
+                if not page_html:
+                    log.warning("[%s] Empty response on page %d — stopping", self.source, page_number)
+                    break
 
-            page_soup = BeautifulSoup(page_html, "html.parser")
-            listing_urls = self.get_listing_urls(page_soup)
+                page_soup = BeautifulSoup(page_html, "html.parser")
+                listing_urls = self.get_listing_urls(page_soup)
 
-            if not listing_urls:
-                log.info("[%s] No listings found on page %d — end of results", self.source, page_number)
-                break
+                if not listing_urls:
+                    log.info("[%s] No listings found on page %d — end of results", self.source, page_number)
+                    break
 
-            for url in listing_urls:
-                ext_id = self._extract_external_id(url)
-                if ext_id and (self.source, ext_id) in self.active_listings:
-                    consecutive_known += 1
-                    log.debug("[%s] Known listing: %s (consecutive: %d)",
-                              self.source, ext_id, consecutive_known)
-                    if consecutive_known >= config.PAGINATION_STOP_AFTER_KNOWN:
-                        log.info("[%s] Hit %d consecutive known listings — stopping pagination",
-                                 self.source, consecutive_known)
-                        return results
-                    continue
-                else:
-                    consecutive_known = 0
+                for url in listing_urls:
+                    ext_id = self._extract_external_id(url)
+                    if ext_id and (self.source, ext_id) in self.active_listings:
+                        consecutive_known += 1
+                        log.debug("[%s] Known listing: %s (consecutive: %d)",
+                                  self.source, ext_id, consecutive_known)
+                        if consecutive_known >= config.PAGINATION_STOP_AFTER_KNOWN:
+                            log.info("[%s] Hit %d consecutive known — stopping this feed",
+                                     self.source, consecutive_known)
+                            current_url = None   # break the while loop
+                            break
+                        continue
+                    else:
+                        consecutive_known = 0
 
-                self._polite_delay()
-                if not self._robots_allowed(url):
-                    log.warning("[%s] robots.txt disallows: %s", self.source, url)
-                    continue
+                    self._polite_delay()
+                    if not self._robots_allowed(url):
+                        log.warning("[%s] robots.txt disallows: %s", self.source, url)
+                        continue
 
-                html = self._get(url)
-                if not html:
-                    continue
+                    html = self._get(url)
+                    if not html:
+                        continue
 
-                soup = BeautifulSoup(html, "html.parser")
-                try:
-                    listing = self.parse_listing(soup, url)
-                    if listing:
-                        results.append(listing)
-                except Exception as exc:
-                    log.error("[%s] Parse error for %s: %s", self.source, url, exc, exc_info=True)
+                    soup = BeautifulSoup(html, "html.parser")
+                    try:
+                        listing = self.parse_listing(soup, url)
+                        if listing:
+                            results.append(listing)
+                    except Exception as exc:    # null listing page
+                        log.error("[%s] Parse error for %s: %s", self.source, url, exc, exc_info=True)
 
-            page_number += 1
-            current_url = self.next_page_url(self.search_url, page_number)
-            self._polite_delay()
+                if current_url is not None:
+                    page_number += 1
+                    current_url = self.next_page_url(base_search_url, page_number)
+                    self._polite_delay()
 
         log.info("[%s] Scrape complete: %d listings collected", self.source, len(results))
         return results
