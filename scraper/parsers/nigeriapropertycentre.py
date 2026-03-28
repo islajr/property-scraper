@@ -68,16 +68,21 @@ class NigeriaPropertyCentreParser(BaseParser):
         raw_price           = _text(soup, PRICE_SELECTOR)
         # raw_price_type      = _text(soup, PRICE_TYPE_SELECTOR)
         raw_bedrooms_val    = _text(soup, BEDROOMS_SELECTOR_VAL)
-        raw_bedrooms_name   = next_sibling_text(soup, BEDROOMS_SELECTOR_VAL)
+        raw_bedrooms_name   = next_sibling_text(soup, BEDROOMS_SELECTOR_VAL) if raw_bedrooms_val is not None else None
         raw_bathrooms_val   = _text(soup, BATHROOMS_SELECTOR_VAL)
-        raw_bathrooms_name  = next_sibling_text(soup, BATHROOMS_SELECTOR_VAL)
-        raw_floor_val       = _text(soup, FLOOR_AREA_SELECTOR_VAL)
-        raw_floor_unit      = _text(soup, FLOOR_AREA_SELECTOR_UNIT)
+        raw_bathrooms_name  = next_sibling_text(soup, BATHROOMS_SELECTOR_VAL) if raw_bathrooms_val is not None else None
+        # raw_floor_val       = _text(soup, FLOOR_AREA_SELECTOR_VAL)
+        # raw_floor_unit      = _text(soup, FLOOR_AREA_SELECTOR_UNIT)
         raw_address         = _text(soup, ADDRESS_SELECTOR)
         description         = _text(soup, DESCRIPTION_SELECTOR)
         prop_type           = _text(soup, PROPERTY_TYPE_SELECTOR)
         agent               = _text(soup, AGENT_NAME_SELECTOR)
         
+
+         # Pre-check for possible null page through marked signs like null prices and currencies
+        if raw_price == None or raw_price_currency == None:
+            log.warning("[%s] Null/Unwanted Listing: %s. Skipping", self.source, url)    # null listing
+            return
 
         # Price type — NigeriaPropertyCentre encodes in the search URL / breadcrumb
         if "for-sale" in url:
@@ -96,17 +101,17 @@ class NigeriaPropertyCentreParser(BaseParser):
             title             = title or "",
             raw_price         = raw_price_currency + raw_price,
             raw_price_type    = raw_price_type,
-            raw_bedrooms      = raw_bedrooms_val + raw_bedrooms_name,
-            raw_bathrooms     = raw_bathrooms_val + raw_bathrooms_name,
+            raw_bedrooms      = raw_bedrooms_val + raw_bedrooms_name if raw_bedrooms_name is not None else None,
+            raw_bathrooms     = raw_bathrooms_val + raw_bathrooms_name if raw_bathrooms_name is not None else None,
             raw_address       = raw_address,
-            raw_floor_area    = None if raw_floor_val is None else raw_floor_val + raw_floor_unit,
+            raw_floor_area    = None,
             description       = description,
             property_type_raw = prop_type,
             agent_name        = agent,
         )
 
     def next_page_url(self, base_search_url: str, page_number: int) -> Optional[str]:
-        if page_number > 50:
+        if page_number > 5:
             return None
         # NPC uses ?page=N pagination
         return f"{base_search_url}?page={page_number}"
