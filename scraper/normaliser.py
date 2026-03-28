@@ -251,7 +251,7 @@ def parse_price_type(raw_type: Optional[str],
     scanning across raw_type, title, and description.
     """
     # Direct value — parsers that already know the type pass it explicitly
-    if raw_type in ("FOR_SALE", "FOR_RENT"):
+    if raw_type in ("FOR_SALE", "FOR_RENT", "FOR_SHORT_LET"):
         return raw_type
 
     combined = " ".join(filter(None, [raw_type, title, description]))

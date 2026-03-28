@@ -39,7 +39,8 @@ class PrivatePropertyParser(BaseParser):
     base_url   = "https://privateproperty.ng"
     search_urls = [
         "https://privateproperty.ng/property-for-sale?sort=postedOn&order=desc", 
-        "https://privateproperty.ng/property-for-rent?sort=postedOn&order=desc"
+        "https://privateproperty.ng/property-for-rent?sort=postedOn&order=desc", 
+        "https://privateproperty.ng/short-let?sort=postedOn&order=desc"
     ]
 
     def get_listing_urls(self, page_soup: BeautifulSoup) -> List[str]:
@@ -76,6 +77,8 @@ class PrivatePropertyParser(BaseParser):
             raw_price_type = "FOR_SALE"
         elif "for-rent" in url:
             raw_price_type = "FOR_RENT"
+        elif "short-let" in url:
+            raw_price_type = "FOR_SHORT_LET"
         else:
             raw_price_type = None
 

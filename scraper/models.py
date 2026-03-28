@@ -24,7 +24,7 @@ class RawListing:
     url:               str            # full listing URL
     title:             str            # raw listing title
     raw_price:         Optional[str]  # e.g. "₦45,000,000" / "45M" / "45 million naira" / None
-    raw_price_type:    Optional[str]  # e.g. "For Sale" / "For Rent" / None
+    raw_price_type:    Optional[str]  # e.g. "For Sale" / "For Rent" / "For Short Let" / None
     raw_bedrooms:      Optional[str]  # e.g. "3 Bedrooms" / "3 bed" / None
     raw_bathrooms:     Optional[str]  # e.g. "2 Bathrooms" / None
     raw_address:       Optional[str]  # full address string as listed

@@ -42,7 +42,8 @@ class NigeriaPropertyCentreParser(BaseParser):
     base_url    = "https://nigeriapropertycentre.com"
     search_urls = [
         "https://nigeriapropertycentre.com/for-sale", 
-        "https://nigeriapropertycentre.com/for-rent"
+        "https://nigeriapropertycentre.com/for-rent", 
+        "https://nigeriapropertycentre.com/for-rent/short-let"
     ]
 
     def get_listing_urls(self, page_soup: BeautifulSoup) -> List[str]:
@@ -60,7 +61,7 @@ class NigeriaPropertyCentreParser(BaseParser):
         ext_id = self._extract_external_id(url)
         if not ext_id:
             log.warning("[nigeriapropertycentre] Could not extract external_id from: %s", url)
-            # return None
+            return None
 
         title               = _text(soup, TITLE_SELECTOR)
         raw_price_currency  = _text(soup, PRICE_CURRENCY_SELECTOR)
@@ -81,6 +82,8 @@ class NigeriaPropertyCentreParser(BaseParser):
         # Price type — NigeriaPropertyCentre encodes in the search URL / breadcrumb
         if "for-sale" in url:
             raw_price_type = "FOR_SALE"
+        elif "short-let" in url:
+            raw_price_type = "FOR_SHORT_LET"
         elif "for-rent" in url:
             raw_price_type = "FOR_RENT"
         else:

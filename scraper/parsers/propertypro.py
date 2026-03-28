@@ -46,6 +46,7 @@ class PropertyProParser(BaseParser):
     search_urls  = [
         "https://propertypro.ng/property-for-sale?sort=postedOn&order=desc",
         "https://propertypro.ng/property-for-rent?sort=postedOn&order=desc", 
+        "https://propertypro.ng/property-for-short-let?sort=postedOn&order=desc"
     ]
 
     def get_listing_urls(self, page_soup: BeautifulSoup) -> List[str]:
@@ -86,6 +87,8 @@ class PropertyProParser(BaseParser):
             raw_price_type = "FOR_SALE"
         elif "for-rent" in url:
             raw_price_type = "FOR_RENT"
+        elif "for-short-let" in url:
+            raw_price_type = "FOR_SHORT_LET"
         else:
             raw_price_type = None
 
