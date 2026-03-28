@@ -108,12 +108,19 @@ class DatabaseWriter:
                         # ── New listing ────────────────────────────────────────
                         listing_id = self._insert_new(cur, listing, now)
                         stats["new"] += 1
-                        history_events.append({
-                            "listing_id": listing_id,
-                            "event_type": "LISTED",
-                            "old_value":  None,
-                            "new_value":  listing.price_kobo,
-                        })
+                        if listing_id is not None:
+                            history_events.append({
+                                "listing_id": listing_id,
+                                "event_type": "LISTED",
+                                "old_value":  None,
+                                "new_value":  listing.price_kobo,
+                            })
+                        else:
+                            log.warning(
+                                "[db_writer] _insert_new returned None for (%s, %s) "
+                                "— skipping LISTED history event",
+                                listing.source, listing.external_id,
+                            )
 
             self.conn.commit()
 
@@ -271,7 +278,8 @@ class DatabaseWriter:
                 'ACTIVE', FALSE, 0,
                 %(now)s, %(now)s
             )
-            ON CONFLICT (source, external_id) DO NOTHING
+            ON CONFLICT (source, external_id) DO UPDATE
+                SET last_seen_at = EXCLUDED.last_seen_at
             RETURNING id
         """, {**listing.__dict__, "now": now})
         row = cur.fetchone()
