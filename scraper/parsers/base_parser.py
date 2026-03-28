@@ -98,6 +98,11 @@ class BaseParser(ABC):
             current_url = base_search_url
 
             while current_url:
+                
+                if config.MAX_PAGES_PER_FEED and page_number > config.MAX_PAGES_PER_FEED:
+                    log.info("[%s] Page cap (%d) reached - stopping this feed", self.source, config.MAX_PAGES_PER_FEED)
+                    break
+                
                 log.info("[%s] Fetching page %d: %s", self.source, page_number, current_url)
                 page_html = self._get(current_url)
                 if not page_html:

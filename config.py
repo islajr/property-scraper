@@ -46,6 +46,9 @@ SUSPECTED_SOLD_MIN_DAYS = 30
 # DB write batch size
 UPSERT_BATCH_SIZE = 500
 
+# Page cap per listing feed
+MAX_PAGES_PER_FEED = 2
+
 # ── Neighbourhood canonical list ───────────────────────────────────────────────
 # Seeded from P0 — PropertyDataGenerator. DO NOT edit without updating P0 first.
 # This is the shared vocabulary between the synthetic and real data pipelines.

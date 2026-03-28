@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import re
 import logging
+import config
 from typing import List, Optional
 
 from bs4 import BeautifulSoup
@@ -110,9 +111,9 @@ class PropertyProParser(BaseParser):
 
     def next_page_url(self, base_search_url: str, page_number: int) -> Optional[str]:
         # PropertyPro uses ?page=N pagination
-        if page_number > 50:   # safety cap
+        if config.MAX_PAGES_PER_FEED and page_number > config.MAX_PAGES_PER_FEED:   # testing safety cap
             return None
-        return f"{base_search_url}&page={page_number}"
+        return f"{base_search_url}?page={page_number}"
 
     def _extract_external_id(self, url: str) -> Optional[str]:
         m = EXTERNAL_ID_PATTERN.search(url)
