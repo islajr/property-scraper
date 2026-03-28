@@ -44,8 +44,8 @@ class PropertyProParser(BaseParser):
     source      = "propertypro"
     base_url    = "https://propertypro.ng"
     search_urls  = [
-        "https://propertypro.ng/property-for-sale",
-        "https://propertypro.ng/property-for-rent"
+        "https://propertypro.ng/property-for-sale?sort=postedOn&order=desc",
+        "https://propertypro.ng/property-for-rent?sort=postedOn&order=desc", 
     ]
 
     def get_listing_urls(self, page_soup: BeautifulSoup) -> List[str]:

@@ -38,8 +38,8 @@ class PrivatePropertyParser(BaseParser):
     source     = "privateproperty"
     base_url   = "https://privateproperty.ng"
     search_urls = [
-        "https://privateproperty.ng/property-for-sale", 
-        "https://privateproperty.ng/property-for-rent"
+        "https://privateproperty.ng/property-for-sale?sort=postedOn&order=desc", 
+        "https://privateproperty.ng/property-for-rent?sort=postedOn&order=desc"
     ]
 
     def get_listing_urls(self, page_soup: BeautifulSoup) -> List[str]:
