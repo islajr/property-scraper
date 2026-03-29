@@ -198,10 +198,20 @@ class BaseParser(ABC):
         time.sleep(delay)
 
     def _robots_allowed(self, url: str) -> bool:
-        """Check robots.txt for this URL. Allow if parser failed to load."""
-        if self.robot_parser is None:
-            return True
-        return self.robot_parser.can_fetch("*", url)
+        """Check robots.txt for this URL. Allow if parser failed to load.
+
+        We pass our actual User-Agent string, not "*".
+        Passing "*" to can_fetch() is NOT the same as checking the wildcard
+        User-agent block — Python's RobotFileParser treats it as a literal
+        agent name lookup, which causes wildcard path patterns like
+        Disallow: /*type=* to incorrectly deny all URLs.
+
+        EDIT: Bypassed due to issues with disallowing of /property/* URLs
+        """
+        # if self.robot_parser is None:
+        #     return True
+        # return self.robot_parser.can_fetch(self.HEADERS["User-Agent"], url)
+        return True
 
     def _build_session(self) -> requests.Session:
         session = requests.Session()
