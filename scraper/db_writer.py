@@ -115,6 +115,10 @@ class DatabaseWriter:
                                 "old_value":  None,
                                 "new_value":  listing.price_kobo,
                             })
+                            # Register immediately so a second encounter of the
+                            # same listing later in this run routes to _update_existing
+                            # rather than triggering a duplicate LISTED event.
+                            active_listings[key] = listing.price_kobo
                         else:
                             log.warning(
                                 "[db_writer] _insert_new returned None for (%s, %s) "
@@ -124,40 +128,24 @@ class DatabaseWriter:
 
             self.conn.commit()
 
-        # ── Handle listings not seen this run (potential removals) ─────────────
+        # ── Handle listings not seen this run ────────────────────────────────────
+        # Increment missed_run_count only. REMOVED status is set exclusively
+        # by the health checker (scraper/health_checker.py) after an individual
+        # URL verification confirms the listing is actually gone. Marking REMOVED
+        # here based on feed absence alone causes false positives because listings
+        # age off the "recent" feed while still being live on the portal.
         missing = set(active_listings.keys()) - seen_this_run
-        for key in missing:
-            source, ext_id = key
+        if missing:
             with self.conn.cursor() as cur:
                 cur.execute("""
                     UPDATE raw_data.scraped_listings
                     SET missed_run_count = missed_run_count + 1
-                    WHERE source = %s AND external_id = %s
-                    RETURNING missed_run_count, id, first_seen_at
-                """, (source, ext_id))
-                row = cur.fetchone()
-
-            if row:
-                missed_count, listing_id, first_seen = row
-                if missed_count >= config.MISSED_RUN_REMOVAL_THRESHOLD:
-                    # Check if suspected sold
-                    is_sold = self._evaluate_suspected_sold(listing_id, first_seen, now)
-                    with self.conn.cursor() as cur:
-                        cur.execute("""
-                            UPDATE raw_data.scraped_listings
-                            SET listing_status = 'REMOVED',
-                                suspected_sold = %s
-                            WHERE id = %s
-                        """, (is_sold, listing_id))
-                    history_events.append({
-                        "listing_id": listing_id,
-                        "event_type": "REMOVED",
-                        "old_value":  active_listings[key],
-                        "new_value":  None,
-                        "notes":      "suspected_sold=True" if is_sold else None,
-                    })
-                    if is_sold:
-                        stats["suspected_sold"] += 1
+                    WHERE (source, external_id) = ANY(%s)
+                      AND listing_status = 'ACTIVE'
+                """, ([list(k) for k in missing],))
+            self.conn.commit()
+            log.debug("[db_writer] Incremented missed_run_count for %d listings "
+                      "not seen this run", len(missing))
 
             self.conn.commit()
 
