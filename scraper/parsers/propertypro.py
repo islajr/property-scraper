@@ -111,7 +111,7 @@ class PropertyProParser(BaseParser):
 
     def next_page_url(self, base_search_url: str, page_number: int) -> Optional[str]:
         # PropertyPro uses ?page=N pagination
-        if config.MAX_PAGES_PER_FEED and page_number > config.MAX_PAGES_PER_FEED:   # testing safety cap
+        if config.MAX_PAGES_PER_FEED and page_number > config.MAX_PAGES_PER_FEED:   # safety ceiling
             return None
         return f"{base_search_url}?page={page_number}"
 
