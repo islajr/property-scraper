@@ -88,7 +88,7 @@ class PropertyProParser(BaseParser):
             raw_price_type = "FOR_SALE"
         elif "for-rent" in url:
             raw_price_type = "FOR_RENT"
-        elif "for-short-let" in url:
+        elif "for-shortlet" in url:
             raw_price_type = "FOR_SHORT_LET"
         else:
             raw_price_type = None
