@@ -33,7 +33,7 @@ RETRY_BACKOFF_BASE = 2.0       # seconds — exponential backoff base
 
 # Deduplication short-circuit: stop paginating a portal's search results when
 # this many consecutive listings are already known in the database.
-PAGINATION_STOP_AFTER_KNOWN = 5
+PAGINATION_STOP_AFTER_KNOWN = 10
 
 # Missed-run threshold before a listing is flipped to REMOVED.
 # 3 consecutive misses = listing is gone (not just a portal blip).
@@ -53,7 +53,7 @@ SUSPECTED_SOLD_MIN_DAYS = 30
 UPSERT_BATCH_SIZE = 500
 
 # Page cap per listing feed
-MAX_PAGES_PER_FEED = 2
+MAX_PAGES_PER_FEED = 10
 
 # ── Neighbourhood canonical list ───────────────────────────────────────────────
 # Seeded from P0 — PropertyDataGenerator. DO NOT edit without updating P0 first.
