@@ -64,6 +64,7 @@ property-scraper/
 │   ├── geocoder.py             # Neighbourhood → lat/lng (Nominatim + cache)
 │   ├── db_writer.py            # All database reads and writes
 │   ├── notifier.py             # Telegram notification
+│   ├── health_checker.py       # Health Check logic
 │   └── parsers/
 │       ├── base_parser.py      # Shared HTTP + pagination infrastructure
 │       ├── propertypro.py
