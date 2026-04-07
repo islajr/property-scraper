@@ -50,7 +50,7 @@ HEALTH_CHECK_DELAY_MAX     = 0.1
 SUSPECTED_SOLD_MIN_DAYS = 30
 
 # DB write batch size
-UPSERT_BATCH_SIZE = 500
+UPSERT_BATCH_SIZE = 200
 
 # Page cap per listing feed
 MAX_PAGES_PER_FEED = 10
