@@ -73,12 +73,17 @@ SALE_KEYWORDS = re.compile(r'\b(sale|for\s+sale|outright|buy|purchase)\b', re.IG
 
 # ── City normalisation ─────────────────────────────────────────────────────────
 CITY_PATTERNS = {
-    "LAGOS":  re.compile(r'\b(lagos|lekki|victoria\s+island|ikoyi|ikeja|surulere|yaba)\b', re.IGNORECASE),
-    "ABUJA":  re.compile(r'\b(abuja|fct|maitama|asokoro|wuse|garki|gwarinpa)\b', re.IGNORECASE),
-    "PH":     re.compile(r'\b(port\s+harcourt|p\.?h\.?)\b', re.IGNORECASE),
-    "ENUGU":  re.compile(r'\benugu\b', re.IGNORECASE),
-    "KANO":   re.compile(r'\bkano\b', re.IGNORECASE),
-    "IBADAN": re.compile(r'\bibadan\b', re.IGNORECASE),
+    "LAGOS":        re.compile(r'\b(lagos|lekki|victoria\s+island|ikoyi|ikeja|surulere|yaba)\b', re.IGNORECASE),
+    "ABUJA":        re.compile(r'\b(abuja|fct|maitama|asokoro|wuse|garki|gwarinpa)\b', re.IGNORECASE),
+    "PH":           re.compile(r'\b(port\s+harcourt|p\.?h\.?)\b', re.IGNORECASE),
+    "ENUGU":        re.compile(r'\benugu\b', re.IGNORECASE),
+    "KANO":         re.compile(r'\bkano\b', re.IGNORECASE),
+    "IBADAN":       re.compile(r'\bibadan\b', re.IGNORECASE),
+    "IMO":          re.compile(r'\bimo\b', re.IGNORECASE), 
+    "OGUN":         re.compile(r'\bogun\b', re.IGNORECASE), 
+    "EDO":          re.compile(r'\b(edo|benin)\b', re.IGNORECASE), 
+    "NASSARAWA":    re.compile(r'\bnassarawa\b', re.IGNORECASE)
+        
 }
 
 

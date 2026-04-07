@@ -72,18 +72,25 @@ CANONICAL_NEIGHBOURHOODS = [
     "Isheri North", "Berger", "Ogba", "Ikeja", "Allen Avenue",
     "Agidingbi", "Oregun", "Ogudu", "Ketu", "Alapere",
     "Agboville", "Bariga", "Akoka", "Abule Ijesha", "Agege", "Alimosho", "Ikota", 
-    "Ojo", "Orchid", "VGC", "Isolo"
+    "Ojo", "Orchid", "VGC", "Isolo", "Ikorodu", "Ejigbo", "Abule Egba", "Wuye", ""
     # Abuja
     "Maitama", "Asokoro", "Wuse 2", "Wuse", "Garki",
     "Jabi", "Utako", "Gwarinpa", "Apo", "Lugbe",
     "Katampe", "Nbora", "Kuje", "Bwari", "Gwagwalada",
     "Life Camp", "Kubwa", "Dutse", "Mpape", "Lokogoma",
     "Galadimawa", "Durumi", "Gudu", "Wumba", "Kado",
-    "Dawaki", "Guzape", "Mabushi", "Aminu Kano Crescent",
+    "Dawaki", "Guzape", "Mabushi", "Aminu Kano Crescent", "Jahi",
     # Ibadan
     "Ring Road", "Dugbe", "Felele", "Ibadan", "Akala", "Oluyole", 
     "Jericho", "Sango", ""
-    # Port Harcourt / others
+    # Port Harcourt
     "GRA Port Harcourt", "Trans Amadi", "Rumuola", "Rumuigbo",
     "Eliozu", "Rumuokoro", "Enugu GRA", "Independence Layout",
+    # Ogun
+    "Mowe", "Ewekoro", 
+    # Enugu
+    "Enugu", 
+    # Imo
+    "Owerri", "Ohaji", 
+    
 ]
