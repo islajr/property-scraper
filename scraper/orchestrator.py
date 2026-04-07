@@ -1,20 +1,27 @@
 """
 orchestrator.py — PS-0 PropertyScraper pipeline entry point.
 
-Wires: parsers -> normaliser -> geocoder -> db_writer -> notifier. 
+Two modes:
 
-Run via:
-    python -m scraper.orchestrator
-    
-Each listing portal is wrapped in an independent try/except.
-A single portal failure cannot crash the entire pipeline, not suppress results from others.
-Run status is also logged to raw_data.scrape_runs and summarized on telegram bot 
+  Discovery (default):
+    Wires parsers → normaliser → geocoder → db_writer → notifier.
+    Run via: python -m scraper.orchestrator
+             ./run.sh
 
+  Health check:
+    Verifies individual listing URLs bi-weekly and confirms removals.
+    Run via: python -m scraper.orchestrator --health-check
+             ./run.sh --health-check
+
+Each portal in discovery mode is wrapped in an independent try/except.
+A single portal failure cannot crash the pipeline or suppress results from others.
+Run status is logged to raw_data.scrape_runs and summarised in Telegram.
 """
 
 from __future__ import annotations
 
 import logging
+import sys
 import time
 from datetime import datetime, timezone
 
@@ -30,11 +37,10 @@ from scraper.parsers.privateproperty import PrivatePropertyParser
 from scraper.parsers.nigeriapropertycentre import NigeriaPropertyCentreParser
 from scraper.parsers.jiji import JijiParser
 
-
-# —————— Logging setup —————————
+# ── Logging setup ──────────────────────────────────────────────────────────────
 logging.basicConfig(
-    level = logging.INFO,
-    format = "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    level   = logging.INFO,
+    format  = "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     handlers=[
         logging.StreamHandler(),
         logging.FileHandler("scraper.log"),
@@ -43,111 +49,113 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 
+# ═════════════════════════════════════════════════════════════════════════════
+# Discovery mode (default weekly run)
+# ═════════════════════════════════════════════════════════════════════════════
+
 def run():
-    log.info("=" * 60)
-    log.info("PropertyScraper starting - %s", datetime.now(timezone.utc).isoformat())
-    log.info("=" * 60)
-    
+    log.info("═" * 60)
+    log.info("PropertyScraper DISCOVERY starting — %s",
+             datetime.now(timezone.utc).isoformat())
+    log.info("═" * 60)
+
     run_start = time.time()
     db = None
-    
+
     try:
-        # ——————— Initialize infrastructure ———————————————————————————————————————————
+        # ── Initialise infrastructure ─────────────────────────────────────────
         db       = DatabaseWriter(config.DATABASE_URL)
         geocoder = Geocoder(db)
-        
-        # Fetch active listings before scraping for history comparison and deduplication
-        log.info("Fetching active listing snapshots from DB...")
-        active_listings = db.fetch_active_listings() # fetch {(source, ext_id): current_price_koo}
-        log.info("Active listings: %d", len(active_listings))
-        
-        # Run each portal parser
-        all_raw_listings = []
-        run_stats = {}  # source: {count, status}
-        
+
+        # Fetch active listings BEFORE scraping — used for dedup + history compare
+        log.info("Fetching active listings snapshot from DB...")
+        active_listings = db.fetch_active_listings()
+        log.info("Active listings in DB: %d", len(active_listings))
+
+        # ── Run each portal parser ────────────────────────────────────────────
+        all_raw = []
+        run_stats = {}
+
         parsers = [
-            PropertyProParser(config),
-            PrivatePropertyParser(config),
-            NigeriaPropertyCentreParser(config),
-            JijiParser(config)
+            PropertyProParser(active_listings),
+            PrivatePropertyParser(active_listings),
+            NigeriaPropertyCentreParser(active_listings),
+            JijiParser(active_listings),
         ]
-    
+
         for parser in parsers:
             source = parser.source
-            log.info("——— Scraping %s ———", source)
-            
+            log.info("── Scraping: %s ──", source)
             try:
-                raw_listing = parser.scrape()
-                all_raw_listings.extend(raw_listing)
-                run_stats[source] = {"new": 0, "updated": 0, "status": "SUCCESS", "count": len(raw_listing)}
-                log.info("[%s] Collected %d listings", source, len(raw_listing))
-            
+                raw = parser.scrape()
+                all_raw.extend(raw)
+                run_stats[source] = {"new": 0, "updated": 0, "status": "SUCCESS", "count": len(raw)}
+                log.info("[%s] Collected %d listings", source, len(raw))
             except Exception as exc:
-                log.error("[%s] FAILED: %s ", source, exc, exc_info=True)
+                log.error("[%s] FAILED: %s", source, exc, exc_info=True)
                 run_stats[source] = {
-                    "new": 0, "updated": 0, "status": 'FAILED', 
-                    'error': str(exc)[:500], "count": 0}
+                    "new": 0, "updated": 0, "status": "FAILED",
+                    "error": str(exc)[:500], "count": 0,
+                }
 
-        log.info("Total raw listings collected: %s", len(all_raw_listings))
-        
-        # ——— Normalization ————————————————————————————————————————————————————————
+        log.info("Total raw listings collected: %d", len(all_raw))
+
+        # ── Normalise ─────────────────────────────────────────────────────────
         log.info("Normalising listings...")
         normalised = []
-        for raw_listing in all_raw_listings:
+        for raw in all_raw:
             try:
-                normalised.append(normaliser.normalise(raw_listing))
+                normalised.append(normaliser.normalise(raw))
             except Exception as exc:
-                log.warning("Normalisation error for %s/%s: %s", raw_listing.source, raw_listing.external_id, exc)
-        
-        # ——— Geocoding ————————————————————————————————
-        log.info("Geocoding listings via Nominate/OSM...")
+                log.warning("Normalisation error for %s/%s: %s",
+                            raw.source, raw.external_id, exc)
+
+        # ── Geocode ───────────────────────────────────────────────────────────
+        log.info("Geocoding listings (Nominatim/OSM)...")
         normalised = geocoder.enrich(normalised)
-        # Log progress? Report completion?
-        
-        # ——— Database upsert ——————————————————————————
+
+        # ── Database upsert ───────────────────────────────────────────────────
         log.info("Writing to database...")
-        stats = db.upsert(normalised, active_listings)
-        
+        db_stats = db.upsert(normalised, active_listings)
+
+        # Merge per-portal stats from db_stats (coarse proportional approximation)
         for source in run_stats:
             if run_stats[source]["status"] == "SUCCESS":
-                count = run_stats[source]["count"]
-                # Proportional share — exact per-portal breakdown would require
-                # per-portal source tracking through the pipeline (future improvement)
-                total = len(normalised) or 1
+                count    = run_stats[source]["count"]
+                total    = len(normalised) or 1
                 fraction = count / total
-                run_stats[source]["new"]     = int(stats["new"]     * fraction)
-                run_stats[source]["updated"] = int(stats["updated"] * fraction)
-                run_stats[source]["suspected_sold"] = int(stats["suspected_sold"] * fraction)
-                run_stats[source]["price_changes"]  = int(stats["price_changes"]  * fraction)
-        
-        # ——— Run log —————————————————————————————————————————
+                run_stats[source]["new"]            = int(db_stats["new"]            * fraction)
+                run_stats[source]["updated"]        = int(db_stats["updated"]        * fraction)
+                run_stats[source]["suspected_sold"] = int(db_stats["suspected_sold"] * fraction)
+                run_stats[source]["price_changes"]  = int(db_stats["price_changes"]  * fraction)
+
+        # ── Run log ───────────────────────────────────────────────────────────
         duration = time.time() - run_start
         db.write_run_log(run_stats, duration)
-        
-        # ——— Aggregate stats for notification display ——————————————————
+
+        # ── Aggregate stats for notification ──────────────────────────────────
         geocoded_count = sum(1 for l in normalised if l.geocoded)
-        prices_parsed = sum(1 for l in normalised if not l.price_parse_failed)
-        
+        prices_parsed  = sum(1 for l in normalised if not l.price_parse_failed)
+
         aggregate = {
-            "new":              stats["new"],
-            "updated":          stats["updated"],
-            "price_changes":    stats["price_changes"],
-            "suspected_sold":   stats["suspected_sold"],
-            "geocoded":         geocoded_count,
-            "geocode_total":    len(normalised),
-            "prices_parsed":    prices_parsed,
-            "prices_total":     len(normalised),
+            "new":            db_stats["new"],
+            "updated":        db_stats["updated"],
+            "price_changes":  db_stats["price_changes"],
+            "suspected_sold": db_stats["suspected_sold"],
+            "geocoded":       geocoded_count,
+            "geocode_total":  len(normalised),
+            "prices_parsed":  prices_parsed,
+            "prices_total":   len(normalised),
         }
-        
-        # ——— Serve telegram notification ———————————————————
+
+        # ── Telegram notification ─────────────────────────────────────────────
         notifier.send_summary(aggregate, run_stats, duration)
-        log.info("Run complete in %.1fs —— new: %d, updated: %d, suspected_sold: %d", 
-                 duration, stats["new"], stats["updated"], stats["suspected_sold"])
-        
-        
+
+        log.info("Run complete in %.1fs — new: %d, updated: %d, suspected_sold: %d",
+                 duration, db_stats["new"], db_stats["updated"], db_stats["suspected_sold"])
+
     except Exception as exc:
         log.critical("Orchestrator crashed: %s", exc, exc_info=True)
-        
         try:
             notifier.send_error(str(exc))
         except Exception:
@@ -157,5 +165,62 @@ def run():
         if db:
             db.close()
 
+
+# ═════════════════════════════════════════════════════════════════════════════
+# Health check mode (bi-weekly URL verification)
+# ═════════════════════════════════════════════════════════════════════════════
+
+def run_health_checks():
+    """
+    Bi-weekly mode: fetches every ACTIVE listing URL individually and confirms
+    whether it is still live. Only this mode may mark listings as REMOVED.
+    """
+    log.info("═" * 60)
+    log.info("PropertyScraper HEALTH CHECK starting — %s",
+             datetime.now(timezone.utc).isoformat())
+    log.info("═" * 60)
+
+    db = None
+    try:
+        db = DatabaseWriter(config.DATABASE_URL)
+
+        from scraper.health_checker import HealthChecker
+        checker = HealthChecker(db)
+        stats   = checker.run()
+
+        # Telegram notification — call send_health_check_summary if it exists
+        # in notifier.py; otherwise log and move on. Add the function to
+        # scraper/notifier.py when Telegram alerts for health checks are needed.
+        try:
+            notifier.send_health_check_summary(stats)
+        except AttributeError:
+            log.info(
+                "[health_checker] notifier.send_health_check_summary not implemented. "
+                "Stats: checked=%d removed=%d active=%d errors=%d",
+                stats.get("checked", 0),
+                stats.get("confirmed_removed", 0),
+                stats.get("confirmed_active", 0),
+                stats.get("errors", 0),
+            )
+
+    except Exception as exc:
+        log.critical("Health check crashed: %s", exc, exc_info=True)
+        try:
+            notifier.send_error(str(exc))
+        except Exception:
+            pass
+        raise
+    finally:
+        if db:
+            db.close()
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# Entry point
+# ═════════════════════════════════════════════════════════════════════════════
+
 if __name__ == "__main__":
-    run()
+    if "--health-check" in sys.argv:
+        run_health_checks()
+    else:
+        run()

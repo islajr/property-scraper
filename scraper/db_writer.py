@@ -5,11 +5,14 @@ Writes EXCLUSIVELY to the raw_data schema on Supabase.
 Never touches synthetic_properties, macro, geospatial, or any other schema.
 
 Core operations:
-  fetch_active_listings()    → {(source, ext_id): current_price_kobo}
-  upsert()                   → insert new / update existing listings + emit history events
-  write_run_log()            → one row per portal per run in raw_data.scrape_runs
-  fetch_geocode_cache()      → load persistent geocode pairs into geocoder memory
-  save_geocode_cache()       → persist a new geocode result
+  fetch_active_listings()           → {(source, ext_id): current_price_kobo}
+  upsert()                          → insert new / update existing listings + emit history events
+  write_run_log()                   → one row per portal per run in raw_data.scrape_runs
+  fetch_geocode_cache()             → load persistent geocode pairs into geocoder memory
+  save_geocode_cache()              → persist a new geocode result
+  fetch_listings_for_health_check() → candidates for bi-weekly URL verification
+  confirm_listing_removed()         → called by health_checker on confirmed removal
+  confirm_listing_active()          → called by health_checker on confirmed active
 
 Monetary values: ALWAYS kobo (BIGINT). Never float. Never naira at the DB layer.
 """
@@ -237,6 +240,95 @@ class DatabaseWriter:
                 VALUES (%s, %s, %s, %s)
                 ON CONFLICT (neighbourhood, city) DO NOTHING
             """, (neighbourhood, city, lat, lng))
+        self.conn.commit()
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Health check support
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    def fetch_listings_for_health_check(self) -> List[Dict]:
+        """
+        Returns ACTIVE listings that are due for an individual URL health check.
+
+        A listing qualifies when:
+          - listing_status = 'ACTIVE'
+          - last_health_check_at IS NULL  (never checked)
+            OR last_health_check_at < NOW() - INTERVAL '<N> days'
+
+        Ordered by missed_run_count DESC so listings most likely to be gone
+        are verified first. Ties broken by last_health_check_at ASC NULLS FIRST
+        so the oldest checks are refreshed soonest.
+
+        The interval comes from config.HEALTH_CHECK_INTERVAL_DAYS, passed as a
+        parameterised string so psycopg2 quotes it correctly for PostgreSQL to
+        cast as an INTERVAL literal.
+        """
+        interval = f"{config.HEALTH_CHECK_INTERVAL_DAYS} days"
+        sql = """
+            SELECT id, source, external_id, url, first_seen_at, price_kobo
+            FROM raw_data.scraped_listings
+            WHERE listing_status = 'ACTIVE'
+              AND (
+                  last_health_check_at IS NULL
+                  OR last_health_check_at < NOW() - INTERVAL %s
+              )
+            ORDER BY missed_run_count DESC,
+                     last_health_check_at ASC NULLS FIRST
+        """
+        with self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql, (interval,))
+            return cur.fetchall()
+
+    def confirm_listing_removed(self, listing_id: int,
+                                 first_seen_at: datetime) -> None:
+        """
+        Called by health_checker when an individual URL check confirms removal.
+
+        Sets listing_status = 'REMOVED', evaluates and writes suspected_sold,
+        updates last_health_check_at, and emits a REMOVED history event.
+
+        This is the ONLY place that may set listing_status = 'REMOVED'.
+        The feed scraper (upsert) must never do it.
+        """
+        now = datetime.now(timezone.utc)
+        is_suspected_sold = self._evaluate_suspected_sold(listing_id, first_seen_at, now)
+
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                UPDATE raw_data.scraped_listings
+                SET listing_status       = 'REMOVED',
+                    suspected_sold       = %s,
+                    last_health_check_at = %s
+                WHERE id = %s
+            """, (is_suspected_sold, now, listing_id))
+
+        self._insert_history_events([{
+            "listing_id": listing_id,
+            "event_type": "REMOVED",
+            "old_value":  None,
+            "new_value":  None,
+            "notes":      "confirmed removed by health checker",
+        }])
+        self.conn.commit()
+        log.debug("[db_writer] listing %d marked REMOVED (suspected_sold=%s)",
+                  listing_id, is_suspected_sold)
+
+    def confirm_listing_active(self, listing_id: int) -> None:
+        """
+        Called by health_checker when an individual URL check confirms the
+        listing is still live.
+
+        Resets missed_run_count to 0 (it may have accumulated between feed
+        scrapes) and stamps last_health_check_at.
+        """
+        now = datetime.now(timezone.utc)
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                UPDATE raw_data.scraped_listings
+                SET missed_run_count     = 0,
+                    last_health_check_at = %s
+                WHERE id = %s
+            """, (now, listing_id))
         self.conn.commit()
 
     # ═══════════════════════════════════════════════════════════════════════════

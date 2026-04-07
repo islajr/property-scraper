@@ -25,6 +25,7 @@ STATUS_ICONS = {
     "SUCCESS": "✅",
     "PARTIAL":  "⚠️ ",
     "FAILED":   "❌",
+    "HEALTH":   "⚕️"
 }
 
 
@@ -117,3 +118,42 @@ def _send(text: str) -> None:
         log.info("Telegram notification sent")
     except requests.RequestException as exc:
         log.error("Failed to send Telegram notification: %s", exc)
+        
+def send_health_check_summary(stats: Dict[str, int]):
+    """
+    Build and send the Telegram health check summary.
+
+    Args:
+        stats: {checked, removed, active, errors}
+    """
+    
+    if not config.TELEGRAM_BOT_TOKEN or not config.TELEGRAM_CHAT_ID:
+        log.warning("Telegram credentials not set — skipping notification")
+        return
+
+
+    now_utc = datetime.now(timezone.utc)
+    now_str = now_utc.strftime("%a %d %b %Y %H:%M UTC")
+
+    lines = [f"🏠 *PropertyScraper — {now_str}*\n"]
+
+    # Per-portal status lines
+    icon     = STATUS_ICONS.get("HEALTH")
+    checked  = stats.get("checked",            0)
+    removed  = stats.get("confirmed_removed",  0)
+    active   = stats.get("confirmed_active",   0)
+    err      = stats.get("errors",             0)
+
+    lines.append(f"{icon} *Health Check Complete*")
+
+    lines.append("")
+
+
+    lines.append(f"✔️ *Checked:* {checked}")
+    lines.append(f"❌ *Removed:* {removed}")
+    lines.append(f"✅ *Active:* {active}")
+    lines.append(f"❗ *Errors:* {err}")
+    lines.append(f"💰 *Suspected sold this check:* {removed}")
+
+    message = "\n".join(lines)
+    _send(message)

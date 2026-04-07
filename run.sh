@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # =============================================================================
 # run.sh — PS-0 PropertyScraper local run script
-# Usage: chmod +x run.sh && ./run.sh
+#
+# Usage:
+#   ./run.sh                  — weekly discovery run (scrape all portals)
+#   ./run.sh --health-check   — bi-weekly health check (verify listing URLs)
 # =============================================================================
 
 set -euo pipefail
@@ -17,9 +20,14 @@ info()  { echo -e "${GREEN}[run]${NC} $*"; }
 warn()  { echo -e "${YELLOW}[run]${NC} $*"; }
 error() { echo -e "${RED}[run]${NC} $*" >&2; }
 
+# ── Detect run mode ────────────────────────────────────────────────────────────
+MODE_FLAG=""
+for arg in "$@"; do
+    [[ "$arg" == "--health-check" ]] && MODE_FLAG="--health-check" && break
+done
+
 # ── 1. Initialise pyenv so its shims are on PATH ───────────────────────────────
-# Scripts don't source .zshrc/.bashrc, so pyenv is invisible without this.
-export PYENV_ROOT="${PYENV_ROOT:-$HOME/.pyenv/versions/3.12.9}"
+export PYENV_ROOT="${PYENV_ROOT:-$HOME/.pyenv}"
 if [[ -d "$PYENV_ROOT/bin" ]]; then
     export PATH="$PYENV_ROOT/bin:$PYENV_ROOT/shims:$PATH"
     eval "$(pyenv init -)" 2>/dev/null || true
@@ -33,7 +41,7 @@ if [[ ! -f ".env" ]]; then
     error ".env not found. Copy .env.example → .env and fill in credentials."
     exit 1
 fi
-set -a; source ./.env; set +a
+set -a; source .env; set +a
 [[ -z "${DATABASE_URL:-}" ]] && { error "DATABASE_URL not set in .env"; exit 1; }
 info "Credentials loaded."
 
@@ -60,7 +68,6 @@ else
 fi
 
 # ── 4. Virtualenv ─────────────────────────────────────────────────────────────
-# Rebuild venv if the Python version inside doesn't match what we just picked.
 if [[ -d "$VENV_DIR" ]]; then
     VENV_PY=$("$VENV_DIR/bin/python3" --version 2>&1 || echo "unknown")
     if [[ "$VENV_PY" != "$PY_VERSION" ]]; then
@@ -83,30 +90,44 @@ pip install --quiet --upgrade pip
 pip install --quiet -r requirements.txt
 
 # ── 6. Playwright browser ─────────────────────────────────────────────────────
+# Only needed for discovery mode (Jiji parser), but keeping it here keeps
+# both modes consistent and the install is a no-op when already cached.
 info "Ensuring Playwright Chromium is installed (cached after first run)..."
 playwright install chromium 2>&1 | grep -E "(Downloading|chromium|already|Browser)" || true
 
-# ── 7. Apply DB schema ────────────────────────────────────────────────────────
-info "Applying DB schema to Supabase (idempotent)..."
+# ── 7. Apply DB schema (idempotent — safe to run on every invocation) ─────────
+info "Applying DB schema migrations to Supabase..."
 python3 - <<'PYEOF'
-import psycopg2, os
+import psycopg2, os, pathlib
+
 conn = psycopg2.connect(os.environ["DATABASE_URL"])
 conn.autocommit = True
-with conn.cursor() as cur, open("schema/001_raw_data_schema.sql") as f:
-    cur.execute(f.read())
+
+schema_dir = pathlib.Path("schema")
+migrations  = sorted(schema_dir.glob("*.sql"))
+
+with conn.cursor() as cur:
+    for migration in migrations:
+        print(f"  applying {migration.name} ...", end=" ")
+        cur.execute(migration.read_text())
+        print("OK")
+
 conn.close()
-print("Schema OK")
 PYEOF
 
 # ── 8. Run scraper ────────────────────────────────────────────────────────────
 echo ""
-info "Starting scraper — $(date -u '+%Y-%m-%d %H:%M UTC')"
+if [[ -n "$MODE_FLAG" ]]; then
+    info "Mode: HEALTH CHECK — $(date -u '+%Y-%m-%d %H:%M UTC')"
+else
+    info "Mode: DISCOVERY — $(date -u '+%Y-%m-%d %H:%M UTC')"
+fi
 info "Log: $LOG_FILE"
 echo ""
 
 START_TS=$(date +%s)
 set +e
-python3 -m scraper.orchestrator
+python3 -m scraper.orchestrator $MODE_FLAG
 SCRAPER_EXIT=$?
 set -e
 DURATION=$(( $(date +%s) - START_TS ))

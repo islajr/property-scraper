@@ -39,6 +39,12 @@ PAGINATION_STOP_AFTER_KNOWN = 5
 # 3 consecutive misses = listing is gone (not just a portal blip).
 MISSED_RUN_REMOVAL_THRESHOLD = 3
 
+# Health checker — bi-weekly individual URL verification.
+# Runs as a separate mode (./run.sh --health-check).
+HEALTH_CHECK_INTERVAL_DAYS = 14   # re-check every listing at least this often
+HEALTH_CHECK_DELAY_MIN     = 1.0  # seconds between requests
+HEALTH_CHECK_DELAY_MAX     = 3.0
+
 # Suspected-sold: minimum days a listing must have been active before removal
 # can be classified as a likely transaction.
 SUSPECTED_SOLD_MIN_DAYS = 30
