@@ -208,3 +208,11 @@ __marimo__/
 
 # IntelliJ
 .idea
+
+# Diagnostics
+diagnose.py
+debug_html/
+
+# Others
+TODO
+
