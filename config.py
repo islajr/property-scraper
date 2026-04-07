@@ -26,8 +26,8 @@ TELEGRAM_CHAT_ID   = os.environ.get("TELEGRAM_CHAT_ID", "")
 NOMINATIM_CONTACT_EMAIL = os.environ.get("NOMINATIM_CONTACT_EMAIL")
 
 # ── Scraper behaviour ─────────────────────────────────────────────────────────
-REQUEST_DELAY_MIN = 2.0        # seconds — minimum inter-request delay
-REQUEST_DELAY_MAX = 5.0        # seconds — maximum inter-request delay
+REQUEST_DELAY_MIN = 0.5        # seconds — minimum inter-request delay
+REQUEST_DELAY_MAX = 1.0        # seconds — maximum inter-request delay
 MAX_RETRIES       = 3          # per-request retry limit
 RETRY_BACKOFF_BASE = 2.0       # seconds — exponential backoff base
 
@@ -42,8 +42,8 @@ MISSED_RUN_REMOVAL_THRESHOLD = 3
 # Health checker — bi-weekly individual URL verification.
 # Runs as a separate mode (./run.sh --health-check).
 HEALTH_CHECK_INTERVAL_DAYS = 14   # re-check every listing at least this often
-HEALTH_CHECK_DELAY_MIN     = 1.0  # seconds between requests
-HEALTH_CHECK_DELAY_MAX     = 3.0
+HEALTH_CHECK_DELAY_MIN     = 0.5  # seconds between requests
+HEALTH_CHECK_DELAY_MAX     = 0.1
 
 # Suspected-sold: minimum days a listing must have been active before removal
 # can be classified as a likely transaction.
