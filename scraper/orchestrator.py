@@ -80,7 +80,7 @@ def run():
             PropertyProParser(active_listings),
             PrivatePropertyParser(active_listings),
             NigeriaPropertyCentreParser(active_listings),
-            JijiParser(active_listings),
+            # JijiParser(active_listings),
         ]
 
         for parser in parsers:
