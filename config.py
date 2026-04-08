@@ -39,9 +39,9 @@ PAGINATION_STOP_AFTER_KNOWN = 10
 # 3 consecutive misses = listing is gone (not just a portal blip).
 MISSED_RUN_REMOVAL_THRESHOLD = 3
 
-# Health checker — bi-weekly individual URL verification.
+# Health checker — three-day individual URL verification.
 # Runs as a separate mode (./run.sh --health-check).
-HEALTH_CHECK_INTERVAL_DAYS = 14   # re-check every listing at least this often
+HEALTH_CHECK_INTERVAL_DAYS = 3   # re-check every listing at least this often
 HEALTH_CHECK_DELAY_MIN     = 0.5  # seconds between requests
 HEALTH_CHECK_DELAY_MAX     = 0.1
 

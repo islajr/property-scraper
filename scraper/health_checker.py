@@ -1,5 +1,5 @@
 """
-health_checker.py — PS-0 PropertyScraper bi-weekly health check mode.
+health_checker.py — PS-0 PropertyScraper three-day health check mode.
 
 Fetches each ACTIVE listing URL individually to confirm whether it is still live.
 Only this module (via db_writer.confirm_listing_removed) may set
@@ -13,7 +13,7 @@ Run via:
 
 The first run after deployment will check all ACTIVE listings
 (last_health_check_at IS NULL). On a large DB this may take a while — that is
-expected. Subsequent bi-weekly runs only re-check listings whose last check is
+expected. Subsequent three-day runs runs only re-check listings whose last check is
 older than config.HEALTH_CHECK_INTERVAL_DAYS.
 """
 
