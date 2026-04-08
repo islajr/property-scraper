@@ -10,7 +10,8 @@ Core operations:
   write_run_log()                   → one row per portal per run in raw_data.scrape_runs
   fetch_geocode_cache()             → load persistent geocode pairs into geocoder memory
   save_geocode_cache()              → persist a new geocode result
-  fetch_listings_for_health_check() → candidates for bi-weekly URL verification
+  count_total_listings()            → current total row count for Telegram summary
+  fetch_listings_for_health_check() → candidates for URL verification
   confirm_listing_removed()         → called by health_checker on confirmed removal
   confirm_listing_active()          → called by health_checker on confirmed active
 
@@ -73,28 +74,73 @@ class DatabaseWriter:
         """
         Upsert all listings from this run and emit history events.
 
-        Returns a stats dict:
-          {new: int, updated: int, price_changes: int, suspected_sold: int}
-        """
-        stats = {"new": 0, "updated": 0, "price_changes": 0, "suspected_sold": 0}
-        now   = datetime.now(timezone.utc)
-        seen_this_run: Set[Tuple[str, str]] = set()
+        Deduplicates within the run before any DB work so that a listing
+        appearing twice across search pages (e.g. page 1 and page 3 of the
+        same portal) is counted and written exactly once. Last occurrence wins
+        for field values; this is inconsequential since the fields are identical.
 
+        Returns a stats dict:
+          {
+            new:                int,
+            updated:            int,
+            price_changes:      int,
+            suspected_sold:     int,
+            duplicates_dropped: int,
+            per_source: {
+              source: {new: int, updated: int, price_changes: int}
+            }
+          }
+        """
+        # ── Deduplicate within this run ───────────────────────────────────────
+        # Build an ordered dict keyed on (source, external_id). If the same key
+        # appears twice (same listing on page 1 and page 3 of the same portal),
+        # the second occurrence overwrites the first. Both have identical data;
+        # we just need to write it once and count it once.
+        seen_keys: dict = {}
+        for listing in listings:
+            seen_keys[(listing.source, listing.external_id)] = listing
+
+        duplicates_dropped = len(listings) - len(seen_keys)
+        if duplicates_dropped:
+            log.info(
+                "[db_writer] Dropped %d within-run duplicate(s) before write "
+                "(raw: %d → deduplicated: %d)",
+                duplicates_dropped, len(listings), len(seen_keys),
+            )
+
+        deduped = list(seen_keys.values())
+
+        stats: Dict = {
+            "new":                0,
+            "updated":            0,
+            "price_changes":      0,
+            "suspected_sold":     0,
+            "duplicates_dropped": duplicates_dropped,
+            "per_source":         {},
+        }
+        now            = datetime.now(timezone.utc)
+        seen_this_run: Set[Tuple[str, str]] = set()
         history_events: List[Dict] = []
 
         # ── Process each listing ──────────────────────────────────────────────
-        for batch in _chunks(listings, config.UPSERT_BATCH_SIZE):
+        for batch in _chunks(deduped, config.UPSERT_BATCH_SIZE):
             with self.conn.cursor() as cur:
                 for listing in batch:
-                    key = (listing.source, listing.external_id)
+                    key    = (listing.source, listing.external_id)
+                    source = listing.source
                     seen_this_run.add(key)
+
+                    if source not in stats["per_source"]:
+                        stats["per_source"][source] = {
+                            "new": 0, "updated": 0, "price_changes": 0,
+                        }
 
                     if key in active_listings:
                         # ── Existing listing ──────────────────────────────────
                         self._update_existing(cur, listing, now)
                         stats["updated"] += 1
+                        stats["per_source"][source]["updated"] += 1
 
-                        # Detect price change
                         old_price = active_listings[key]
                         if (listing.price_kobo is not None
                                 and old_price is not None
@@ -107,10 +153,13 @@ class DatabaseWriter:
                                 "new_value":  listing.price_kobo,
                             })
                             stats["price_changes"] += 1
+                            stats["per_source"][source]["price_changes"] += 1
                     else:
                         # ── New listing ────────────────────────────────────────
                         listing_id = self._insert_new(cur, listing, now)
                         stats["new"] += 1
+                        stats["per_source"][source]["new"] += 1
+
                         if listing_id is not None:
                             history_events.append({
                                 "listing_id": listing_id,
@@ -118,9 +167,8 @@ class DatabaseWriter:
                                 "old_value":  None,
                                 "new_value":  listing.price_kobo,
                             })
-                            # Register immediately so a second encounter of the
-                            # same listing later in this run routes to _update_existing
-                            # rather than triggering a duplicate LISTED event.
+                            # Register immediately so a second encounter of this
+                            # key later in the run routes to _update_existing.
                             active_listings[key] = listing.price_kobo
                         else:
                             log.warning(
@@ -131,27 +179,28 @@ class DatabaseWriter:
 
             self.conn.commit()
 
-        # ── Handle listings not seen this run ────────────────────────────────────
+        # ── Handle listings not seen this run ─────────────────────────────────
         # Increment missed_run_count only. REMOVED status is set exclusively
-        # by the health checker (scraper/health_checker.py) after an individual
-        # URL verification confirms the listing is actually gone. Marking REMOVED
-        # here based on feed absence alone causes false positives because listings
-        # age off the "recent" feed while still being live on the portal.
+        # by the health checker after an individual URL verification confirms
+        # the listing is actually gone. Marking REMOVED here based on feed
+        # absence alone causes false positives because listings age off the
+        # "recent" feed while still being live on the portal.
         missing = set(active_listings.keys()) - seen_this_run
         if missing:
             with self.conn.cursor() as cur:
-                pairs = list(missing)
+                pairs        = list(missing)
                 placeholders = ",".join(["(%s, %s)"] * len(pairs))
-                flat_args = [v for pair in pairs for v in pair]
+                flat_args    = [v for pair in pairs for v in pair]
                 cur.execute(
                     f"UPDATE raw_data.scraped_listings "
                     f"SET missed_run_count = missed_run_count + 1 "
                     f"WHERE (source, external_id) IN ({placeholders}) "
                     f"AND listing_status = 'ACTIVE'",
                     flat_args,
-        )
-        log.debug("[db_writer] Incremented missed_run_count for %d listings "
-              "not seen this run", len(missing))
+                )
+            self.conn.commit()
+            log.debug("[db_writer] Incremented missed_run_count for %d listings "
+                      "not seen this run", len(missing))
 
         # ── Write history events ───────────────────────────────────────────────
         self._insert_history_events(history_events)
@@ -219,6 +268,17 @@ class DatabaseWriter:
         self.conn.commit()
 
     # ═══════════════════════════════════════════════════════════════════════════
+    # Total listing count — for Telegram summary footer
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    def count_total_listings(self) -> int:
+        """Return current total row count across all statuses in scraped_listings."""
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM raw_data.scraped_listings")
+            row = cur.fetchone()
+            return row[0] if row else 0
+
+    # ═══════════════════════════════════════════════════════════════════════════
     # Geocode cache
     # ═══════════════════════════════════════════════════════════════════════════
 
@@ -250,18 +310,9 @@ class DatabaseWriter:
         """
         Returns ACTIVE listings that are due for an individual URL health check.
 
-        A listing qualifies when:
-          - listing_status = 'ACTIVE'
-          - last_health_check_at IS NULL  (never checked)
-            OR last_health_check_at < NOW() - INTERVAL '<N> days'
-
         Ordered by missed_run_count DESC so listings most likely to be gone
         are verified first. Ties broken by last_health_check_at ASC NULLS FIRST
         so the oldest checks are refreshed soonest.
-
-        The interval comes from config.HEALTH_CHECK_INTERVAL_DAYS, passed as a
-        parameterised string so psycopg2 quotes it correctly for PostgreSQL to
-        cast as an INTERVAL literal.
         """
         interval = f"{config.HEALTH_CHECK_INTERVAL_DAYS} days"
         sql = """
@@ -288,7 +339,6 @@ class DatabaseWriter:
         updates last_health_check_at, and emits a REMOVED history event.
 
         This is the ONLY place that may set listing_status = 'REMOVED'.
-        The feed scraper (upsert) must never do it.
         """
         now = datetime.now(timezone.utc)
         is_suspected_sold = self._evaluate_suspected_sold(listing_id, first_seen_at, now)
@@ -316,10 +366,7 @@ class DatabaseWriter:
     def confirm_listing_active(self, listing_id: int) -> None:
         """
         Called by health_checker when an individual URL check confirms the
-        listing is still live.
-
-        Resets missed_run_count to 0 (it may have accumulated between feed
-        scrapes) and stamps last_health_check_at.
+        listing is still live. Resets missed_run_count and stamps timestamp.
         """
         now = datetime.now(timezone.utc)
         with self.conn.cursor() as cur:
@@ -389,13 +436,11 @@ class DatabaseWriter:
         """
         Returns True if the listing meets the suspected-sold criteria:
           1. Was active for >= SUSPECTED_SOLD_MIN_DAYS days.
-          2. Had at least one PRICE_CHANGE event where new < old (price reduction).
+          2. Had at least one PRICE_CHANGE event where new < old.
         """
-        # Check days active
         if first_seen and (now - first_seen).days < config.SUSPECTED_SOLD_MIN_DAYS:
             return False
 
-        # Check for downward price change
         with self.conn.cursor() as cur:
             cur.execute("""
                 SELECT 1 FROM raw_data.listing_history

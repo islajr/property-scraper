@@ -34,13 +34,18 @@ def send_summary(aggregate_stats: Dict,
                  duration_seconds: float,
                  total_listings: Optional[int] = None) -> None:
     """
-    Build and send the Telegram run summary.
+    Build and send the Telegram discovery run summary.
 
     Args:
-        aggregate_stats: {new, updated, price_changes, suspected_sold, geocoded, geocode_total}
-        run_stats:       {source: {status, new, updated, error, ...}}
+        aggregate_stats: {
+            new, updated, price_changes, suspected_sold,
+            duplicates_dropped, raw_total,
+            geocoded, geocode_total,
+            prices_parsed, prices_total,
+        }
+        run_stats:       {source: {status, new, updated, price_changes, error, ...}}
         duration_seconds: total pipeline wall-clock time
-        total_listings:  current count of all rows in raw_data.scraped_listings
+        total_listings:  current count of ALL rows in raw_data.scraped_listings
     """
     if not config.TELEGRAM_BOT_TOKEN or not config.TELEGRAM_CHAT_ID:
         log.warning("Telegram credentials not set — skipping notification")
@@ -51,34 +56,54 @@ def send_summary(aggregate_stats: Dict,
 
     lines = [f"🏠 *PropertyScraper — {now_str}*\n"]
 
-    # Per-portal status lines
+    # ── Per-portal status lines ───────────────────────────────────────────────
+    # new/updated come directly from db_stats["per_source"] via the orchestrator,
+    # so these are exact counts measured at write time — not approximations.
     for source, info in run_stats.items():
         icon    = STATUS_ICONS.get(info.get("status", "FAILED"), "❓")
         new_ct  = info.get("new",            0)
         upd_ct  = info.get("updated",        0)
-        sold_ct = info.get("suspected_sold", 0)
         err     = info.get("error")
 
         if info.get("status") == "SUCCESS":
             lines.append(
-                f"{icon} *{source}:* {new_ct} new, {upd_ct} updated, {sold_ct} suspected\\_sold"
+                f"{icon} *{source}:* {new_ct} new, {upd_ct} updated"
             )
         elif info.get("status") == "PARTIAL":
             lines.append(
-                f"{icon} *{source}:* PARTIAL — {err or 'see logs'}; {new_ct} new scraped"
+                f"{icon} *{source}:* PARTIAL — {err or 'see logs'}; {new_ct} new written"
             )
         else:
             lines.append(f"{icon} *{source}:* FAILED — {err or 'unknown error'}")
 
     lines.append("")
 
-    # Aggregate stats
-    geocoded       = aggregate_stats.get("geocoded", 0)
-    geocode_total  = aggregate_stats.get("geocode_total", 1)
+    # ── Collection vs write counts ────────────────────────────────────────────
+    # raw_total  = listings collected from portals before any deduplication
+    # new+updated = listings actually written to DB after within-run dedup
+    raw_total          = aggregate_stats.get("raw_total", 0)
+    new_ct             = aggregate_stats.get("new",                0)
+    updated_ct         = aggregate_stats.get("updated",            0)
+    duplicates_dropped = aggregate_stats.get("duplicates_dropped", 0)
+    written_total      = new_ct + updated_ct
+
+    lines.append(f"📥 *Collected from portals:* {raw_total}")
+    if duplicates_dropped:
+        lines.append(f"♻️  *Within-run duplicates dropped:* {duplicates_dropped}")
+    lines.append(f"✍️  *Written to DB:* {written_total} ({new_ct} new, {updated_ct} updated)")
+
+    if aggregate_stats.get("price_changes"):
+        lines.append(f"💸 *Price changes recorded:* {aggregate_stats['price_changes']}")
+
+    lines.append("")
+
+    # ── Quality stats ─────────────────────────────────────────────────────────
+    geocoded       = aggregate_stats.get("geocoded",       0)
+    geocode_total  = aggregate_stats.get("geocode_total",  1)
     geocode_pct    = (geocoded / geocode_total * 100) if geocode_total else 0
 
-    parsed         = aggregate_stats.get("prices_parsed", 0)
-    parsed_total   = aggregate_stats.get("prices_total",  1)
+    parsed         = aggregate_stats.get("prices_parsed",  0)
+    parsed_total   = aggregate_stats.get("prices_total",   1)
     parsed_pct     = (parsed / parsed_total * 100) if parsed_total else 0
 
     lines.append(f"📍 *Geocoding:* {geocoded}/{geocode_total} enriched ({geocode_pct:.1f}%)")
@@ -86,18 +111,16 @@ def send_summary(aggregate_stats: Dict,
     lines.append(f"🏘️  *Suspected sold this run:* {aggregate_stats.get('suspected_sold', 0)}")
 
     if total_listings is not None:
-        lines.append(f"🗄️  *Total scraped\\_listings:* {total_listings:,} records")
+        lines.append(f"🗄️  *Total scraped listings:* {total_listings:,} records")
 
     mins, secs = divmod(int(duration_seconds), 60)
     lines.append(f"\n⏱️  *Run completed in* {mins}m {secs}s")
 
-    # Warn if any portal was non-SUCCESS
     non_success = [s for s, i in run_stats.items() if i.get("status") != "SUCCESS"]
     if non_success:
         lines.append(f"⚠️  {len(non_success)} portal(s) non-SUCCESS — review GitHub Actions log")
 
-    message = "\n".join(lines)
-    _send(message)
+    _send("\n".join(lines))
 
 
 def send_error(error_message: str) -> None:
@@ -118,42 +141,36 @@ def _send(text: str) -> None:
         log.info("Telegram notification sent")
     except requests.RequestException as exc:
         log.error("Failed to send Telegram notification: %s", exc)
-        
-def send_health_check_summary(stats: Dict[str, int]):
+
+
+def send_health_check_summary(stats: Dict) -> None:
     """
     Build and send the Telegram health check summary.
 
     Args:
-        stats: {checked, removed, active, errors}
+        stats: {checked, confirmed_removed, confirmed_active, errors}
     """
-    
     if not config.TELEGRAM_BOT_TOKEN or not config.TELEGRAM_CHAT_ID:
         log.warning("Telegram credentials not set — skipping notification")
         return
-
 
     now_utc = datetime.now(timezone.utc)
     now_str = now_utc.strftime("%a %d %b %Y %H:%M UTC")
 
     lines = [f"🏠 *PropertyScraper — {now_str}*\n"]
 
-    # Per-portal status lines
-    icon     = STATUS_ICONS.get("HEALTH")
-    checked  = stats.get("checked",            0)
-    removed  = stats.get("confirmed_removed",  0)
-    active   = stats.get("confirmed_active",   0)
-    err      = stats.get("errors",             0)
+    icon    = STATUS_ICONS.get("HEALTH")
+    checked = stats.get("checked",           0)
+    removed = stats.get("confirmed_removed", 0)
+    active  = stats.get("confirmed_active",  0)
+    err     = stats.get("errors",            0)
 
     lines.append(f"{icon} *Health Check Complete*")
-
     lines.append("")
+    lines.append(f"✔️  *URLs checked:* {checked}")
+    lines.append(f"✅ *Still active:* {active}")
+    lines.append(f"❌ *Confirmed removed:* {removed}")
+    if err:
+        lines.append(f"❗ *Errors:* {err}")
 
-
-    lines.append(f"✔️ *Checked:* {checked}")
-    lines.append(f"❌ *Removed:* {removed}")
-    lines.append(f"✅ *Active:* {active}")
-    lines.append(f"❗ *Errors:* {err}")
-    lines.append(f"💰 *Suspected sold this check:* {removed}")
-
-    message = "\n".join(lines)
-    _send(message)
+    _send("\n".join(lines))

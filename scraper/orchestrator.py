@@ -9,7 +9,7 @@ Two modes:
              ./run.sh
 
   Health check:
-    Verifies individual listing URLs bi-weekly and confirms removals.
+    Verifies individual listing URLs and confirms removals.
     Run via: python -m scraper.orchestrator --health-check
              ./run.sh --health-check
 
@@ -67,14 +67,13 @@ def run():
         db       = DatabaseWriter(config.DATABASE_URL)
         geocoder = Geocoder(db)
 
-        # Fetch active listings BEFORE scraping — used for dedup + history compare
         log.info("Fetching active listings snapshot from DB...")
         active_listings = db.fetch_active_listings()
         log.info("Active listings in DB: %d", len(active_listings))
 
         # ── Run each portal parser ────────────────────────────────────────────
-        all_raw = []
-        run_stats = {}
+        all_raw    = []
+        run_stats  = {}   # {source: {status, raw_count, error}}
 
         parsers = [
             PropertyProParser(active_listings),
@@ -89,16 +88,27 @@ def run():
             try:
                 raw = parser.scrape()
                 all_raw.extend(raw)
-                run_stats[source] = {"new": 0, "updated": 0, "status": "SUCCESS", "count": len(raw)}
+                run_stats[source] = {
+                    "status":    "SUCCESS",
+                    "raw_count": len(raw),
+                    # new/updated/price_changes filled in after db.upsert()
+                    "new":           0,
+                    "updated":       0,
+                    "price_changes": 0,
+                    "suspected_sold": 0,
+                }
                 log.info("[%s] Collected %d listings", source, len(raw))
             except Exception as exc:
                 log.error("[%s] FAILED: %s", source, exc, exc_info=True)
                 run_stats[source] = {
-                    "new": 0, "updated": 0, "status": "FAILED",
-                    "error": str(exc)[:500], "count": 0,
+                    "status":    "FAILED",
+                    "raw_count": 0,
+                    "new":       0, "updated": 0,
+                    "error":     str(exc)[:500],
                 }
 
-        log.info("Total raw listings collected: %d", len(all_raw))
+        raw_total = len(all_raw)
+        log.info("Total raw listings collected from portals: %d", raw_total)
 
         # ── Normalise ─────────────────────────────────────────────────────────
         log.info("Normalising listings...")
@@ -118,16 +128,28 @@ def run():
         log.info("Writing to database...")
         db_stats = db.upsert(normalised, active_listings)
 
-        # Merge per-portal stats from db_stats (coarse proportional approximation)
+        # db_stats["per_source"] carries exact new/updated/price_changes counts
+        # per portal as measured at write time. Merge them into run_stats so
+        # both the Telegram notification and the run log reflect real numbers,
+        # not fractional approximations.
         for source in run_stats:
             if run_stats[source]["status"] == "SUCCESS":
-                count    = run_stats[source]["count"]
-                total    = len(normalised) or 1
-                fraction = count / total
-                run_stats[source]["new"]            = int(db_stats["new"]            * fraction)
-                run_stats[source]["updated"]        = int(db_stats["updated"]        * fraction)
-                run_stats[source]["suspected_sold"] = int(db_stats["suspected_sold"] * fraction)
-                run_stats[source]["price_changes"]  = int(db_stats["price_changes"]  * fraction)
+                per = db_stats["per_source"].get(source, {})
+                run_stats[source]["new"]            = per.get("new",           0)
+                run_stats[source]["updated"]        = per.get("updated",       0)
+                run_stats[source]["price_changes"]  = per.get("price_changes", 0)
+                # suspected_sold is not per-source in current db_stats; zero is correct
+                run_stats[source]["suspected_sold"] = 0
+
+        log.info(
+            "DB write complete — raw from portals: %d, within-run duplicates dropped: %d, "
+            "written (deduplicated): %d — new: %d, updated: %d",
+            raw_total,
+            db_stats["duplicates_dropped"],
+            raw_total - db_stats["duplicates_dropped"],
+            db_stats["new"],
+            db_stats["updated"],
+        )
 
         # ── Run log ───────────────────────────────────────────────────────────
         duration = time.time() - run_start
@@ -136,23 +158,34 @@ def run():
         # ── Aggregate stats for notification ──────────────────────────────────
         geocoded_count = sum(1 for l in normalised if l.geocoded)
         prices_parsed  = sum(1 for l in normalised if not l.price_parse_failed)
+        total_listings = db.count_total_listings()
 
         aggregate = {
-            "new":            db_stats["new"],
-            "updated":        db_stats["updated"],
-            "price_changes":  db_stats["price_changes"],
-            "suspected_sold": db_stats["suspected_sold"],
-            "geocoded":       geocoded_count,
-            "geocode_total":  len(normalised),
-            "prices_parsed":  prices_parsed,
-            "prices_total":   len(normalised),
+            "new":                db_stats["new"],
+            "updated":            db_stats["updated"],
+            "price_changes":      db_stats["price_changes"],
+            "suspected_sold":     db_stats["suspected_sold"],
+            "duplicates_dropped": db_stats["duplicates_dropped"],
+            "raw_total":          raw_total,
+            "geocoded":           geocoded_count,
+            "geocode_total":      len(normalised),
+            "prices_parsed":      prices_parsed,
+            "prices_total":       len(normalised),
         }
 
         # ── Telegram notification ─────────────────────────────────────────────
-        notifier.send_summary(aggregate, run_stats, duration)
+        notifier.send_summary(aggregate, run_stats, duration,
+                              total_listings=total_listings)
 
-        log.info("Run complete in %.1fs — new: %d, updated: %d, suspected_sold: %d",
-                 duration, db_stats["new"], db_stats["updated"], db_stats["suspected_sold"])
+        log.info(
+            "Run complete in %.1fs — new: %d, updated: %d, "
+            "duplicates_dropped: %d, suspected_sold: %d",
+            duration,
+            db_stats["new"],
+            db_stats["updated"],
+            db_stats["duplicates_dropped"],
+            db_stats["suspected_sold"],
+        )
 
     except Exception as exc:
         log.critical("Orchestrator crashed: %s", exc, exc_info=True)
@@ -167,13 +200,13 @@ def run():
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# Health check mode (bi-weekly URL verification)
+# Health check mode
 # ═════════════════════════════════════════════════════════════════════════════
 
 def run_health_checks():
     """
-    Bi-weekly mode: fetches every ACTIVE listing URL individually and confirms
-    whether it is still live. Only this mode may mark listings as REMOVED.
+    Fetches every ACTIVE listing URL individually and confirms whether it is
+    still live. Only this mode may mark listings as REMOVED.
     """
     log.info("═" * 60)
     log.info("PropertyScraper HEALTH CHECK starting — %s",
@@ -188,9 +221,6 @@ def run_health_checks():
         checker = HealthChecker(db)
         stats   = checker.run()
 
-        # Telegram notification — call send_health_check_summary if it exists
-        # in notifier.py; otherwise log and move on. Add the function to
-        # scraper/notifier.py when Telegram alerts for health checks are needed.
         try:
             notifier.send_health_check_summary(stats)
         except AttributeError:
