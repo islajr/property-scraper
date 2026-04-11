@@ -35,7 +35,7 @@ from scraper import notifier
 from scraper.parsers.propertypro import PropertyProParser
 from scraper.parsers.privateproperty import PrivatePropertyParser
 from scraper.parsers.nigeriapropertycentre import NigeriaPropertyCentreParser
-from scraper.parsers.jiji import JijiParser
+# from scraper.parsers.jiji import JijiParser
 
 # ── Logging setup ──────────────────────────────────────────────────────────────
 logging.basicConfig(
