@@ -248,5 +248,5 @@ class TestMissedRunConfig:
     def test_suspected_sold_min_days_is_30(self):
         assert config.SUSPECTED_SOLD_MIN_DAYS == 30
 
-    def test_pagination_stop_after_known_is_5(self):
-        assert config.PAGINATION_STOP_AFTER_KNOWN == 5
+    def test_pagination_stop_after_known_is_10(self):
+        assert config.PAGINATION_STOP_AFTER_KNOWN == 10

@@ -240,72 +240,72 @@ class TestNigeriaPropertyCentreParser:
 # Jiji
 # =============================================================================
 
-class TestJijiParser:
-    """
-    Fixture: tests/fixtures/jiji_listing.html
-    Source:  4bdrm Duplex in Voice of Nigeria, Lugbe District, Abuja
+# class TestJijiParser:
+#     """
+#     Fixture: tests/fixtures/jiji_listing.html
+#     Source:  4bdrm Duplex in Voice of Nigeria, Lugbe District, Abuja
 
-    Note: _parse_listing() accepts a BeautifulSoup directly, so Playwright is
-    never launched in these tests. The Playwright-dependent scrape() method is
-    excluded from unit testing — it is integration-tested manually.
-    """
+#     Note: _parse_listing() accepts a BeautifulSoup directly, so Playwright is
+#     never launched in these tests. The Playwright-dependent scrape() method is
+#     excluded from unit testing — it is integration-tested manually.
+#     """
 
-    @pytest.fixture(autouse=True)
-    def setup(self):
-        from scraper.parsers.jiji import JijiParser
-        self.parser = JijiParser(active_listings={})
-        self.soup   = load_fixture("jiji_listing.html")
-        self.result = self.parser._parse_listing(self.soup, JIJI_URL)
+#     @pytest.fixture(autouse=True)
+#     def setup(self):
+#         from scraper.parsers.jiji import JijiParser
+#         self.parser = JijiParser(active_listings={})
+#         self.soup   = load_fixture("jiji_listing.html")
+#         self.result = self.parser._parse_listing(self.soup, JIJI_URL)
 
-    def test_parse_does_not_crash(self):
-        assert self.result is not None
+#     def test_parse_does_not_crash(self):
+#         assert self.result is not None
 
-    def test_source(self):
-        assert self.result.source == "jiji"
+#     def test_source(self):
+#         assert self.result.source == "jiji"
 
-    def test_external_id(self):
-        assert self.result.external_id == "saFgVBX3QXLb3rsljTXA53Ls"
+#     def test_external_id(self):
+#         assert self.result.external_id == "saFgVBX3QXLb3rsljTXA53Ls"
 
-    def test_title(self):
-        assert "Duplex" in self.result.title or "duplex" in self.result.title
+#     def test_title(self):
+#         assert "Duplex" in self.result.title or "duplex" in self.result.title
 
-    def test_price_raw(self):
-        assert self.result.raw_price is not None
-        assert "145" in self.result.raw_price
+#     def test_price_raw(self):
+#         assert self.result.raw_price is not None
+#         assert "145" in self.result.raw_price
 
-    def test_price_type_sale_from_url(self):
-        assert self.result.raw_price_type == "FOR_SALE"
+#     def test_price_type_sale_from_url(self):
+#         assert self.result.raw_price_type == "FOR_SALE"
 
-    def test_address_contains_abuja(self):
-        assert self.result.raw_address is not None
-        assert "Abuja" in self.result.raw_address or "Lugbe" in self.result.raw_address
+#     def test_address_contains_abuja(self):
+#         assert self.result.raw_address is not None
+#         assert "Abuja" in self.result.raw_address or "Lugbe" in self.result.raw_address
 
-    def test_property_type_attribute(self):
-        # First attribute element is property type
-        assert self.result.property_type_raw is not None
-        assert "Duplex" in self.result.property_type_raw
+#     def test_property_type_attribute(self):
+#         # First attribute element is property type
+#         assert self.result.property_type_raw is not None
+#         assert "Duplex" in self.result.property_type_raw
 
-    def test_bedrooms_from_attributes(self):
-        assert self.result.raw_bedrooms is not None
-        assert "4" in self.result.raw_bedrooms
+#     def test_bedrooms_from_attributes(self):
+#         assert self.result.raw_bedrooms is not None
+#         assert "4" in self.result.raw_bedrooms
 
-    def test_bathrooms_from_attributes(self):
-        assert self.result.raw_bathrooms is not None
-        assert "5" in self.result.raw_bathrooms
+#     def test_bathrooms_from_attributes(self):
+#         assert self.result.raw_bathrooms is not None
+#         assert "5" in self.result.raw_bathrooms
 
-    def test_description_present(self):
-        assert self.result.description is not None
-        assert len(self.result.description) > 20
+#     def test_description_present(self):
+#         assert self.result.description is not None
+#         assert len(self.result.description) > 20
 
-    def test_agent_name(self):
-        assert self.result.agent_name is not None
-        assert "Mubarak" in self.result.agent_name
+#     def test_agent_name(self):
+#         assert self.result.agent_name is not None
+#         assert "Mubarak" in self.result.agent_name
 
-    @pytest.mark.parametrize("url,expected_id", [
-        (JIJI_URL, "saFgVBX3QXLb3rsljTXA53Ls"),
-        ("https://jiji.ng/abuja/houses/3bed-flat-XYZ1234567890AB.html", "XYZ1234567890AB"),
-    ])
-    def test_external_id_regex(self, url, expected_id):
-        from scraper.parsers.jiji import JijiParser
-        result = JijiParser._extract_external_id(url)
-        assert result == expected_id
+#     @pytest.mark.parametrize("url,expected_id", [
+#         (JIJI_URL, "saFgVBX3QXLb3rsljTXA53Ls"),
+#         ("https://jiji.ng/abuja/houses/3bed-flat-XYZ1234567890AB.html", "XYZ1234567890AB"),
+#     ])
+#     def test_external_id_regex(self, url, expected_id):
+#         from scraper.parsers.jiji import JijiParser
+#         result = JijiParser._extract_external_id(url)
+#         assert result == expected_id

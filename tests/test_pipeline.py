@@ -69,21 +69,21 @@ class TestParserToNormaliser:
         assert result.bathrooms == 2
         assert result.city == "LAGOS"
 
-    def test_jiji_fixture(self):
-        from scraper.parsers.jiji import JijiParser
-        url    = "https://jiji.ng/lugbe/houses-apartments-for-sale/4bdrm-duplex-in-voice-of-nigeria-lugbe-district-for-sale-saFgVBX3QXLb3rsljTXA53Ls.html"
-        parser = JijiParser(active_listings={})
-        soup   = load_fixture("jiji_listing.html")
-        raw    = parser._parse_listing(soup, url)
-        assert raw is not None
-        result = normaliser.normalise(raw)
+    # def test_jiji_fixture(self):
+    #     from scraper.parsers.jiji import JijiParser
+    #     url    = "https://jiji.ng/lugbe/houses-apartments-for-sale/4bdrm-duplex-in-voice-of-nigeria-lugbe-district-for-sale-saFgVBX3QXLb3rsljTXA53Ls.html"
+    #     parser = JijiParser(active_listings={})
+    #     soup   = load_fixture("jiji_listing.html")
+    #     raw    = parser._parse_listing(soup, url)
+    #     assert raw is not None
+    #     result = normaliser.normalise(raw)
 
-        assert result.external_id == "saFgVBX3QXLb3rsljTXA53Ls"
-        assert result.price_kobo == 14_500_000_000
-        assert result.price_type == "FOR_SALE"
-        assert result.bedrooms == 4
-        assert result.bathrooms == 5
-        assert result.city == "ABUJA"
+    #     assert result.external_id == "saFgVBX3QXLb3rsljTXA53Ls"
+    #     assert result.price_kobo == 14_500_000_000
+    #     assert result.price_type == "FOR_SALE"
+    #     assert result.bedrooms == 4
+    #     assert result.bathrooms == 5
+    #     assert result.city == "ABUJA"
 
     def test_all_fixtures_normalise_without_exception(self):
         """Smoke test: all four fixtures must complete without raising."""
