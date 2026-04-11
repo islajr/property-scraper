@@ -344,6 +344,12 @@ class DatabaseWriter:
         is_suspected_sold = self._evaluate_suspected_sold(listing_id, first_seen_at, now)
 
         with self.conn.cursor() as cur:
+            cur.execute(
+                "SELECT price_kobo FROM raw_data.scraped_listings WHERE id = %s",
+                (listing_id,)
+            )
+            row = cur.fetchone()
+            final_price = row[0] if row else None
             cur.execute("""
                 UPDATE raw_data.scraped_listings
                 SET listing_status       = 'REMOVED',
@@ -355,7 +361,7 @@ class DatabaseWriter:
         self._insert_history_events([{
             "listing_id": listing_id,
             "event_type": "REMOVED",
-            "old_value":  None,
+            "old_value":  final_price,
             "new_value":  None,
             "notes":      "confirmed removed by health checker",
         }])
