@@ -1,14 +1,18 @@
 # 🤖 Property Scraper
 
+![Python Version](https://img.shields.io/badge/python-3.12-blue.svg)
+![Build Status](https://github.com/islajr/property-scraper/actions/workflows/python-tests.yml/badge.svg)
+![Last Commit](https://img.shields.io/github/last-commit/islajr/property-scraper)
+
 ## Introduction
 
-**Property Scraper** is an autonomous lightweight python-based data pipeline that extracts real property listing data from public Nigerian property portals, cleans and geocodes the data, and persists them to a PostgreSQL instance on Supabase on a weekly schedule. A Telegram message is sent at the end of every run with a summary of what happened
+**Property Scraper** is an autonomous lightweight python-based data pipeline that extracts real property listing data from public Nigerian property portals, cleans and geocodes the data, and persists them to a PostgreSQL instance on Supabase on a weekly schedule. A Telegram message is sent at the end of every run with a summary of what happened.
 
 ---
 
 ## What it does
 
-**Property Scraper** has two run modes: Discovery Runs and Health Checks.
+**Property Scraper** has two run modes: **Discovery Runs** and **Health Checks**.
 
 **Discovery runs** are all about finding new property listings and storing them in the database
 
