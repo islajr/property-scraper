@@ -11,6 +11,14 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    env:
+      DATABASE_URL: ${{secrets.DATABASE_URL}}
+      TELEGRAM_BOT_TOKEN: ${{secrets.TELEGRAM_BOT_TOKEN}}
+      TELEGRAM_CHAT_ID:   ${{secrets.TELEGRAM_CHAT_ID}}
+      NOMINATIM_CONTACT_EMAIL:  ${{secrets.NOMINATIM_CONTACT_EMAIL}}
+      DEBUG: "False"
+      API_ENV: "testing"
+
     steps:
     - name: checkout code
       uses: actions/checkout@v4
