@@ -163,12 +163,14 @@ def send_health_check_summary(stats: Dict) -> None:
     checked = stats.get("checked",           0)
     removed = stats.get("confirmed_removed", 0)
     active  = stats.get("confirmed_active",  0)
+    changed = stats.get("price_changes",     0)
     err     = stats.get("errors",            0)
 
     lines.append(f"{icon} *Health Check Complete*")
     lines.append("")
     lines.append(f"✔️  *URLs checked:* {checked}")
     lines.append(f"✅ *Still active:* {active}")
+    lines.append(f"📈 *Price Changes:* {changed}")
     lines.append(f"❌ *Confirmed removed:* {removed}")
     if err:
         lines.append(f"❗ *Errors:* {err}")
