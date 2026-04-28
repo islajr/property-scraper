@@ -16,9 +16,9 @@
 
 **Discovery runs** are all about finding new property listings and storing them in the database
 
-**Health Checks** confirm if active listings are indeed still active, and logs the result.
+**Health Checks** confirm price changes and listing activity, and log the result.
 
-Both run modes are important as they create the entire lifecycle for the project. Property Listings enter and exit the pipeline from one and through the other
+Both run modes are important as they define the lifecycle for the property listings. Property Listings enter the pipeline via the **discovery mode** and exit through the **health check mode**.
 
 ### Discovery Runs
 
@@ -26,28 +26,28 @@ Each run proceeds through seven stages:
 
 | Stage | Description |
 |---|---|
-| 1. Snapshot | Load all `ACTIVE` listings from the DB into memory |
-| 2. Scrape | Fetch listings from all four Nigerian portals |
-| 3. Normalise | Convert raw strings (`"₦45M"`, `"3 Beds"`) into typed Python values |
-| 4. Geocode | Attach lat/lng coordinates via neighbourhood name lookup |
-| 5. Upsert | Insert new listings, update existing ones, emit history events |
-| 6. Log | Write one row per portal to `scrape_runs` |
-| 7. Notify | Send a Telegram summary with counts and status per portal |
+| 1. Snapshot | Loads all `ACTIVE` listings from the DB into memory |
+| 2. Scrape | Fetches listings from all four Nigerian portals |
+| 3. Normalise | Converts raw strings (`"₦45M"`, `"3 Beds"`) into typed Python values |
+| 4. Geocode | Attaches lat/lng coordinates via neighbourhood name lookup |
+| 5. Upsert | Inserts new listings, update existing ones, emit history events |
+| 6. Log | Writes one row per portal to `scrape_runs` |
+| 7. Notify | Sends a Telegram summary with counts and status per portal |
 
 The three portals scraped are: **PropertyPro.ng**, **PrivateProperty.ng**, and **NigeriaPropertyCentre.ng**
 
 ---
 
-### Health Checks
+### Health Check Runs
 
 Each health check goes through the following stages:
 
 | Stage | Description |
 |---|---|
-| 1. Snapshot | Load all `ACTIVE` listings from the DB into memory |
-| 2. Check | Checks each loaded listing with its original URL to confirm if it still exists |
-| 3. Log | If changes are made or listings are found to be removed, they are stored in as `REMOVED` events with the appropriate information |
-| 4. Notify | Send a Telegram summary with the run stats and results for notification |
+| 1. Snapshot | Loads all `ACTIVE` listings from the DB into memory |
+| 2. Check | Checks each loaded listing with its original URL to confirm its continued existence and for any recent price changes |
+| 3. Log | If changes are made or listings are found to be removed, they are stored as `PRICE_CHANGE` or as `REMOVED` events respectively with the appropriate information |
+| 4. Notify | Sends a Telegram summary with the run stats and results for notification |
 
 ---
 
@@ -94,7 +94,7 @@ property-scraper/
 ## Requirements
 
 - Python 3.10–3.12 (3.13 is not supported — `psycopg2-binary` has no wheel for it yet)
-- A Supabase project with the schema applied
+- A Database with the schema applied
 - Optional: a Telegram bot token and chat ID for run notifications
 
 ---
@@ -109,7 +109,6 @@ cd property-scraper
 python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-# playwright install chromium
 ```
 
 **2. Create a `.env` file in the project root**
@@ -154,7 +153,7 @@ python3 -m scraper.orchestrator
 ./run.sh --health-check
 ```
 
-with the `--health-check` flag, `run.sh` pulls all active listings from the database and checks them for activity. If it determines that they are no longer  present, a `REMOVED` event for each listing is appended to the `listing_history` table.
+with the `--health-check` flag, `run.sh` pulls all active listings from the database and checks them for activity. If it determines that prices have changed or that they are no longer  present, a `PRICE_CHANGE` or a `REMOVED` event for each listing is appended to the `listing_history` table respectively.
 
 ---
 
@@ -170,9 +169,9 @@ All configuration is in `config.py`. The key constants:
 | `PAGINATION_STOP_AFTER_KNOWN` | 5 | Stop paginating after 5 consecutive known listings |
 | `MISSED_RUN_REMOVAL_THRESHOLD` | 3 | Runs absent before a listing is marked `REMOVED` |
 | `SUSPECTED_SOLD_MIN_DAYS` | 30 | Minimum days active to flag a removal as a suspected sale |
-| `UPSERT_BATCH_SIZE` | 500 | DB write batch size |
+| `UPSERT_BATCH_SIZE` | 200 | DB write batch size |
 
-`CANONICAL_NEIGHBOURHOODS` is a hardcoded list of ~100 neighbourhood names across Lagos, Abuja, and Port Harcourt. The normaliser uses it for fuzzy address matching.
+`CANONICAL_NEIGHBOURHOODS` is a hardcoded list of major neighbourhood names across Lagos, Abuja, and Port Harcourt. The normaliser uses it for fuzzy address matching.
 
 ---
 
@@ -194,7 +193,7 @@ Key normalisation rules:
 
 ## Database schema
 
-All tables live in the `raw_data` schema on Supabase.
+All tables live in the `raw_data` schema in the database.
 
 | Table | Purpose |
 |---|---|
@@ -203,7 +202,7 @@ All tables live in the `raw_data` schema on Supabase.
 | `raw_data.geocode_cache` | Persistent `(neighbourhood, city)` → `(lat, lng)` cache. |
 | `raw_data.scrape_runs` | Operational log — one row per portal per run. |
 
-Listings have a `listing_status` of `ACTIVE` or `REMOVED`. A listing is marked `suspected_sold` when it disappears after 30+ days active with at least one downward price change in its history. This is a proxy signal for AVM training — not a confirmed sale.
+Listings have a `listing_status` of `ACTIVE` or `REMOVED`. A listing is marked `suspected_sold` when it disappears after 30+ days active with at least one downward price change in its history. This is a proxy signal for transaction history — not a confirmed sale.
 
 ---
 
@@ -252,7 +251,7 @@ This happens regularly. The symptom is 0 listings or ❌ in the Telegram notific
 
 ### Updating the neighbourhood list
 
-Edit `CANONICAL_NEIGHBOURHOODS` in `config.py`. This list is shared with the P0 synthetic data generator — update that copy too.
+Edit `CANONICAL_NEIGHBOURHOODS` in `config.py`, adding the canonical areas as is necessary.
 
 ---
 
