@@ -230,6 +230,7 @@ def run_health_checks():
                 stats.get("checked", 0),
                 stats.get("confirmed_removed", 0),
                 stats.get("confirmed_active", 0),
+                stats.get("price_changes", 0),
                 stats.get("errors", 0),
             )
 

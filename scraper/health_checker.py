@@ -22,8 +22,10 @@ from __future__ import annotations
 import logging
 import random
 import time
-from typing import Dict, List
+from typing import Dict, List, Tuple, Optional
 from urllib.parse import urlparse
+from bs4 import BeautifulSoup
+from scraper import normaliser
 
 import requests
 
@@ -76,6 +78,7 @@ GENERIC_PAGE_PATH_FRAGMENTS: List[str] = [
     "/results",
     "/adverts",
     "/real-estate",
+    "/showtype",
 ]
 
 
@@ -89,6 +92,19 @@ class HealthChecker:
         self.db = db
         self.session = requests.Session()
         self.session.headers.update(HEADERS)
+        # Parsers instantiated once — robots.txt loaded once per run, not per listing.
+        # Empty active_listings: we are not doing feed scraping, no consecutive-known logic.
+        self._parsers = self._build_parsers()
+
+    def _build_parsers(self) -> Dict:
+        from scraper.parsers.propertypro import PropertyProParser
+        from scraper.parsers.privateproperty import PrivatePropertyParser
+        from scraper.parsers.nigeriapropertycentre import NigeriaPropertyCentreParser
+        return {
+            "propertypro":           PropertyProParser({}),
+            "privateproperty":       PrivatePropertyParser({}),
+            "nigeriapropertycentre": NigeriaPropertyCentreParser({}),
+        }
 
     def run(self) -> Dict[str, int]:
         """
@@ -102,6 +118,7 @@ class HealthChecker:
             "checked":           0,
             "confirmed_removed": 0,
             "confirmed_active":  0,
+            "price_changes":     0, 
             "errors":            0,
         }
 
@@ -120,19 +137,25 @@ class HealthChecker:
             first_seen  = row["first_seen_at"]
 
             try:
-                removed = self._is_removed(url, external_id, source)
+                is_removed, observed_price = self._check_listing(url, external_id, source)
                 stats["checked"] += 1
 
-                if removed:
+                if is_removed:
                     self.db.confirm_listing_removed(listing_id, first_seen)
                     stats["confirmed_removed"] += 1
                     log.info("[health_checker] REMOVED confirmed: [%s] %s",
                              source, external_id)
                 else:
-                    self.db.confirm_listing_active(listing_id)
+                    price_changed = self.db.confirm_listing_active(listing_id, observed_price)
                     stats["confirmed_active"] += 1
-                    log.debug("[health_checker] still active: [%s] %s",
-                              source, external_id)
+                    
+                    if price_changed:
+                        stats["price_changes"] += 1
+                        log.info("[health_checker] PRICE_CHANGE detected: [%s] %s",
+                                 source, external_id)
+                    else:
+                        log.debug("[health_checker] still active: [%s] %s",
+                                source, external_id)
 
             except Exception as exc:
                 # Per-listing errors must not abort the whole run.
@@ -148,66 +171,78 @@ class HealthChecker:
 
         log.info(
             "[health_checker] complete — checked: %d  removed: %d  "
-            "active: %d  errors: %d",
+            "active: %d  changes: %d    errors: %d",
             stats["checked"],
             stats["confirmed_removed"],
             stats["confirmed_active"],
+            stats["price_changes"],
             stats["errors"],
         )
         return stats
 
     # ── Core detection logic ──────────────────────────────────────────────────
 
-    def _is_removed(self, url: str, external_id: str, source: str) -> bool:
+    def _check_listing(self, url: str, external_id: str,
+                       source: str) -> Tuple[bool, Optional[int]]:
         """
-        Fetch the listing URL and determine if it has been removed.
-        Returns True if removed, False if still active (or uncertain).
-
-        Detection cascade — ordered from most reliable to least:
-          1. HTTP 404                                       → removed
-          2. Redirect away + external_id gone from final URL
-             + final URL looks like a generic page          → removed
-          3. HTTP 200 with a removal phrase in body          → removed
-          4. Anything else (5xx, network error, ambiguous)   → active
-             (will retry next health check cycle)
+        Fetch the listing URL and return (is_removed, observed_price_kobo).
+        observed_price_kobo is None when the listing is removed, or when price
+        extraction fails — the latter is non-fatal, the listing stays active.
         """
         try:
             resp = self.session.get(url, allow_redirects=True, timeout=15)
         except requests.exceptions.RequestException as exc:
-            # Network hiccup — do not penalise the listing. Try again next cycle.
             log.debug("[health_checker] request error for %s: %s", url, exc)
-            return False
+            return False, None
 
-        # ── 1. Hard 404 ────────────────────────────────────────────────────────
         if resp.status_code == 404:
             log.debug("[health_checker] 404 for %s", url)
-            return True
+            return True, None
 
-        # ── 2. Redirect away from listing ─────────────────────────────────────
-        # After following redirects, if the external_id is no longer in the
-        # final URL AND the final URL looks like a category/search/home page,
-        # the portal redirected us away from a deleted listing.
         final_url = resp.url or url
         if (final_url != url
                 and external_id not in final_url
                 and _looks_like_generic_page(final_url)):
             log.debug("[health_checker] redirect to generic page: %s → %s",
                       url, final_url)
-            return True
+            return True, None
 
-        # ── 3. Removal phrase in 200 response body ─────────────────────────────
         if resp.status_code == 200:
             body_lower = resp.text.lower()
             for phrase in REMOVAL_PHRASES:
                 if phrase in body_lower:
                     log.debug("[health_checker] removal phrase '%s' in %s",
                               phrase, url)
-                    return True
+                    return True, None
 
-        # ── 4. Uncertain (5xx, uncommon status, no phrase matched) ────────────
-        # Default to active — false negatives (missing a removal) are
-        # preferable to false positives (removing a live listing).
-        return False
+            # Listing is confirmed active — try to extract current price from the
+            # same HTML we already fetched. Failure here is non-fatal.
+            observed_price = self._extract_observed_price(resp.text, url, source)
+            return False, observed_price
+
+        return False, None
+
+    def _extract_observed_price(self, html: str, url: str,
+                                source: str) -> Optional[int]:
+        """
+        Parse current price from listing page HTML using the portal's own parser
+        and the shared normaliser. Returns kobo, or None on any failure.
+        """
+        parser = self._parsers.get(source)
+        if parser is None:
+            return None
+        try:
+            soup = BeautifulSoup(html, "html.parser")
+            raw  = parser.parse_listing(soup, url)
+            if raw is None:
+                return None
+            normalised = normaliser.normalise(raw)
+            if normalised.price_parse_failed:
+                return None
+            return normalised.price_kobo
+        except Exception as exc:
+            log.debug("[health_checker] price extraction failed for %s: %s", url, exc)
+            return None
 
 
 # ── Module-level helpers ──────────────────────────────────────────────────────

@@ -369,20 +369,68 @@ class DatabaseWriter:
         log.debug("[db_writer] listing %d marked REMOVED (suspected_sold=%s)",
                   listing_id, is_suspected_sold)
 
-    def confirm_listing_active(self, listing_id: int) -> None:
+    def confirm_listing_active(self, listing_id: int, 
+                               observed_price_kobo: Optional[int] = None) -> bool:
         """
         Called by health_checker when an individual URL check confirms the
-        listing is still live. Resets missed_run_count and stamps timestamp.
+        listing is still live.
+        
+        If observed_price_kobo is provided and differs from the stored price,
+        updates price_kobo, emits a PRICE_CHANGE history event, and returns True.
+        Otherwise, resets missed_run_count, stamps the check timestamp, returns False.
         """
         now = datetime.now(timezone.utc)
+        price_changed = False
+        stored_price = None
+        
         with self.conn.cursor() as cur:
-            cur.execute("""
-                UPDATE raw_data.scraped_listings
-                SET missed_run_count     = 0,
-                    last_health_check_at = %s
-                WHERE id = %s
-            """, (now, listing_id))
+            if observed_price_kobo is not None:
+                cur.execute(
+                    "SELECT price_kobo FROM raw_data.scraped_listings WHERE id = %s",
+                    (listing_id,)
+                )
+                row          = cur.fetchone()
+                stored_price = row[0] if row else None
+
+                if stored_price is not None and observed_price_kobo != stored_price:
+                    cur.execute("""
+                        UPDATE raw_data.scraped_listings
+                        SET missed_run_count     = 0,
+                            last_health_check_at = %s,
+                            price_kobo           = %s,
+                            last_seen_at         = %s
+                        WHERE id = %s
+                    """, (now, observed_price_kobo, now, listing_id))
+                    price_changed = True
+                else:
+                    cur.execute("""
+                        UPDATE raw_data.scraped_listings
+                        SET missed_run_count     = 0,
+                            last_health_check_at = %s
+                        WHERE id = %s
+                    """, (now, listing_id))
+            else:
+                cur.execute("""
+                    UPDATE raw_data.scraped_listings
+                    SET missed_run_count     = 0,
+                        last_health_check_at = %s
+                    WHERE id = %s
+                """, (now, listing_id))
+        
+        if price_changed:
+            self._insert_history_events([{
+                "listing_id": listing_id,
+                "event_type": "PRICE_CHANGE",
+                "old_value":  stored_price,
+                "new_value":  observed_price_kobo,
+                "notes":      "detected by health checker",
+            }])
+            log.debug("[db_writer] PRICE_CHANGE recorded for listing %d: %s → %s kobo",
+                    listing_id, stored_price, observed_price_kobo)
+
         self.conn.commit()
+        return price_changed
+            
 
     # ═══════════════════════════════════════════════════════════════════════════
     # Private helpers

@@ -113,7 +113,7 @@ class PropertyProParser(BaseParser):
         # PropertyPro uses ?page=N pagination
         if config.MAX_PAGES_PER_FEED and page_number > config.MAX_PAGES_PER_FEED:   # safety ceiling
             return None
-        return f"{base_search_url}?page={page_number}"
+        return f"{base_search_url}&page={page_number}"
 
     def _extract_external_id(self, url: str) -> Optional[str]:
         m = EXTERNAL_ID_PATTERN.search(url)
