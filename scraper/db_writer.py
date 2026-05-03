@@ -37,8 +37,30 @@ ActiveListings = Dict[Tuple[str, str], Optional[int]]   # {(source, ext_id): pri
 
 class DatabaseWriter:
     def __init__(self, database_url: str):
+        self.database_url = database_url
         self.conn = psycopg2.connect(database_url)
         self.conn.autocommit = False
+    
+    def _connect(self):
+        conn = psycopg2.connect(self._database_url)
+        conn.autocommit = False
+        return conn
+
+    def _ensure_connection(self):
+        """ Reconnect if the connection has gone stale """
+        try:
+            # closed == 0 means open; a simple query confirms if server is reachable
+            if self.conn.closed != 0:
+                raise psycopg2.OperationalError("connection closed")
+            with self.conn.cursor() as curr:
+                curr.execute("SELECT 1")
+        except (psycopg2.OperationalError, psycopg2.InterfaceError):
+            log.warning("[db_writer] Connection lost — reconnecting...")
+            try:
+                self.conn.close()
+            except Exception:
+                pass
+            self.conn = self._connect()
 
     def close(self):
         self.conn.close()
@@ -60,6 +82,10 @@ class DatabaseWriter:
             FROM raw_data.scraped_listings
             WHERE listing_status = 'ACTIVE'
         """
+        
+        # Ensure connection and reconnect if needed
+        self._ensure_connection()
+        
         with self.conn.cursor() as cur:
             cur.execute(sql)
             return {(row[0], row[1]): row[2] for row in cur.fetchall()}
@@ -91,6 +117,10 @@ class DatabaseWriter:
             }
           }
         """
+        
+        # Ensure connection and reconnect if needed
+        self._ensure_connection()
+        
         # ── Deduplicate within this run ───────────────────────────────────────
         # Build an ordered dict keyed on (source, external_id). If the same key
         # appears twice (same listing on page 1 and page 3 of the same portal),
