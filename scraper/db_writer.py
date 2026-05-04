@@ -150,10 +150,14 @@ class DatabaseWriter:
         }
         now            = datetime.now(timezone.utc)
         seen_this_run: Set[Tuple[str, str]] = set()
-        history_events: List[Dict] = []
 
         # ── Process each listing ──────────────────────────────────────────────
         for batch in _chunks(deduped, config.UPSERT_BATCH_SIZE):
+            
+            batch_history_events: List[Dict] = []
+            
+            self._ensure_connection()
+            
             with self.conn.cursor() as cur:
                 for listing in batch:
                     key    = (listing.source, listing.external_id)
@@ -175,7 +179,7 @@ class DatabaseWriter:
                         if (listing.price_kobo is not None
                                 and old_price is not None
                                 and listing.price_kobo != old_price):
-                            history_events.append({
+                            batch_history_events.append({
                                 "source":     listing.source,
                                 "ext_id":     listing.external_id,
                                 "event_type": "PRICE_CHANGE",
@@ -191,7 +195,7 @@ class DatabaseWriter:
                         stats["per_source"][source]["new"] += 1
 
                         if listing_id is not None:
-                            history_events.append({
+                            batch_history_events.append({
                                 "listing_id": listing_id,
                                 "event_type": "LISTED",
                                 "old_value":  None,
@@ -207,6 +211,9 @@ class DatabaseWriter:
                                 listing.source, listing.external_id,
                             )
 
+            # ── Write history events ───────────────────────────────────────────────
+            # History events written inside the samae transaction as the batch
+            self._insert_history_events(batch_history_events)
             self.conn.commit()
 
         # ── Handle listings not seen this run ─────────────────────────────────
@@ -231,10 +238,6 @@ class DatabaseWriter:
             self.conn.commit()
             log.debug("[db_writer] Incremented missed_run_count for %d listings "
                       "not seen this run", len(missing))
-
-        # ── Write history events ───────────────────────────────────────────────
-        self._insert_history_events(history_events)
-        self.conn.commit()
 
         return stats
 
