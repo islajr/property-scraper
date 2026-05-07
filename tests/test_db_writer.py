@@ -29,10 +29,11 @@ def _make_writer():
         mock_cursor.fetchall.return_value = []
         mock_conn.cursor.return_value.__enter__ = lambda s: mock_cursor
         mock_conn.cursor.return_value.__exit__  = MagicMock(return_value=False)
+        mock_conn.closed = 0          # ← _ensure_connection() checks this;
+                                      #   0 means open, so no reconnect fires
         mock_connect.return_value = mock_conn
         writer = DatabaseWriter("postgresql://fake/db")
-        writer._conn        = mock_conn
-        writer._mock_cursor = mock_cursor
+        writer.conn = mock_conn       # ← attribute is conn, not _conn
     return writer
 
 
@@ -201,9 +202,10 @@ class TestSuspectedSold:
             mock_cursor.fetchone.return_value = (1,) if has_reduction else None
             mock_conn.cursor.return_value.__enter__ = lambda s: mock_cursor
             mock_conn.cursor.return_value.__exit__  = MagicMock(return_value=False)
+            mock_conn.closed = 0      # ← same fix as _make_writer
             mock_connect.return_value = mock_conn
             writer = DatabaseWriter("postgresql://fake/db")
-            writer._conn = mock_conn
+            writer.conn = mock_conn   # ← conn, not _conn
         return writer
 
     def test_returns_true_when_old_enough_and_price_reduced(self):
