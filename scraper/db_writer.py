@@ -42,7 +42,7 @@ class DatabaseWriter:
         self.conn.autocommit = False
     
     def _connect(self):
-        conn = psycopg2.connect(self._database_url)
+        conn = psycopg2.connect(self.database_url)
         conn.autocommit = False
         return conn
 
