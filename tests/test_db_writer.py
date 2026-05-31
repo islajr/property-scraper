@@ -108,6 +108,45 @@ class TestUpsertRouting:
 
 
 # =============================================================================
+# Missing listings (missed_run_count updates)
+# =============================================================================
+
+class TestUpsertMissingListings:
+
+    def test_missing_listings_are_batched_correctly(self):
+        writer = _make_writer()
+        
+        mock_cursor = MagicMock()
+        writer.conn.cursor.return_value.__enter__ = lambda s: mock_cursor
+
+        # Mock active listings to have 2.5 times the UPSERT_BATCH_SIZE
+        batch_size = config.UPSERT_BATCH_SIZE
+        num_missing = int(batch_size * 2.5)
+        
+        active = {
+            ("source", f"ext{i}"): 1000 for i in range(num_missing)
+        }
+        
+        writer._insert_new = MagicMock()
+        writer._update_existing = MagicMock()
+        writer._insert_history_events = MagicMock()
+        
+        stats = writer.upsert([], active)
+        
+        # We expect cur.execute to be called 3 times with UPDATE raw_data.scraped_listings.
+        update_calls = [
+            c for c in mock_cursor.execute.call_args_list 
+            if "UPDATE raw_data.scraped_listings" in c[0][0]
+        ]
+        assert len(update_calls) == 3
+        
+        # Verify the batch sizes of the calls
+        assert len(update_calls[0][0][1]) == batch_size * 2
+        assert len(update_calls[1][0][1]) == batch_size * 2
+        assert len(update_calls[2][0][1]) == (num_missing - batch_size * 2) * 2
+
+
+# =============================================================================
 # Price change detection
 # =============================================================================
 

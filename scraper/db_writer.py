@@ -225,16 +225,18 @@ class DatabaseWriter:
         missing = set(active_listings.keys()) - seen_this_run
         if missing:
             with self.conn.cursor() as cur:
-                pairs        = list(missing)
-                placeholders = ",".join(["(%s, %s)"] * len(pairs))
-                flat_args    = [v for pair in pairs for v in pair]
-                cur.execute(
-                    f"UPDATE raw_data.scraped_listings "
-                    f"SET missed_run_count = missed_run_count + 1 "
-                    f"WHERE (source, external_id) IN ({placeholders}) "
-                    f"AND listing_status = 'ACTIVE'",
-                    flat_args,
-                )
+                pairs = list(missing)
+                # Chunk to avoid Postgres stack depth limit exceeded error with massive IN clauses
+                for chunk in _chunks(pairs, config.UPSERT_BATCH_SIZE):
+                    placeholders = ",".join(["(%s, %s)"] * len(chunk))
+                    flat_args    = [v for pair in chunk for v in pair]
+                    cur.execute(
+                        f"UPDATE raw_data.scraped_listings "
+                        f"SET missed_run_count = missed_run_count + 1 "
+                        f"WHERE (source, external_id) IN ({placeholders}) "
+                        f"AND listing_status = 'ACTIVE'",
+                        flat_args,
+                    )
             self.conn.commit()
             log.debug("[db_writer] Incremented missed_run_count for %d listings "
                       "not seen this run", len(missing))
