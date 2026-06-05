@@ -289,12 +289,20 @@ def normalise_property_type(raw: Optional[str]) -> Optional[str]:
 # Neighbourhood normalisation
 # ═══════════════════════════════════════════════════════════════════════════════
 
+def _clean_for_match(text: str) -> str:
+    """Helper to normalise text for matching (lowercase, strip non-alphanumeric, collapse spaces)."""
+    if not text:
+        return ""
+    cleaned = re.sub(r'[^a-z0-9\s]', ' ', text.lower())
+    return " ".join(cleaned.split())
+
+
 def normalise_neighbourhood(raw_address: Optional[str]) -> Tuple[Optional[str], bool]:
     """
     Extract and normalise neighbourhood from raw address string.
 
     Strategy:
-      1. Check each token/phrase in raw_address against canonical list.
+      1. Check each token/phrase in raw_address against canonical list (cleaned/punctuation-insensitive).
       2. Use difflib fuzzy match (cutoff 0.80) to handle spelling variants.
          e.g. "Lekki Ph1", "Lekki ph 1", "Lekki Phase1" → "Lekki Phase 1"
       3. If no canonical match found, return raw address as neighbourhood
@@ -305,12 +313,14 @@ def normalise_neighbourhood(raw_address: Optional[str]) -> Tuple[Optional[str], 
     if not raw_address:
         return None, False
 
-    canonical = config.CANONICAL_NEIGHBOURHOODS
+    # Sort canonical list by length descending to ensure longer/more specific matches are checked first
+    canonical = sorted(config.CANONICAL_NEIGHBOURHOODS, key=len, reverse=True)
 
-    # Try exact match first (case-insensitive)
-    addr_lower = raw_address.lower()
+    # Try exact match first (case-insensitive and punctuation/spacing-insensitive)
+    addr_clean = _clean_for_match(raw_address)
     for nb in canonical:
-        if nb.lower() in addr_lower:
+        nb_clean = _clean_for_match(nb)
+        if nb_clean and nb_clean in addr_clean:
             return nb, True
 
     # Fuzzy match against each word/phrase chunk in the address

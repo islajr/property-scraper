@@ -185,7 +185,7 @@ class TestNormaliseNeighbourhood:
     @pytest.mark.parametrize("raw_address,expected_nb", [
         ("Lekki Phase 1, Lagos",                  "Lekki Phase 1"),
         ("Old Ikoyi Ikoyi Lagos",                 "Ikoyi"),
-        ("After Blenco Sangotedo, Ajah, Lagos",   "Ajah"),
+        ("After Blenco Sangotedo, Ajah, Lagos",   "Sangotedo"),
         ("Maitama, Abuja",                        "Maitama"),
         ("Victoria Island, Lagos",                "Victoria Island"),
         ("Guzape, Abuja",                         "Guzape"),
@@ -204,6 +204,36 @@ class TestNormaliseNeighbourhood:
         nb, normalised = normalise_neighbourhood(None)
         assert nb is None
         assert normalised is False
+
+    def test_punctuation_insensitive_substring_matching(self):
+        # "Ibeju Lekki" (no hyphen) should match canonical "Ibeju-Lekki" or "Ibeju Lekki"
+        nb, normalised = normalise_neighbourhood("Located at Ibeju Lekki, Lagos")
+        assert normalised is True
+        assert nb in ["Ibeju Lekki", "Ibeju-Lekki"]
+
+    def test_specificity_priority_matching(self):
+        # Osapa should match Osapa/Osapa London first, not generic Lekki fallback
+        nb, normalised = normalise_neighbourhood("Milverton Estate, Osapa, Lekki, Lagos")
+        assert normalised is True
+        assert nb in ["Osapa", "Osapa London"]
+
+        # Pinnock Beach Estate should match Pinnock Beach Estate first, not Osapa/Lekki
+        nb, normalised = normalise_neighbourhood("Pinnock Beach Estate, Osapa, Lekki, Lagos")
+        assert normalised is True
+        assert nb == "Pinnock Beach Estate"
+
+    def test_new_canonical_additions(self):
+        # Test a few new additions specifically
+        for raw, expected in [
+            ("Lekki Lagos", "Lekki"),
+            ("Shomolu Lagos", "Shomolu"),
+            ("Ago Palace Way Okota Lagos", "Ago Palace"),
+            ("Gaduwa, Abuja", "Gaduwa"),
+            ("Asaba Delta", "Asaba")
+        ]:
+            nb, normalised = normalise_neighbourhood(raw)
+            assert normalised is True, f"Failed for {raw}"
+            assert nb == expected, f"Expected {expected} for {raw}, got {nb}"
 
     def test_raw_address_truncated_to_60_chars(self):
         long = "A" * 80 + ", Unknown City"
