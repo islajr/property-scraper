@@ -291,3 +291,26 @@ class TestMissedRunConfig:
 
     def test_pagination_stop_after_known_is_10(self):
         assert config.PAGINATION_STOP_AFTER_KNOWN == 10
+
+
+# =============================================================================
+# Health check query optimization
+# =============================================================================
+
+class TestHealthCheckQuery:
+
+    def test_fetch_listings_for_health_check_includes_missed_run_count_condition(self):
+        writer = _make_writer()
+        mock_cursor = MagicMock()
+        # Mock cursor context manager to yield our mock_cursor
+        writer.conn.cursor.return_value.__enter__ = lambda s: mock_cursor
+        mock_cursor.fetchall.return_value = [{"id": 1}]
+        
+        candidates = writer.fetch_listings_for_health_check()
+        
+        assert len(candidates) == 1
+        # Check that the execute call was made with our optimized query
+        call_args = mock_cursor.execute.call_args[0]
+        sql_query = call_args[0]
+        assert "missed_run_count > 0" in sql_query
+        assert "listing_status = 'ACTIVE'" in sql_query

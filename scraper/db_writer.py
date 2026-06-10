@@ -345,6 +345,10 @@ class DatabaseWriter:
         """
         Returns ACTIVE listings that are due for an individual URL health check.
 
+        Only listings with missed_run_count > 0 (absent from the latest feeds)
+        are checked. Listings with missed_run_count = 0 are verified active in the
+        latest discovery run, so individual URL verification is bypassed.
+
         Ordered by missed_run_count DESC so listings most likely to be gone
         are verified first. Ties broken by last_health_check_at ASC NULLS FIRST
         so the oldest checks are refreshed soonest.
@@ -354,6 +358,7 @@ class DatabaseWriter:
             SELECT id, source, external_id, url, first_seen_at, price_kobo
             FROM raw_data.scraped_listings
             WHERE listing_status = 'ACTIVE'
+              AND missed_run_count > 0
               AND (
                   last_health_check_at IS NULL
                   OR last_health_check_at < NOW() - INTERVAL %s
