@@ -42,6 +42,21 @@ jobs:
             libgbm1 libpango-1.0-0 libcairo2 libasound2t64
           playwright install chromium
 
+      - name: Install and start Tor & Privoxy
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tor privoxy
+          
+          # Configure privoxy to route HTTP requests through Tor's local SOCKS5 proxy (port 9050)
+          echo "forward-socks5t / 127.0.0.1:9050 ." | sudo tee -a /etc/privoxy/config
+          
+          # Start Tor and restart Privoxy
+          sudo service tor start
+          sudo service privoxy restart
+          
+          # Give Tor 5 seconds to bootstrap a connection
+          sleep 5
+
       - name: Apply DB schema (idempotent — IF NOT EXISTS guards)
         run: |
           python - <<'EOF'
@@ -55,6 +70,9 @@ jobs:
           EOF
 
       - name: Run scraper
+        env:
+          HTTP_PROXY: http://127.0.0.1:8118
+          HTTPS_PROXY: http://127.0.0.1:8118
         run: python -m scraper.orchestrator
 
       - name: Upload error log on failure
