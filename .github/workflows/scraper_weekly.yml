@@ -28,19 +28,19 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Install Playwright browsers (Chromium only)
-        run: |
-          # Install Chromium system deps manually for Ubuntu 24.04 (Noble).
-          # We do NOT use --with-deps because playwright's internal apt script
-          # still hardcodes 'libasound2' (renamed to libasound2t64 in Noble)
-          # and will fail regardless of any pre-install workaround.
-          sudo apt-get install -y --no-install-recommends \
-            libnss3 libnspr4 libdbus-1-3 \
-            libatk1.0-0t64 libatk-bridge2.0-0t64 \
-            libcups2t64 libxkbcommon0 libatspi2.0-0t64 \
-            libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
-            libgbm1 libpango-1.0-0 libcairo2 libasound2t64
-          playwright install chromium
+      # - name: Install Playwright browsers (Chromium only)
+      #   run: |
+      #     # Install Chromium system deps manually for Ubuntu 24.04 (Noble).
+      #     # We do NOT use --with-deps because playwright's internal apt script
+      #     # still hardcodes 'libasound2' (renamed to libasound2t64 in Noble)
+      #     # and will fail regardless of any pre-install workaround.
+      #     sudo apt-get install -y --no-install-recommends \
+      #       libnss3 libnspr4 libdbus-1-3 \
+      #       libatk1.0-0t64 libatk-bridge2.0-0t64 \
+      #       libcups2t64 libxkbcommon0 libatspi2.0-0t64 \
+      #       libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
+      #       libgbm1 libpango-1.0-0 libcairo2 libasound2t64
+      #     playwright install chromium
 
       - name: Install and start Cloudflare WARP & Privoxy
         run: |
