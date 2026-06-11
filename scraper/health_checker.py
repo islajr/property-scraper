@@ -235,6 +235,7 @@ class HealthChecker:
             headers=HEADERS,
             connector=connector,
             timeout=timeout,
+            trust_env=True,
         ) as session:
             tasks = [
                 self._check_with_semaphore(session, semaphore, row)

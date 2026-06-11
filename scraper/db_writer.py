@@ -345,15 +345,13 @@ class DatabaseWriter:
         """
         Returns ACTIVE listings that are due for an individual URL health check.
 
-        Only listings with missed_run_count > 0 (absent from the latest feeds)
-        are checked. Listings with missed_run_count = 0 are verified active in the
-        latest discovery run, so individual URL verification is bypassed.
+        Uses Adaptive Cooldown based on listing age:
+          - < 14 days old: Checked every 2 days
+          - 14-60 days old: Checked every 7 days
+          - > 60 days old: Checked every 14 days
 
-        Ordered by missed_run_count DESC so listings most likely to be gone
-        are verified first. Ties broken by last_health_check_at ASC NULLS FIRST
-        so the oldest checks are refreshed soonest.
+        Applies HEALTH_CHECK_LIMIT to guarantee a fixed maximum runtime.
         """
-        interval = f"{config.HEALTH_CHECK_INTERVAL_DAYS} days"
         sql = """
             SELECT id, source, external_id, url, first_seen_at, price_kobo
             FROM raw_data.scraped_listings
@@ -361,13 +359,20 @@ class DatabaseWriter:
               AND missed_run_count > 0
               AND (
                   last_health_check_at IS NULL
-                  OR last_health_check_at < NOW() - INTERVAL %s
+                  OR last_health_check_at < NOW() - (
+                      CASE
+                          WHEN first_seen_at >= NOW() - INTERVAL '14 days' THEN INTERVAL '2 days'
+                          WHEN first_seen_at >= NOW() - INTERVAL '60 days' THEN INTERVAL '7 days'
+                          ELSE INTERVAL '14 days'
+                      END
+                  )
               )
             ORDER BY missed_run_count DESC,
                      last_health_check_at ASC NULLS FIRST
+            LIMIT %s
         """
         with self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(sql, (interval,))
+            cur.execute(sql, (config.HEALTH_CHECK_LIMIT,))
             return cur.fetchall()
 
     def confirm_listing_removed(self, listing_id: int,

@@ -44,6 +44,8 @@ MISSED_RUN_REMOVAL_THRESHOLD = 3
 HEALTH_CHECK_INTERVAL_DAYS = 2   # re-check every listing at least this often
 HEALTH_CHECK_DELAY_MIN     = 0.5  # seconds between requests
 HEALTH_CHECK_DELAY_MAX     = 0.1
+HEALTH_CHECK_LIMIT         = 1000 # Maximum listings to check per health check run
+
 
 # Suspected-sold: minimum days a listing must have been active before removal
 # can be classified as a likely transaction.

@@ -314,3 +314,5 @@ class TestHealthCheckQuery:
         sql_query = call_args[0]
         assert "missed_run_count > 0" in sql_query
         assert "listing_status = 'ACTIVE'" in sql_query
+        assert "LIMIT %s" in sql_query
+        assert call_args[1] == (config.HEALTH_CHECK_LIMIT,)

@@ -1,0 +1,58 @@
+name: Property Scraper — Daily Health Check
+
+on:
+  schedule:
+    - cron: '0 2 * * *'    # Daily at 02:00 UTC = 03:00 Lagos WAT
+  workflow_dispatch:      # Enable manual trigger from GitHub UI
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+
+    env:
+      DATABASE_URL:          ${{ secrets.DATABASE_URL }}
+      TELEGRAM_BOT_TOKEN:    ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID:      ${{ secrets.TELEGRAM_CHAT_ID }}
+      NOMINATIM_CONTACT_EMAIL: ${{ secrets.NOMINATIM_CONTACT_EMAIL }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install and start Tor & Privoxy
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tor privoxy
+          
+          # Configure privoxy to route HTTP requests through Tor's local SOCKS5 proxy (port 9050)
+          echo "forward-socks5t / 127.0.0.1:9050 ." | sudo tee -a /etc/privoxy/config
+          
+          # Start Tor and restart Privoxy
+          sudo service tor start
+          sudo service privoxy restart
+          
+          # Give Tor 5 seconds to bootstrap a connection
+          sleep 5
+
+      - name: Run health check
+        env:
+          HTTP_PROXY: http://127.0.0.1:8118
+          HTTPS_PROXY: http://127.0.0.1:8118
+        run: python -m scraper.orchestrator --health-check
+
+      - name: Upload error log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: health-check-error-log-${{ github.run_number }}
+          path: scraper.log
+          retention-days: 14
