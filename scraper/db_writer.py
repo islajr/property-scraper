@@ -361,9 +361,9 @@ class DatabaseWriter:
                   last_health_check_at IS NULL
                   OR last_health_check_at < NOW() - (
                       CASE
-                          WHEN first_seen_at >= NOW() - INTERVAL '14 days' THEN INTERVAL '2 days'
-                          WHEN first_seen_at >= NOW() - INTERVAL '60 days' THEN INTERVAL '7 days'
-                          ELSE INTERVAL '14 days'
+                          WHEN first_seen_at >= NOW() - INTERVAL '14 days' THEN INTERVAL '1.9 days'
+                          WHEN first_seen_at >= NOW() - INTERVAL '60 days' THEN INTERVAL '6.8 days'
+                          ELSE INTERVAL '13.8 days'
                       END
                   )
               )
