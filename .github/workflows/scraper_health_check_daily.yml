@@ -3,7 +3,13 @@ name: Property Scraper — Daily Health Check
 on:
   schedule:
     - cron: '0 20 * * *'    # Daily at 20:00 UTC (9:00 PM Lagos WAT)
-  workflow_dispatch:      # Enable manual trigger
+  workflow_dispatch:      # Enable manual trigger from GitHub UI
+    inputs:
+      force_all:
+        description: 'Force check all active listings (bypass cooldown and limits)'
+        type: boolean
+        required: false
+        default: false
 
 jobs:
   health-check:
