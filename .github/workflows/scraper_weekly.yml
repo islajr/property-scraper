@@ -2,8 +2,8 @@ name: Property Scraper — Weekly Run
 
 on:
   schedule:
-    - cron: '0 1 * * 0'    # Sunday 01:00 UTC = 02:00 Lagos WAT
-  workflow_dispatch:          # Manual trigger
+    - cron: '0 20 * * 0'    # Sundays at 20:00 UTC (9:00 PM Lagos WAT)
+  workflow_dispatch:
 
 jobs:
   scrape:
@@ -30,10 +30,6 @@ jobs:
 
       # - name: Install Playwright browsers (Chromium only)
       #   run: |
-      #     # Install Chromium system deps manually for Ubuntu 24.04 (Noble).
-      #     # We do NOT use --with-deps because playwright's internal apt script
-      #     # still hardcodes 'libasound2' (renamed to libasound2t64 in Noble)
-      #     # and will fail regardless of any pre-install workaround.
       #     sudo apt-get install -y --no-install-recommends \
       #       libnss3 libnspr4 libdbus-1-3 \
       #       libatk1.0-0t64 libatk-bridge2.0-0t64 \
@@ -42,32 +38,7 @@ jobs:
       #       libgbm1 libpango-1.0-0 libcairo2 libasound2t64
       #     playwright install chromium
 
-      - name: Install and start Cloudflare WARP & Privoxy
-        run: |
-          # Add Cloudflare package repository
-          curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | sudo gpg --yes --dearmor --output /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
-          echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
-          
-          # Install WARP and Privoxy
-          sudo apt-get update
-          sudo apt-get install -y cloudflare-warp privoxy
-          
-          # Start WARP service
-          sudo systemctl start warp-svc
-          
-          # Register client and set to local SOCKS5 proxy mode (runs on port 40000 by default)
-          warp-cli --accept-tos registration new
-          warp-cli --accept-tos mode proxy
-          warp-cli --accept-tos connect
-          
-          # Configure Privoxy to forward all HTTP traffic to WARP SOCKS5 proxy
-          echo "forward-socks5t / 127.0.0.1:40000 ." | sudo tee -a /etc/privoxy/config
-          sudo service privoxy restart
-          
-          # Give WARP a few seconds to connect
-          sleep 5
-
-      - name: Apply DB schema (idempotent — IF NOT EXISTS guards)
+      - name: Apply DB schema
         run: |
           python - <<'EOF'
           import psycopg2, os
@@ -81,8 +52,8 @@ jobs:
 
       - name: Run scraper
         env:
-          HTTP_PROXY: http://127.0.0.1:8118
-          HTTPS_PROXY: http://127.0.0.1:8118
+          HTTP_PROXY: ${{ secrets.PROXY_URL }}
+          HTTPS_PROXY: ${{ secrets.PROXY_URL }}
         run: python -m scraper.orchestrator
 
       - name: Upload error log on failure

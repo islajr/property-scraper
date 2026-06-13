@@ -2,8 +2,8 @@ name: Property Scraper — Daily Health Check
 
 on:
   schedule:
-    - cron: '0 2 * * *'    # Daily at 02:00 UTC = 03:00 Lagos WAT
-  workflow_dispatch:      # Enable manual trigger from GitHub UI
+    - cron: '0 20 * * *'    # Daily at 20:00 UTC (9:00 PM Lagos WAT)
+  workflow_dispatch:      # Enable manual trigger
 
 jobs:
   health-check:
@@ -28,35 +28,10 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Install and start Cloudflare WARP & Privoxy
-        run: |
-          # Add Cloudflare package repository
-          curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | sudo gpg --yes --dearmor --output /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
-          echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
-          
-          # Install WARP and Privoxy
-          sudo apt-get update
-          sudo apt-get install -y cloudflare-warp privoxy
-          
-          # Start WARP service
-          sudo systemctl start warp-svc
-          
-          # Register client and set to local SOCKS5 proxy mode (runs on port 40000 by default)
-          warp-cli --accept-tos registration new
-          warp-cli --accept-tos mode proxy
-          warp-cli --accept-tos connect
-          
-          # Configure Privoxy to forward all HTTP traffic to WARP SOCKS5 proxy
-          echo "forward-socks5t / 127.0.0.1:40000 ." | sudo tee -a /etc/privoxy/config
-          sudo service privoxy restart
-          
-          # Give WARP a few seconds to connect
-          sleep 5
-
       - name: Run health check
         env:
-          HTTP_PROXY: http://127.0.0.1:8118
-          HTTPS_PROXY: http://127.0.0.1:8118
+          HTTP_PROXY: ${{ secrets.PROXY_URL }}
+          HTTPS_PROXY: ${{ secrets.PROXY_URL }}
         run: python -m scraper.orchestrator --health-check
 
       - name: Upload error log on failure
