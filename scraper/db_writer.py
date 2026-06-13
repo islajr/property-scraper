@@ -341,39 +341,52 @@ class DatabaseWriter:
     # Health check support
     # ═══════════════════════════════════════════════════════════════════════════
 
-    def fetch_listings_for_health_check(self) -> List[Dict]:
+    def fetch_listings_for_health_check(self, force_all: bool = False) -> List[Dict]:
         """
         Returns ACTIVE listings that are due for an individual URL health check.
 
-        Uses Adaptive Cooldown based on listing age:
-          - < 14 days old: Checked every 2 days
-          - 14-60 days old: Checked every 7 days
-          - > 60 days old: Checked every 14 days
+        If force_all is True, returns all ACTIVE listings bypassing cooldown and limits.
+        Otherwise, uses Adaptive Cooldown based on listing age:
+          - < 14 days old: Checked every 2 days (1.9 with buffer)
+          - 14-60 days old: Checked every 7 days (6.8 with buffer)
+          - > 60 days old: Checked every 14 days (13.8 with buffer)
 
         Applies HEALTH_CHECK_LIMIT to guarantee a fixed maximum runtime.
         """
-        sql = """
-            SELECT id, source, external_id, url, first_seen_at, price_kobo
-            FROM raw_data.scraped_listings
-            WHERE listing_status = 'ACTIVE'
-              AND missed_run_count > 0
-              AND (
-                  last_health_check_at IS NULL
-                  OR last_health_check_at < NOW() - (
-                      CASE
-                          WHEN first_seen_at >= NOW() - INTERVAL '14 days' THEN INTERVAL '1.9 days'
-                          WHEN first_seen_at >= NOW() - INTERVAL '60 days' THEN INTERVAL '6.8 days'
-                          ELSE INTERVAL '13.8 days'
-                      END
+        if force_all:
+            sql = """
+                SELECT id, source, external_id, url, first_seen_at, price_kobo
+                FROM raw_data.scraped_listings
+                WHERE listing_status = 'ACTIVE'
+                ORDER BY missed_run_count DESC,
+                         last_health_check_at ASC NULLS FIRST
+            """
+            with self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(sql)
+                return cur.fetchall()
+        else:
+            sql = """
+                SELECT id, source, external_id, url, first_seen_at, price_kobo
+                FROM raw_data.scraped_listings
+                WHERE listing_status = 'ACTIVE'
+                  AND missed_run_count > 0
+                  AND (
+                      last_health_check_at IS NULL
+                      OR last_health_check_at < NOW() - (
+                          CASE
+                              WHEN first_seen_at >= NOW() - INTERVAL '14 days' THEN INTERVAL '1.9 days'
+                              WHEN first_seen_at >= NOW() - INTERVAL '60 days' THEN INTERVAL '6.8 days'
+                              ELSE INTERVAL '13.8 days'
+                          END
+                      )
                   )
-              )
-            ORDER BY missed_run_count DESC,
-                     last_health_check_at ASC NULLS FIRST
-            LIMIT %s
-        """
-        with self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(sql, (config.HEALTH_CHECK_LIMIT,))
-            return cur.fetchall()
+                ORDER BY missed_run_count DESC,
+                         last_health_check_at ASC NULLS FIRST
+                LIMIT %s
+            """
+            with self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(sql, (config.HEALTH_CHECK_LIMIT,))
+                return cur.fetchall()
 
     def confirm_listing_removed(self, listing_id: int,
                                  first_seen_at: datetime) -> None:

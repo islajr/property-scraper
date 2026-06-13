@@ -127,7 +127,7 @@ echo ""
 
 START_TS=$(date +%s)
 set +e
-python3 -m scraper.orchestrator $MODE_FLAG
+python3 -m scraper.orchestrator "$@"
 SCRAPER_EXIT=$?
 set -e
 DURATION=$(( $(date +%s) - START_TS ))

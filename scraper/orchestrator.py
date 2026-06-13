@@ -203,7 +203,7 @@ def run():
 # Health check mode
 # ═════════════════════════════════════════════════════════════════════════════
 
-def run_health_checks():
+def run_health_checks(force_all: bool = False):
     """
     Fetches every ACTIVE listing URL individually and confirms whether it is
     still live. Only this mode may mark listings as REMOVED.
@@ -219,7 +219,7 @@ def run_health_checks():
 
         from scraper.health_checker import HealthChecker
         checker = HealthChecker(db)
-        stats   = checker.run()
+        stats   = checker.run(force_all=force_all)
 
         try:
             notifier.send_health_check_summary(stats)
@@ -252,6 +252,7 @@ def run_health_checks():
 
 if __name__ == "__main__":
     if "--health-check" in sys.argv:
-        run_health_checks()
+        force_all = "--all" in sys.argv or "--force" in sys.argv
+        run_health_checks(force_all=force_all)
     else:
         run()

@@ -145,7 +145,7 @@ class HealthChecker:
 
     # ── Public entry point ────────────────────────────────────────────────────
 
-    def run(self) -> Dict[str, int]:
+    def run(self, force_all: bool = False) -> Dict[str, int]:
         """
         Fetch all health-check candidates from the DB, verify each URL
         concurrently, then write results to the DB serially.
@@ -161,7 +161,7 @@ class HealthChecker:
             "errors":            0,
         }
 
-        candidates = self.db.fetch_listings_for_health_check()
+        candidates = self.db.fetch_listings_for_health_check(force_all=force_all)
         log.info("[health_checker] %d listings due for health check", len(candidates))
 
         if not candidates:
