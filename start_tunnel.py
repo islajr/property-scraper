@@ -23,6 +23,7 @@ def handle_proxy_client(client_socket):
             return
         
         method, url = words[0], words[1]
+        print(f"[*] Proxying {method} request to {url}", flush=True)
         
         if method == 'CONNECT':
             host, port = url.split(':')
