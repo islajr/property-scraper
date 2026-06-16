@@ -87,7 +87,7 @@ info "Virtualenv active: $(python3 --version)"
 # ── 5. Dependencies ───────────────────────────────────────────────────────────
 info "Installing dependencies..."
 pip install --quiet --upgrade pip
-pip install --quiet -r requirements.txt
+pip install --quiet --default-timeout=100 --no-cache-dir -r requirements.txt
 
 # ── 6. Playwright browser ─────────────────────────────────────────────────────
 # Only needed for discovery mode (Jiji parser), but keeping it here keeps
