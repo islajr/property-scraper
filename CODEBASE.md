@@ -24,22 +24,24 @@
 14. [Ongoing Maintenance](#14-ongoing-maintenance)
 
 ---
-
 ## 1. What This Application Does
 
-PropertyScraper (PS-0) is a weekly data pipeline. It fetches property listings from four Nigerian portals, cleans the data, geocodes it, and stores it in a PostgreSQL database on Supabase. It then sends a Telegram message summarising what happened.
+PropertyScraper (PS-0) is a data pipeline with two primary run modes:
 
-That is the entire job. There is no web server, no API, no user interface. It is a batch script that runs once a week.
+1. **Discovery Runs (Weekly)**: Wires parsers → normaliser → geocoder → db_writer → notifier to ingest new listings from Nigerian property portals and update existing active listings.
+2. **Health Check Runs (Daily)**: Fetches and verifies individual URLs of active feed-absent listings using a voluntary cohort schedule (Adaptive Cooldown) and daily queue caps to confirm removals and price adjustments.
 
-### The seven stages of every run
+There is no web server, no API, no user interface. It is an autonomous batch script that runs on GitHub Actions and tunnels requests back to a local residential IP proxy daemon to bypass aggressive bot blocks.
+
+### The seven stages of every Discovery Run
 
 | Stage | What happens |
 |---|---|
 | 1. Fetch snapshot | Read all currently ACTIVE listings from the DB into memory |
-| 2. Scrape portals | Fetch search result pages and individual listing pages from all 4 portals |
+| 2. Scrape portals | Fetch search result pages and individual listing pages from the active portals |
 | 3. Normalise | Convert raw strings (`"₦45M"`, `"3 Beds"`) into typed Python values |
 | 4. Geocode | Attach lat/lng coordinates to each listing via neighbourhood name lookup |
-| 5. Upsert | Insert new listings, update existing ones, flag removals, emit history events |
+| 5. Upsert | Insert new listings, update existing ones, increment missed_run_count, emit history events |
 | 6. Run log | Write one row per portal to `scrape_runs` to record what happened |
 | 7. Notify | Send a Telegram message with counts and status for each portal |
 
@@ -50,25 +52,27 @@ property-scraper/
 ├── config.py                   ← All configuration (env vars, constants)
 ├── conftest.py                 ← Root pytest path fix
 ├── pytest.ini                  ← pytest settings
-├── run.sh                      ← Local weekly run script
+├── run.sh                      ← Execution wrapper script (runs discovery or health-checks)
+├── start_tunnel.py             ← Local residential proxy tunnel daemon (ngrok + local HTTP proxy)
 ├── .env                        ← Local credentials (never commit)
 │
 ├── scraper/                    ← The application
 │   ├── models.py               ← RawListing and NormalisedListing dataclasses
-│   ├── orchestrator.py         ← Main entry point — wires all stages together
+│   ├── orchestrator.py         ← Main entry point — parses args, selects mode, runs pipeline
 │   ├── normaliser.py           ← String → typed value conversion
 │   ├── geocoder.py             ← Neighbourhood → lat/lng (Nominatim + cache)
 │   ├── db_writer.py            ← All database reads and writes
-│   ├── notifier.py             ← Telegram notification
+│   ├── health_checker.py       ← Async URL verification and cohort engine (Health Check mode)
+│   ├── notifier.py             ← Telegram notification triggers
 │   └── parsers/
 │       ├── base_parser.py      ← Shared HTTP + pagination infrastructure
 │       ├── propertypro.py      ← PropertyPro.ng parser
 │       ├── privateproperty.py  ← PrivateProperty.ng parser
-│       ├── nigeriapropertycentre.py
-│       └── jiji.py             ← Jiji.ng parser (uses Playwright)
+│       └── nigeriapropertycentre.py ← NigeriaPropertyCentre.ng parser
 │
 ├── schema/
-│   └── 001_raw_data_schema.sql ← Database tables, indexes — run once
+│   ├── 001_raw_data_schema.sql ← Database tables, indexes — run once
+│   └── 002_add_health_check_at.sql ← Adds health check tracking timestamp to schema
 │
 └── tests/
     ├── conftest.py             ← Shared test helpers and factories
@@ -100,13 +104,15 @@ In local development these come from the `.env` file. In GitHub Actions they are
 
 | Constant | Default |
 |---|---|
-| `REQUEST_DELAY_MIN` / `MAX` | 2.0 / 5.0s |
+| `REQUEST_DELAY_MIN` / `MAX` | 2 / 3s |
 | `MAX_RETRIES` | 3 |
 | `RETRY_BACKOFF_BASE` | 2.0 |
-| `PAGINATION_STOP_AFTER_KNOWN` | 5 |
+| `REQUEST_TIMEOUT` | 15 |
+| `MAX_CONSECUTIVE_FAILURES` | 5 |
+| `PAGINATION_STOP_AFTER_KNOWN` | 15 |
 | `MISSED_RUN_REMOVAL_THRESHOLD` | 3 |
 | `SUSPECTED_SOLD_MIN_DAYS` | 30 |
-| `UPSERT_BATCH_SIZE` | 500 |
+| `UPSERT_BATCH_SIZE` | 200 |
 
 `CANONICAL_NEIGHBOURHOODS` is a hardcoded list of ~100 neighbourhood names (Lagos + Abuja + Port Harcourt). The normaliser uses it for fuzzy matching — raw addresses like `"Lekki Ph1, Lagos"` get matched back to the canonical `"Lekki Phase 1"`. This list is shared with the P0 synthetic data generator.
 
@@ -217,7 +223,7 @@ def scrape(self) -> List[RawListing]:
 | `parse_listing(soup, url)` | Returns a `RawListing` from a single listing page soup, or `None` on failure |
 | `next_page_url(base, page_n)` | Returns the URL for page N, or `None` when pages are exhausted |
 
-### The four portal parsers
+### The three portal parsers
 
 #### `propertypro.py`
 - Uses `requests` + `BeautifulSoup` (server-rendered HTML)
@@ -246,7 +252,7 @@ def scrape(self) -> List[RawListing]:
 - Description: `div.tab-content`
 - Agent: `div.panel-body a strong`
 
-#### `jiji.py`
+<!-- #### `jiji.py`
 
 > Jiji is different from the other three portals. Its pages are JavaScript-rendered, meaning the listing content is injected by JS after the initial HTML loads. `requests.get()` returns a mostly empty page. Jiji requires Playwright (a headless browser) to execute the JavaScript and produce the full DOM.
 
@@ -258,7 +264,7 @@ def scrape(self) -> List[RawListing]:
 - Attributes (type, beds, baths): `div.b-advert-icon-attribute` — repeated element, positional
 - Address: `div.b-advert-info-statistics--region`
 - Description: `div.qa-advert-description` — `qa-` prefix means it's a stable test hook
-- Agent: `div.b-seller-block__name`
+- Agent: `div.b-seller-block__name` -->
 
 ### Selector constants
 
@@ -390,22 +396,25 @@ This is the current state of all listings. It does not store history — that go
 - **`UNIQUE(source, external_id)`:** prevents duplicates. `source='propertypro'`, `external_id='7NUGY'` can only exist once.
 - **`price_kobo BIGINT`:** all monetary values stored as kobo. ₦45,000,000 = `4_500_000_000`. No floats, no naira.
 - **`listing_status`:** `'ACTIVE'` or `'REMOVED'`. Only `ACTIVE` listings are included in the `active_listings` snapshot at run start.
-- **`missed_run_count`:** incremented each run the listing is absent. Reset to 0 when seen again. Hits 3 → `REMOVED`.
-- **`suspected_sold`:** `True` when listing is removed after ≥30 days active with a downward price change in history.
+- **`missed_run_count`:** incremented each Discovery Run the listing is absent. Reset to 0 when seen again. If > 0, listing becomes recruited for URL verification via health checker.
+- **`suspected_sold`:** `True` when the health checker confirms a listing is removed, provided it was active for ≥30 days with a downward price change in its history.
 
 ### DatabaseWriter methods
 
 | Method | What it does |
 |---|---|
 | `fetch_active_listings()` | Returns `{(source, ext_id): price_kobo}` for all `ACTIVE` listings. Called once at run start. |
-| `upsert(listings, active)` | Core write method. Routes each listing to `_insert_new` or `_update_existing`. Detects price changes. Handles missed-run logic. Returns stats dict. |
+| `upsert(listings, active)` | Core write method. Routes each listing to `_insert_new` or `_update_existing`. Detects price changes. Increments `missed_run_count` for feed-absent listings. Returns stats dict. |
 | `write_run_log(stats, duration)` | Writes one row per portal to `scrape_runs`. |
 | `fetch_geocode_cache()` | Loads all rows from `geocode_cache` into a dict. Called by `Geocoder.__init__()`. |
 | `save_geocode_cache(nb, city, lat, lng)` | Inserts a new geocode result. `ON CONFLICT DO NOTHING` — idempotent. |
+| `fetch_listings_for_health_check(force_all)` | Returns active listings due for check based on cohort cooldowns (`1.9`/`6.8`/`13.8` days). Limits by `HEALTH_CHECK_LIMIT`. Bypasses constraints if `force_all=True`. |
+| `confirm_listing_removed(listing_id, first_seen)` | Sets status to `'REMOVED'`, checks and marks `suspected_sold`, and logs a `REMOVED` history event. |
+| `confirm_listing_active(listing_id, observed_price)` | Resets `missed_run_count` to 0, updates last check timestamp. Logs `PRICE_CHANGE` event if price has adjusted. |
 
 ### The upsert logic in detail
 
-`upsert()` is the most important method. Here is exactly what it does for each listing:
+`upsert()` is the core write method. Here is exactly what it does:
 
 ```python
 for listing in listings:
@@ -431,32 +440,29 @@ missing = active_listings.keys() - seen_this_run
 
 for (source, ext_id) in missing:
     increment missed_run_count
-    if missed_run_count >= MISSED_RUN_REMOVAL_THRESHOLD:
-        set listing_status = 'REMOVED'
-        if active >= 30 days AND had a price reduction:
-            set suspected_sold = True
-        emit history event: REMOVED
+    # Note: listing_status remains ACTIVE. The health checker will pick this up.
 ```
 
 ### The `suspected_sold` signal
 
-A listing flagged as `suspected_sold` is the application's best guess that a real transaction occurred. The criteria are conservative intentionally:
+A listing flagged as `suspected_sold` is the application's best guess that a real transaction occurred. The criteria are evaluated exclusively by the health checker when a listing is confirmed removed:
 
-- The listing must have been active for at least 30 days (`SUSPECTED_SOLD_MIN_DAYS`)
-- There must be at least one `PRICE_CHANGE` event in history where `new_value < old_value` (price reduction)
-- The listing must then disappear from the portal (`missed_run_count` reaches threshold)
+- The listing must have been active for at least 30 days (`SUSPECTED_SOLD_MIN_DAYS`).
+- There must be at least one `PRICE_CHANGE` event in history where `new_value < old_value` (price reduction).
+- The listing must then be confirmed removed by individual URL check (404/redirect/removal phrase).
 
-This is a proxy signal — not a confirmed sale. Its purpose is to generate pseudo-transaction data for AVM training before real transaction records are available.
+This is a proxy signal — not a confirmed sale. Its purpose is to generate pseudo-transaction data for AVM training.
 
 ---
 
 ## 8. Orchestrator (`scraper/orchestrator.py`)
 
-The orchestrator is the main entry point. It wires all stages together in sequence. When you run `python -m scraper.orchestrator`, this file runs.
+The orchestrator is the main entry point. It parses CLI arguments to configure the execution mode (Discovery vs. Health Check) and wires all stages together in sequence.
 
-It does not contain any business logic itself — it only calls other modules in the correct order and handles errors at the portal level.
+* **CLI filtering**: It supports the `--portals` flag to limit scraping to a comma-separated subset of sources (e.g., `--portals=privateproperty,nigeriapropertycentre`).
+* It does not contain database business logic itself — it only handles orchestration sequence, CLI routing, and isolates errors at the portal level.
 
-### Sequence
+### Sequence (Discovery Mode)
 
 ```python
 def run():
@@ -467,7 +473,7 @@ def run():
 
     all_raw = []
     for parser in [PropertyProParser, PrivatePropertyParser,
-                   NigeriaPropertyCentreParser, JijiParser]:
+                   NigeriaPropertyCentreParser]:
         try:
             raw = parser(active_listings).scrape()  # ← each portal independent
             all_raw.extend(raw)
@@ -482,6 +488,17 @@ def run():
     notifier.send_summary(stats, run_stats, duration)
 ```
 
+### Sequence (Health Check Mode)
+
+```python
+def run_health_checks(force_all=False):
+    db = DatabaseWriter(config.DATABASE_URL)
+    checker = HealthChecker(db)
+    stats = checker.run(force_all=force_all)
+    # sends health check counts (checked, removed, active, changes, errors)
+    notifier.send_health_check_summary(stats)
+```
+
 ### Error isolation
 
 Each portal is wrapped in its own `try/except`. If PropertyPro fails (403, timeout, selector change), the other three portals still run. The failed portal is logged and recorded in `scrape_runs` with status `FAILED`. The Telegram message shows ❌ for that portal.
@@ -494,11 +511,11 @@ A single broken parser never takes down the entire run.
 
 The notifier sends a Telegram message at the end of every run. It uses a direct HTTP `POST` to the Telegram Bot API — no library needed.
 
-The message contains: per-portal status icons (✅/⚠️/❌), new/updated/suspected_sold counts per portal, geocoding success rate, price parse success rate, total run duration.
+* **Discovery runs**: The message contains: per-portal status icons (✅/⚠️/❌), new/updated/suspected_sold counts per portal, geocoding success rate, price parse success rate, total run duration.
+* **Health check runs**: `send_health_check_summary(stats)` sends checking counts (checked, confirmed active, confirmed removed, price changes, errors).
+* **Error reports**: `send_error()` is called by the orchestrator when it catches a critical crash. It sends a short message with the exception text.
 
 If `TELEGRAM_BOT_TOKEN` or `TELEGRAM_CHAT_ID` are not set, it logs a warning and skips — it does not crash the run.
-
-`send_error()` is called by the orchestrator when it catches a critical crash. It sends a short message with the exception text.
 
 ---
 
@@ -557,10 +574,14 @@ pytest tests/test_parsers.py::TestPropertyProParser::test_price_raw -v
 
 ## 11. Running the Scraper (`run.sh`)
 
-`run.sh` is the weekly run script. It sets up the environment and runs the pipeline.
+`run.sh` is the execution wrapper script. It sets up the environment and runs the pipeline in the selected mode.
 
-### What `run.sh` does
+### Running commands:
+* **Discovery Mode**: `./run.sh`
+* **Health Check Mode**: `./run.sh --health-check` (only checks listings due based on adaptive cooldown)
+* **Force Health Check**: `./run.sh --health-check --all` (force-checks all active listings immediately, bypassing cohort cooldown constraints)
 
+### What `run.sh` does:
 1. Check `.env` exists and `DATABASE_URL` is set
 2. Initialise pyenv so `python3.12` is on `PATH` (pyenv shims are not active in scripts by default)
 3. Walk `python3.12` → `python3.11` → `python3.10` → `python3` and pick the first found
@@ -569,7 +590,7 @@ pytest tests/test_parsers.py::TestPropertyProParser::test_price_raw -v
 6. `pip install -r requirements.txt`
 7. `playwright install chromium` (no-op if already cached)
 8. Apply schema to Supabase (idempotent — `IF NOT EXISTS` guards everywhere)
-9. `python3 -m scraper.orchestrator`
+9. `python3 -m scraper.orchestrator "$@"` (passes arguments to the orchestrator)
 10. Print summary with run duration; on failure, print last 30 lines of `scraper.log`
 
 ### The `.env` file
@@ -584,7 +605,7 @@ TELEGRAM_CHAT_ID=123456789
 
 ---
 
-## 12. Full Data Flow — One Run
+## 12. Full Data Flow — Discovery Run
 
 ```
 ./run.sh
@@ -609,11 +630,6 @@ TELEGRAM_CHAT_ID=123456789
 
    ├─ (same for PrivateProperty, NigeriaPropertyCentre)
 
-   ├─ JijiParser(active_listings).scrape()
-   │   ├─ Playwright launches headless Chromium
-   │   ├─ page.goto(search_url, wait_until='networkidle')
-   │   └─ _parse_listing(BeautifulSoup(page.content())) → RawListing
-
    ├─ normaliser.normalise(raw) for each RawListing
    │   ├─ parse_price()               '₦75M/year'          → 7_500_000_000
    │   ├─ parse_price_type()                               → 'FOR_RENT'
@@ -631,12 +647,52 @@ TELEGRAM_CHAT_ID=123456789
    ├─ db.upsert(normalised, active_listings)
    │   ├─ new:     INSERT → emit LISTED history event
    │   ├─ existing: UPDATE last_seen_at, price → emit PRICE_CHANGE if changed
-   │   └─ missing: increment missed_run_count → REMOVED if threshold hit
+   │   └─ missing: increment missed_run_count
 
    ├─ db.write_run_log(stats, duration)
    │   └─ INSERT INTO raw_data.scrape_runs (one row per portal)
 
    └─ notifier.send_summary()
+       └─ POST https://api.telegram.org/bot.../sendMessage
+```
+
+## 12.1. Full Data Flow — Health Check Run
+
+```
+./run.sh --health-check
+└─ python3 -m scraper.orchestrator --health-check
+
+   ├─ config.py loads .env and health check limits
+   ├─ DatabaseWriter fetches candidates:
+   │   └─ SELECT listings where listing_status = 'ACTIVE' and missed_run_count > 0
+   │      that are due based on age cohort cooldown (1.9, 6.8, or 13.8 days)
+   │      ordered by missed_run_count DESC, last_check ASC
+   │      capped by LIMIT 1000 (HEALTH_CHECK_LIMIT)
+
+   ├─ HealthChecker runs async network verification (Phase 1):
+   │   ├─ Opens aiohttp.ClientSession (trust_env=True for proxies)
+   │   ├─ Fans out requests using Semaphore (default 50 concurrency)
+   │   ├─ For each candidate URL:
+   │   │   ├─ Apply randomized delay jitter (HEALTH_CHECK_DELAY_MIN/MAX)
+   │   │   ├─ GET listing URL (allow redirects)
+   │   │   ├─ If 404 → mark is_removed = True
+   │   │   ├─ If redirect to generic page (without ext_id in URL) → mark is_removed = True
+   │   │   ├─ If 200:
+   │   │   │   ├─ Parse body for REMOVAL_PHRASES → if hit, mark is_removed = True
+   │   │   │   └─ Else: extract current price using parser and normaliser
+   │   │   └─ If network timeout/error → log error (preserve ACTIVE state)
+
+   ├─ DatabaseWriter writes checks serially (Phase 2):
+   │   ├─ If is_removed = True:
+   │   │   ├─ UPDATE status to 'REMOVED'
+   │   │   ├─ Evaluate suspected_sold (active >= 30 days & had price reduction)
+   │   │   └─ INSERT history event: REMOVED
+   │   └─ If is_removed = False:
+   │       ├─ Reset missed_run_count = 0
+   │       ├─ Stamp last_health_check_at
+   │       └─ If price changed → UPDATE price_kobo and INSERT event: PRICE_CHANGE
+
+   └─ notifier.send_health_check_summary(stats)
        └─ POST https://api.telegram.org/bot.../sendMessage
 ```
 
@@ -649,9 +705,22 @@ TELEGRAM_CHAT_ID=123456789
 The most common failure. Causes in order of likelihood:
 
 - **Selector drift:** the portal changed its HTML. Check `LISTING_CARD_SELECTOR` in the parser. Run `diagnose.py` to get fresh HTML, inspect in browser DevTools.
-- **403 Forbidden:** bot detection. Run from a residential IP (your laptop, not GitHub Actions).
+- **403 Forbidden / Cloud Blocking:** Bot detection blocking cloud subnet ranges (e.g. GitHub Actions runners). Make sure the local residential proxy tunnel (`start_tunnel.py`) is active and repository secrets on GitHub are synced with the tunnel address. Note: portals like propertypro.ng and privateproperty.com.ng also block public VPNs/exit nodes (like WARP and Tor exit nodes).
 - **Playwright timeout:** Jiji's JS did not finish loading. `SELECTOR_TIMEOUT` is 20 seconds — increase if needed.
 - **robots.txt false positive:** verify `robots.txt` manually. The fix was changing `can_fetch('*', url)` to `can_fetch(HEADERS['User-Agent'], url)`.
+
+### ngrok Tunnel Connection Drops (ProxyError)
+
+- **Symptom**: GHA runner workflow fails with:
+  `ProxyError('Unable to connect to proxy', RemoteDisconnected('Remote end closed connection without response'))`
+- **Cause**: Censorship firewalls or restrictive ISPs using Deep Packet Inspection (DPI) or TCP Resets (RST) to terminate ngrok tunnels.
+- **Fix**: The scraper's built-in `MAX_RETRIES = 3` with exponential backoff handles this. If drops are very frequent, modify the ngrok launch command in `start_tunnel.py` to specify an alternate server region (e.g. `ngrok tcp 8118 --region eu`).
+
+### systemd Tunnel Output Logs Frozen
+
+- **Symptom**: Checking the logs via `journalctl --user -u scraper-tunnel.service -f` shows no request proxying output.
+- **Cause**: Python buffers standard output by default when stdout/stderr is redirected to a non-interactive console.
+- **Fix**: Ensure that `Environment=PYTHONUNBUFFERED=1` is specified in the systemd service template inside the `[Service]` section.
 
 ### `ModuleNotFoundError: No module named 'scraper'`
 
