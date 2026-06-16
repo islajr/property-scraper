@@ -75,12 +75,22 @@ def run():
         all_raw    = []
         run_stats  = {}   # {source: {status, raw_count, error}}
 
+        # Check for --portals flag (comma-separated list, e.g. --portals=privateproperty,nigeriapropertycentre)
+        allowed_portals = None
+        for arg in sys.argv:
+            if arg.startswith("--portals="):
+                allowed_portals = set(arg.split("=")[1].split(","))
+
         parsers = [
             PropertyProParser(active_listings),
             PrivatePropertyParser(active_listings),
             NigeriaPropertyCentreParser(active_listings),
             # JijiParser(active_listings),
         ]
+
+        if allowed_portals:
+            parsers = [p for p in parsers if p.source in allowed_portals]
+            log.info("Filtering discovery run to portals: %s", ", ".join(allowed_portals))
 
         for parser in parsers:
             source = parser.source

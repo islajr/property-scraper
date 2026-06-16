@@ -90,14 +90,21 @@ class BaseParser(ABC):
         the rent feed from running.
         """
         results: List[RawListing] = []
+        consecutive_failures = 0
+        max_consecutive_failures = getattr(config, "MAX_CONSECUTIVE_FAILURES", 5)
 
         for base_search_url in self.search_urls:
+            if consecutive_failures >= max_consecutive_failures:
+                break
             log.info("[%s] Starting search feed: %s", self.source, base_search_url)
             consecutive_known = 0
             page_number = 1
             current_url = base_search_url
 
             while current_url:
+                if consecutive_failures >= max_consecutive_failures:
+                    log.warning("[%s] Hit %d consecutive failures. Aborting portal scrape.", self.source, consecutive_failures)
+                    break
                 
                 if config.MAX_PAGES_PER_FEED and page_number > config.MAX_PAGES_PER_FEED:
                     log.info("[%s] Page cap (%d) reached - stopping this feed", self.source, config.MAX_PAGES_PER_FEED)
@@ -107,6 +114,7 @@ class BaseParser(ABC):
                 page_html = self._get(current_url)
                 if not page_html:
                     log.warning("[%s] Empty response on page %d — stopping", self.source, page_number)
+                    consecutive_failures += 1
                     break
 
                 page_soup = BeautifulSoup(page_html, "html.parser")
@@ -117,6 +125,9 @@ class BaseParser(ABC):
                     break
 
                 for url in listing_urls:
+                    if consecutive_failures >= max_consecutive_failures:
+                        break
+                    
                     ext_id = self._extract_external_id(url)
                     if ext_id and (self.source, ext_id) in self.active_listings:
                         consecutive_known += 1
@@ -138,7 +149,10 @@ class BaseParser(ABC):
 
                     html = self._get(url)
                     if not html:
+                        consecutive_failures += 1
                         continue
+                    
+                    consecutive_failures = 0  # reset on successful fetch
 
                     soup = BeautifulSoup(html, "html.parser")
                     try:
@@ -160,8 +174,9 @@ class BaseParser(ABC):
 
     def _get(self, url: str, retries: int = 0) -> Optional[str]:
         """GET a URL with retry + exponential backoff on 429 / timeout."""
+        timeout = getattr(config, "REQUEST_TIMEOUT", 15)
         try:
-            resp = self.session.get(url, timeout=20)
+            resp = self.session.get(url, timeout=timeout)
 
             if resp.status_code == 429:
                 if retries < config.MAX_RETRIES:

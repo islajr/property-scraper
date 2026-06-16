@@ -30,6 +30,8 @@ REQUEST_DELAY_MIN = 2        # seconds — minimum inter-request delay
 REQUEST_DELAY_MAX = 3        # seconds — maximum inter-request delay
 MAX_RETRIES       = 3          # per-request retry limit
 RETRY_BACKOFF_BASE = 2.0       # seconds — exponential backoff base
+REQUEST_TIMEOUT    = 15        # seconds — HTTP request timeout
+MAX_CONSECUTIVE_FAILURES = 5   # consecutive errors before aborting a portal
 
 # Deduplication short-circuit: stop paginating a portal's search results when
 # this many consecutive listings are already known in the database.
@@ -55,7 +57,7 @@ SUSPECTED_SOLD_MIN_DAYS = 30
 UPSERT_BATCH_SIZE = 200
 
 # Page cap per listing feed
-MAX_PAGES_PER_FEED = 10
+MAX_PAGES_PER_FEED = 5  # Five pages per listing feed for sustainability of supabase free-tier database
 
 # ── Neighbourhood canonical list ───────────────────────────────────────────────
 # Seeded from P0 — PropertyDataGenerator. DO NOT edit without updating P0 first.
