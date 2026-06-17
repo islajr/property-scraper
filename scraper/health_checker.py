@@ -147,8 +147,8 @@ class HealthChecker:
 
     def run(self, force_all: bool = False) -> Dict[str, int]:
         """
-        Fetch all health-check candidates from the DB, verify each URL
-        concurrently, then write results to the DB serially.
+        Fetch all health-check candidates from the DB, verify them in micro-batches
+        concurrently, and write results to the DB immediately after each batch completes.
 
         Returns a stats dict:
             {checked, confirmed_removed, confirmed_active, price_changes, errors}
@@ -168,41 +168,48 @@ class HealthChecker:
             log.info("[health_checker] Nothing to check — all listings are up to date.")
             return stats
 
-        # ── Phase 1: async HTTP ───────────────────────────────────────────────
-        # All network I/O happens here concurrently. No DB calls inside.
-        results: List[_CheckResult] = asyncio.run(self._run_async(candidates))
+        batch_size = getattr(config, "HEALTH_CHECK_BATCH_SIZE", 50)
+        batches = [candidates[i : i + batch_size] for i in range(0, len(candidates), batch_size)]
+        log.info("[health_checker] Slicing candidates into %d batches of size %d", len(batches), batch_size)
 
-        # ── Phase 2: sync DB writes ───────────────────────────────────────────
-        # Serial loop: safe to call psycopg2 / DatabaseWriter as normal.
-        for result in results:
-            if result.error:
-                log.warning(
-                    "[health_checker] error checking [%s] %s — %s",
-                    result.source, result.external_id, result.error,
-                )
-                stats["errors"] += 1
-                continue
+        for batch_idx, batch in enumerate(batches, 1):
+            log.info("[health_checker] Processing batch %d/%d (size: %d)...", batch_idx, len(batches), len(batch))
 
-            stats["checked"] += 1
+            # ── Phase 1: async HTTP (current batch) ───────────────────────────
+            # All network I/O happens here concurrently for this batch. No DB calls inside.
+            results: List[_CheckResult] = asyncio.run(self._run_async(batch))
 
-            if result.is_removed:
-                self.db.confirm_listing_removed(result.listing_id, result.first_seen)
-                stats["confirmed_removed"] += 1
-                log.info("[health_checker] REMOVED confirmed: [%s] %s",
-                         result.source, result.external_id)
-            else:
-                price_changed = self.db.confirm_listing_active(
-                    result.listing_id, result.observed_price
-                )
-                stats["confirmed_active"] += 1
+            # ── Phase 2: sync DB writes (current batch) ───────────────────────
+            # Serial loop: safe to call psycopg2 / DatabaseWriter as normal.
+            for result in results:
+                if result.error:
+                    log.warning(
+                        "[health_checker] error checking [%s] %s — %s",
+                        result.source, result.external_id, result.error,
+                    )
+                    stats["errors"] += 1
+                    continue
 
-                if price_changed:
-                    stats["price_changes"] += 1
-                    log.info("[health_checker] PRICE_CHANGE detected: [%s] %s",
+                stats["checked"] += 1
+
+                if result.is_removed:
+                    self.db.confirm_listing_removed(result.listing_id, result.first_seen)
+                    stats["confirmed_removed"] += 1
+                    log.info("[health_checker] REMOVED confirmed: [%s] %s",
                              result.source, result.external_id)
                 else:
-                    log.debug("[health_checker] still active: [%s] %s",
-                              result.source, result.external_id)
+                    price_changed = self.db.confirm_listing_active(
+                        result.listing_id, result.observed_price
+                    )
+                    stats["confirmed_active"] += 1
+
+                    if price_changed:
+                        stats["price_changes"] += 1
+                        log.info("[health_checker] PRICE_CHANGE detected: [%s] %s",
+                                 result.source, result.external_id)
+                    else:
+                        log.debug("[health_checker] still active: [%s] %s",
+                                  result.source, result.external_id)
 
         log.info(
             "[health_checker] complete — checked: %d  removed: %d  "
@@ -214,6 +221,7 @@ class HealthChecker:
             stats["errors"],
         )
         return stats
+
 
     # ── Async orchestration ───────────────────────────────────────────────────
 

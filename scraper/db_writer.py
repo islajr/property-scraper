@@ -302,6 +302,22 @@ class DatabaseWriter:
                 ))
         self.conn.commit()
 
+    def fetch_last_successful_run(self, source: str) -> Optional[datetime]:
+        """Fetch the timestamp of the last successful run for a given source."""
+        sql = """
+            SELECT run_at
+            FROM raw_data.scrape_runs
+            WHERE source = %s AND status = 'SUCCESS'
+            ORDER BY run_at DESC
+            LIMIT 1
+        """
+        self._ensure_connection()
+        with self.conn.cursor() as cur:
+            cur.execute(sql, (source,))
+            row = cur.fetchone()
+            return row[0] if row else None
+
+
     # ═══════════════════════════════════════════════════════════════════════════
     # Total listing count — for Telegram summary footer
     # ═══════════════════════════════════════════════════════════════════════════

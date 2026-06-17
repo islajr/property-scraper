@@ -54,7 +54,8 @@ To optimize performance and request volume, the health checker uses **Adaptive C
 - `14-60 days old`: Checked every 7 days (6.8 days with buffer)
 - `> 60 days old`: Checked every 14 days (13.8 days with buffer)
 
-Additionally, it applies a daily queue cap (`HEALTH_CHECK_LIMIT = 1000`) to guarantee a fixed maximum execution time.
+Additionally, it applies a daily queue cap (`HEALTH_CHECK_LIMIT = 1000`) to guarantee a fixed maximum execution time. Checks are executed in micro-batches (default: 50 candidates per batch) so progress is committed incrementally and is resilient to system sleep/power interrupts.
+
 
 ---
 
@@ -210,7 +211,9 @@ python3 -m scraper.orchestrator [--portals=list]
 
 With the `--health-check` flag, `run.sh` pulls listings from the database that are due for check (based on the adaptive cooldown logic) and checks them for activity. If it determines that prices have changed or that they are no longer present, a `PRICE_CHANGE` or a `REMOVED` event for each listing is appended to the `listing_history` table respectively.
 
-To bypass the cooldown schedule and check **all active listings** immediately, add the `--all` (or `--force`) flag:
+**Timing Guard**: To support local scheduling (e.g. triggering hourly), health checks are protected by a timing guard. If a successful check completed less than 22 hours ago, the script exits early.
+
+To bypass the timing guard and the cooldown schedule to check **all active listings** immediately, add the `--all` (or `--force`) flag:
 
 ```bash
 ./run.sh --health-check --all
@@ -234,9 +237,12 @@ All configuration is in `config.py`. The key constants:
 | `SUSPECTED_SOLD_MIN_DAYS` | 30 | Minimum days active to flag a removal as a suspected sale |
 | `HEALTH_CHECK_INTERVAL_DAYS` | 2 | Cooldown backup interval (in days) |
 | `HEALTH_CHECK_LIMIT` | 1000 | Maximum listings checked per health-check run |
+| `HEALTH_CHECK_BATCH_SIZE` | 50 | Micro-batch chunk size for HTTP scraping and DB commits |
+| `HEALTH_CHECK_RUN_INTERVAL_HOURS` | 22 | Cooldown limit for the daily timing guard |
 | `UPSERT_BATCH_SIZE` | 200 | DB write batch size |
 
 `CANONICAL_NEIGHBOURHOODS` is a hardcoded list of major neighbourhood names across Lagos, Abuja, and Port Harcourt. The normaliser uses it for fuzzy address matching.
+
 
 ---
 

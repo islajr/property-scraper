@@ -47,6 +47,9 @@ HEALTH_CHECK_INTERVAL_DAYS = 2   # re-check every listing at least this often
 HEALTH_CHECK_DELAY_MIN     = 3  # seconds between requests
 HEALTH_CHECK_DELAY_MAX     = 1
 HEALTH_CHECK_LIMIT         = 1000 # Maximum listings to check per health check run
+HEALTH_CHECK_BATCH_SIZE         = 50   # Size of concurrently processed chunks
+HEALTH_CHECK_RUN_INTERVAL_HOURS = 22   # Minimum hours between daily runs
+
 
 
 # Suspected-sold: minimum days a listing must have been active before removal

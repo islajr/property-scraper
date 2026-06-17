@@ -29,9 +29,9 @@
 PropertyScraper (PS-0) is a data pipeline with two primary run modes:
 
 1. **Discovery Runs (Weekly)**: Wires parsers → normaliser → geocoder → db_writer → notifier to ingest new listings from Nigerian property portals and update existing active listings.
-2. **Health Check Runs (Daily)**: Fetches and verifies individual URLs of active feed-absent listings using a voluntary cohort schedule (Adaptive Cooldown) and daily queue caps to confirm removals and price adjustments.
+2. **Health Check Runs (Daily)**: Fetches and verifies individual URLs of active feed-absent listings using a voluntary cohort schedule (Adaptive Cooldown) and daily queue caps to confirm removals and price adjustments. It runs in micro-batches (committing results incrementally to PostgreSQL) and is protected by an early-exit timing guard to allow frequent scheduling triggers.
 
-There is no web server, no API, no user interface. It is an autonomous batch script that runs on GitHub Actions and tunnels requests back to a local residential IP proxy daemon to bypass aggressive bot blocks.
+There is no web server, no API, no user interface. It is an autonomous batch script that runs on GitHub Actions (routing requests through a residential proxy tunnel) or directly on local machines.
 
 ### The seven stages of every Discovery Run
 
@@ -82,6 +82,7 @@ property-scraper/
     ├── test_geocoder.py
     ├── test_db_writer.py
     └── test_pipeline.py
+    └── test_health_checker.py  ← Tests for micro-batched health check execution
 ```
 
 ---
@@ -102,21 +103,26 @@ In local development these come from the `.env` file. In GitHub Actions they are
 
 ### Behaviour constants
 
-| Constant | Default |
-|---|---|
-| `REQUEST_DELAY_MIN` / `MAX` | 2 / 3s |
-| `MAX_RETRIES` | 3 |
-| `RETRY_BACKOFF_BASE` | 2.0 |
-| `REQUEST_TIMEOUT` | 15 |
-| `MAX_CONSECUTIVE_FAILURES` | 5 |
-| `PAGINATION_STOP_AFTER_KNOWN` | 15 |
-| `MISSED_RUN_REMOVAL_THRESHOLD` | 3 |
-| `SUSPECTED_SOLD_MIN_DAYS` | 30 |
-| `UPSERT_BATCH_SIZE` | 200 |
+| Constant | Default | Purpose |
+|---|---|---|
+| `REQUEST_DELAY_MIN` / `MAX` | 2 / 3s | Delay range between requests |
+| `MAX_RETRIES` | 3 | HTTP retry limits |
+| `RETRY_BACKOFF_BASE` | 2.0 | Exponential backoff sleep base |
+| `REQUEST_TIMEOUT` | 15 | Timeout in seconds |
+| `MAX_CONSECUTIVE_FAILURES` | 5 | consecutive errors before aborting |
+| `PAGINATION_STOP_AFTER_KNOWN` | 15 | Duplicate stop check range |
+| `MISSED_RUN_REMOVAL_THRESHOLD` | 3 | Miss count threshold before checker recruitment |
+| `SUSPECTED_SOLD_MIN_DAYS` | 30 | Day range for transaction flag |
+| `HEALTH_CHECK_INTERVAL_DAYS` | 2 | Adaptive cooldown check interval |
+| `HEALTH_CHECK_LIMIT` | 1000 | Max listings checked per run |
+| `HEALTH_CHECK_BATCH_SIZE` | 50 | Micro-batch size for resilient DB commits |
+| `HEALTH_CHECK_RUN_INTERVAL_HOURS` | 22 | Daily timing guard limit |
+| `UPSERT_BATCH_SIZE` | 200 | DB bulk batch size |
 
 `CANONICAL_NEIGHBOURHOODS` is a hardcoded list of ~100 neighbourhood names (Lagos + Abuja + Port Harcourt). The normaliser uses it for fuzzy matching — raw addresses like `"Lekki Ph1, Lagos"` get matched back to the canonical `"Lekki Phase 1"`. This list is shared with the P0 synthetic data generator.
 
 ---
+
 
 ## 3. Data Models (`scraper/models.py`)
 
@@ -409,8 +415,10 @@ This is the current state of all listings. It does not store history — that go
 | `fetch_geocode_cache()` | Loads all rows from `geocode_cache` into a dict. Called by `Geocoder.__init__()`. |
 | `save_geocode_cache(nb, city, lat, lng)` | Inserts a new geocode result. `ON CONFLICT DO NOTHING` — idempotent. |
 | `fetch_listings_for_health_check(force_all)` | Returns active listings due for check based on cohort cooldowns (`1.9`/`6.8`/`13.8` days). Limits by `HEALTH_CHECK_LIMIT`. Bypasses constraints if `force_all=True`. |
+| `fetch_last_successful_run(source)` | Queries the `raw_data.scrape_runs` table to find the timestamp of the last successful execution of the source (e.g. `'health_check'`). |
 | `confirm_listing_removed(listing_id, first_seen)` | Sets status to `'REMOVED'`, checks and marks `suspected_sold`, and logs a `REMOVED` history event. |
 | `confirm_listing_active(listing_id, observed_price)` | Resets `missed_run_count` to 0, updates last check timestamp. Logs `PRICE_CHANGE` event if price has adjusted. |
+
 
 ### The upsert logic in detail
 
@@ -492,12 +500,28 @@ def run():
 
 ```python
 def run_health_checks(force_all=False):
+    # 1. Pre-flight check: is database host reachable?
+    if not check_database_dns(config.DATABASE_URL):
+        return  # Exit cleanly if offline
+
     db = DatabaseWriter(config.DATABASE_URL)
+
+    # 2. Timing Guard: skip if ran in the last 22 hours
+    if not force_all:
+        last_run = db.fetch_last_successful_run("health_check")
+        if last_run and elapsed_hours < 22:
+            return  # Exit early
+
     checker = HealthChecker(db)
     stats = checker.run(force_all=force_all)
-    # sends health check counts (checked, removed, active, changes, errors)
+
+    # 3. Log results to scrape_runs table
+    db.write_run_log({"health_check": {...}}, duration)
+
+    # 4. Notify via Telegram
     notifier.send_health_check_summary(stats)
 ```
+
 
 ### Error isolation
 
@@ -662,39 +686,45 @@ TELEGRAM_CHAT_ID=123456789
 ./run.sh --health-check
 └─ python3 -m scraper.orchestrator --health-check
 
-   ├─ config.py loads .env and health check limits
-   ├─ DatabaseWriter fetches candidates:
-   │   └─ SELECT listings where listing_status = 'ACTIVE' and missed_run_count > 0
-   │      that are due based on age cohort cooldown (1.9, 6.8, or 13.8 days)
-   │      ordered by missed_run_count DESC, last_check ASC
-   │      capped by LIMIT 1000 (HEALTH_CHECK_LIMIT)
+   ├─ check_database_dns() (Pre-flight network check)
+   │  └─ If offline -> log warning and exit cleanly
 
-   ├─ HealthChecker runs async network verification (Phase 1):
-   │   ├─ Opens aiohttp.ClientSession (trust_env=True for proxies)
-   │   ├─ Fans out requests using Semaphore (default 50 concurrency)
-   │   ├─ For each candidate URL:
-   │   │   ├─ Apply randomized delay jitter (HEALTH_CHECK_DELAY_MIN/MAX)
-   │   │   ├─ GET listing URL (allow redirects)
-   │   │   ├─ If 404 → mark is_removed = True
-   │   │   ├─ If redirect to generic page (without ext_id in URL) → mark is_removed = True
-   │   │   ├─ If 200:
-   │   │   │   ├─ Parse body for REMOVAL_PHRASES → if hit, mark is_removed = True
-   │   │   │   └─ Else: extract current price using parser and normaliser
-   │   │   └─ If network timeout/error → log error (preserve ACTIVE state)
+   ├─ DatabaseWriter checks timing guard:
+   │  └─ SELECT run_at FROM scrape_runs WHERE source = 'health_check' AND status = 'SUCCESS'
+   │  └─ If elapsed < 22 hours (and force_all is False) -> log skip and exit early
 
-   ├─ DatabaseWriter writes checks serially (Phase 2):
-   │   ├─ If is_removed = True:
-   │   │   ├─ UPDATE status to 'REMOVED'
-   │   │   ├─ Evaluate suspected_sold (active >= 30 days & had price reduction)
-   │   │   └─ INSERT history event: REMOVED
-   │   └─ If is_removed = False:
-   │       ├─ Reset missed_run_count = 0
-   │       ├─ Stamp last_health_check_at
-   │       └─ If price changed → UPDATE price_kobo and INSERT event: PRICE_CHANGE
+   ├─ DatabaseWriter fetches candidate listings:
+   │  └─ SELECT listings where status = 'ACTIVE' and missed_run_count > 0 due based on age cohort cooldown
+   │     ordered by missed_run_count DESC, last_check ASC
+   │     capped by LIMIT 1000 (HEALTH_CHECK_LIMIT)
 
+   ├─ Orchestrator slices candidate list into batches (HEALTH_CHECK_BATCH_SIZE, e.g. 50)
+   │
+   ├─ For each micro-batch (processed sequentially):
+   │   │
+   │   ├─ HealthChecker runs async network verification (Phase 1):
+   │   │   ├─ Opens aiohttp.ClientSession
+   │   │   ├─ Fans out requests using Semaphore (default 50 concurrency)
+   │   │   ├─ For each candidate URL in the current batch:
+   │   │   │   ├─ Apply delay jitter
+   │   │   │   ├─ GET listing URL
+   │   │   │   ├─ If 404 / redirect / deletion phrase -> is_removed = True
+   │   │   │   ├─ If 200 -> extract price
+   │   │   │   └─ If network timeout/error -> preserve ACTIVE state
+   │   │
+   │   └─ DatabaseWriter writes batch checks immediately (Phase 2):
+   │       ├─ If is_removed = True:
+   │       │   ├─ UPDATE status to 'REMOVED', evaluate suspected_sold
+   │       │   └─ INSERT history event: REMOVED
+   │       └─ If is_removed = False:
+   │           ├─ Reset missed_run_count = 0, stamp check time
+   │           └─ If price changed -> UPDATE price_kobo and INSERT event: PRICE_CHANGE
+   │
+   ├─ db.write_run_log() (Writes source='health_check' SUCCESS log)
+   │
    └─ notifier.send_health_check_summary(stats)
-       └─ POST https://api.telegram.org/bot.../sendMessage
 ```
+
 
 ---
 
@@ -722,7 +752,18 @@ The most common failure. Causes in order of likelihood:
 - **Cause**: Python buffers standard output by default when stdout/stderr is redirected to a non-interactive console.
 - **Fix**: Ensure that `Environment=PYTHONUNBUFFERED=1` is specified in the systemd service template inside the `[Service]` section.
 
+### Health Check script exits immediately without performing checks
+
+- **Cause**: The application-level Timing Guard is preventing redundant checks. If a successful check completed less than 22 hours ago, it will skip execution.
+- **Fix**: Run the command with the `--all` or `--force` flag (e.g. `./run.sh --health-check --all`) to bypass the guard.
+
+### Health Check outputs "Pre-flight network check failed" and exits
+
+- **Cause**: The script cannot resolve the database connection hostname (DNS lookup failed). This indicates your internet connection is down or DNS is misconfigured.
+- **Fix**: Verify your network connectivity. The script exits cleanly to avoid raising critical database connection alarms while offline.
+
 ### `ModuleNotFoundError: No module named 'scraper'`
+
 
 - pytest is not finding the project root. Ensure root `conftest.py` exists and inserts the project root into `sys.path`.
 - Run `pytest` from the project root directory, not from inside `tests/`.

@@ -316,3 +316,29 @@ class TestHealthCheckQuery:
         assert "listing_status = 'ACTIVE'" in sql_query
         assert "LIMIT %s" in sql_query
         assert call_args[1] == (config.HEALTH_CHECK_LIMIT,)
+
+
+# =============================================================================
+# Fetch last successful run
+# =============================================================================
+
+class TestFetchLastSuccessfulRun:
+
+    def test_fetch_last_successful_run_queries_correctly(self):
+        writer = _make_writer()
+        mock_cursor = MagicMock()
+        writer.conn.cursor.return_value.__enter__ = lambda s: mock_cursor
+        
+        expected_time = datetime(2026, 6, 16, 12, 0, 0, tzinfo=timezone.utc)
+        mock_cursor.fetchone.return_value = [expected_time]
+
+        last_run = writer.fetch_last_successful_run("health_check")
+
+        assert last_run == expected_time
+        call_args = mock_cursor.execute.call_args[0]
+        sql_query = call_args[0]
+        assert "source = %s" in sql_query
+        assert "status = 'SUCCESS'" in sql_query
+        assert "LIMIT 1" in sql_query
+        assert call_args[1] == ("health_check",)
+

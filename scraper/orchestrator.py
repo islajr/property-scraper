@@ -21,9 +21,12 @@ Run status is logged to raw_data.scrape_runs and summarised in Telegram.
 from __future__ import annotations
 
 import logging
+from logging.handlers import RotatingFileHandler
+import socket
 import sys
 import time
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 
 import psycopg2
 
@@ -43,10 +46,24 @@ logging.basicConfig(
     format  = "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler("scraper.log"),
+        RotatingFileHandler("scraper.log", maxBytes=10*1024*1024, backupCount=5, encoding="utf-8"),
     ],
 )
 log = logging.getLogger(__name__)
+
+
+def check_database_dns(db_url: str) -> bool:
+    """Check if the database hostname can be resolved (pre-flight network check)."""
+    try:
+        parsed = urlparse(db_url)
+        hostname = parsed.hostname
+        if not hostname:
+            return True
+        socket.gethostbyname(hostname)
+        return True
+    except socket.gaierror:
+        return False
+
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -223,13 +240,45 @@ def run_health_checks(force_all: bool = False):
              datetime.now(timezone.utc).isoformat())
     log.info("═" * 60)
 
+    # 1. Pre-flight check: is the database host resolvable? (i.e. is internet connected?)
+    if not check_database_dns(config.DATABASE_URL):
+        log.warning("[orchestrator] Pre-flight network check failed: database hostname is unreachable (DNS resolution failed). Assuming offline/no network. Exiting cleanly.")
+        return
+
     db = None
     try:
         db = DatabaseWriter(config.DATABASE_URL)
 
+        # 2. Timing Guard check (skip if success run happened < 22 hours ago, unless force_all is True)
+        if not force_all:
+            last_run = db.fetch_last_successful_run("health_check")
+            if last_run:
+                now = datetime.now(timezone.utc)
+                elapsed = now - last_run
+                hours_elapsed = elapsed.total_seconds() / 3600.0
+                if hours_elapsed < config.HEALTH_CHECK_RUN_INTERVAL_HOURS:
+                    log.info("[orchestrator] Health check skipped: last successful run was %.1f hours ago (minimum interval: %dh).",
+                             hours_elapsed, config.HEALTH_CHECK_RUN_INTERVAL_HOURS)
+                    return
+
         from scraper.health_checker import HealthChecker
         checker = HealthChecker(db)
+        
+        run_start = time.time()
         stats   = checker.run(force_all=force_all)
+        duration = time.time() - run_start
+
+        # 3. Log the successful run
+        db.write_run_log({
+            "health_check": {
+                "new": 0,
+                "updated": stats.get("confirmed_active", 0),
+                "suspected_sold": stats.get("confirmed_removed", 0),
+                "price_changes": stats.get("price_changes", 0),
+                "status": "SUCCESS",
+                "error": None
+            }
+        }, duration)
 
         try:
             notifier.send_health_check_summary(stats)
@@ -254,6 +303,7 @@ def run_health_checks(force_all: bool = False):
     finally:
         if db:
             db.close()
+
 
 
 # ═════════════════════════════════════════════════════════════════════════════
