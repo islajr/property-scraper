@@ -62,8 +62,9 @@ class TestHealthCheckerMicroBatching:
 
         # confirm_listing_active should have been called 5 times
         assert db.confirm_listing_active.call_count == 5
-        db.confirm_listing_active.assert_any_call(1, 1000)
-        db.confirm_listing_active.assert_any_call(7, 1000)
+        db.confirm_listing_active.assert_any_call(1, None, 1000)
+        db.confirm_listing_active.assert_any_call(7, None, 1000)
+
 
         # 7. Check calls to checker._run_async (were candidates sliced correctly?)
         assert checker._run_async.call_count == 3

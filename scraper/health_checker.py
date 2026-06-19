@@ -199,7 +199,7 @@ class HealthChecker:
                              result.source, result.external_id)
                 else:
                     price_changed = self.db.confirm_listing_active(
-                        result.listing_id, result.observed_price
+                        result.listing_id, result.first_seen, result.observed_price
                     )
                     stats["confirmed_active"] += 1
 
@@ -210,6 +210,7 @@ class HealthChecker:
                     else:
                         log.debug("[health_checker] still active: [%s] %s",
                                   result.source, result.external_id)
+
 
         log.info(
             "[health_checker] complete — checked: %d  removed: %d  "

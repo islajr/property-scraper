@@ -21,7 +21,7 @@ Monetary values: ALWAYS kobo (BIGINT). Never float. Never naira at the DB layer.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone, date
+from datetime import datetime, timezone, date, timedelta
 from typing import Dict, List, Optional, Set, Tuple
 
 import psycopg2
@@ -387,22 +387,28 @@ class DatabaseWriter:
                 WHERE listing_status = 'ACTIVE'
                   AND missed_run_count > 0
                   AND (
-                      last_health_check_at IS NULL
-                      OR last_health_check_at < NOW() - (
-                          CASE
-                              WHEN first_seen_at >= NOW() - INTERVAL '14 days' THEN INTERVAL '1.9 days'
-                              WHEN first_seen_at >= NOW() - INTERVAL '60 days' THEN INTERVAL '6.8 days'
-                              ELSE INTERVAL '13.8 days'
-                          END
-                      )
+                      next_health_check_at IS NULL
+                      OR next_health_check_at < NOW()
                   )
-                ORDER BY missed_run_count DESC,
-                         last_health_check_at ASC NULLS FIRST
+                ORDER BY 
+                    CASE 
+                        WHEN next_health_check_at IS NULL THEN 1.0
+                        ELSE EXTRACT(EPOCH FROM (NOW() - last_health_check_at)) / 
+                             EXTRACT(EPOCH FROM (
+                                 CASE
+                                     WHEN first_seen_at >= NOW() - INTERVAL '14 days' THEN INTERVAL '1.9 days'
+                                     WHEN first_seen_at >= NOW() - INTERVAL '60 days' THEN INTERVAL '6.8 days'
+                                     ELSE INTERVAL '13.8 days'
+                                 END
+                             ))
+                    END DESC,
+                    last_health_check_at ASC NULLS FIRST
                 LIMIT %s
             """
             with self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 cur.execute(sql, (config.HEALTH_CHECK_LIMIT,))
                 return cur.fetchall()
+
 
     def confirm_listing_removed(self, listing_id: int,
                                  first_seen_at: datetime) -> None:
@@ -428,9 +434,11 @@ class DatabaseWriter:
                 UPDATE raw_data.scraped_listings
                 SET listing_status       = 'REMOVED',
                     suspected_sold       = %s,
-                    last_health_check_at = %s
+                    last_health_check_at = %s,
+                    next_health_check_at = NULL
                 WHERE id = %s
             """, (is_suspected_sold, now, listing_id))
+
 
         self._insert_history_events([{
             "listing_id": listing_id,
@@ -444,6 +452,7 @@ class DatabaseWriter:
                   listing_id, is_suspected_sold)
 
     def confirm_listing_active(self, listing_id: int, 
+                               first_seen_at: datetime,
                                observed_price_kobo: Optional[int] = None) -> bool:
         """
         Called by health_checker when an individual URL check confirms the
@@ -454,6 +463,17 @@ class DatabaseWriter:
         Otherwise, resets missed_run_count, stamps the check timestamp, returns False.
         """
         now = datetime.now(timezone.utc)
+        # Calculate next check date
+        first_seen = first_seen_at or now
+        age_days = (now - first_seen).days
+        if age_days < 14:
+            interval = timedelta(days=1.9)
+        elif age_days < 60:
+            interval = timedelta(days=6.8)
+        else:
+            interval = timedelta(days=13.8)
+        next_check = now + interval
+
         price_changed = False
         stored_price = None
         
@@ -471,25 +491,28 @@ class DatabaseWriter:
                         UPDATE raw_data.scraped_listings
                         SET missed_run_count     = 0,
                             last_health_check_at = %s,
+                            next_health_check_at = %s,
                             price_kobo           = %s,
                             last_seen_at         = %s
                         WHERE id = %s
-                    """, (now, observed_price_kobo, now, listing_id))
+                    """, (now, next_check, observed_price_kobo, now, listing_id))
                     price_changed = True
                 else:
                     cur.execute("""
                         UPDATE raw_data.scraped_listings
                         SET missed_run_count     = 0,
-                            last_health_check_at = %s
+                            last_health_check_at = %s,
+                            next_health_check_at = %s
                         WHERE id = %s
-                    """, (now, listing_id))
+                    """, (now, next_check, listing_id))
             else:
                 cur.execute("""
                     UPDATE raw_data.scraped_listings
                     SET missed_run_count     = 0,
-                        last_health_check_at = %s
+                        last_health_check_at = %s,
+                        next_health_check_at = %s
                     WHERE id = %s
-                """, (now, listing_id))
+                """, (now, next_check, listing_id))
         
         if price_changed:
             self._insert_history_events([{
@@ -504,6 +527,7 @@ class DatabaseWriter:
 
         self.conn.commit()
         return price_changed
+
             
 
     # ═══════════════════════════════════════════════════════════════════════════
