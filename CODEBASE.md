@@ -410,7 +410,7 @@ This is the current state of all listings. It does not store history — that go
 | Method | What it does |
 |---|---|
 | `fetch_active_listings()` | Returns `{(source, ext_id): price_kobo}` for all `ACTIVE` listings. Called once at run start. |
-| `upsert(listings, active)` | Core write method. Routes each listing to `_insert_new` or `_update_existing`. Detects price changes. Increments `missed_run_count` for feed-absent listings. Returns stats dict. |
+| `upsert(listings, active, scraped_sources)` | Core write method. Routes each listing to `_insert_new` or `_update_existing`. Detects price changes. Increments `missed_run_count` for feed-absent listings belonging to successfully scraped portals. Returns stats dict. |
 | `write_run_log(stats, duration)` | Writes one row per portal to `scrape_runs`. |
 | `fetch_geocode_cache()` | Loads all rows from `geocode_cache` into a dict. Called by `Geocoder.__init__()`. |
 | `save_geocode_cache(nb, city, lat, lng)` | Inserts a new geocode result. `ON CONFLICT DO NOTHING` — idempotent. |
@@ -445,6 +445,8 @@ for listing in listings:
 
 # After all listings processed:
 missing = active_listings.keys() - seen_this_run
+if scraped_sources is not None:
+    missing = {k for k in missing if k[0] in scraped_sources}
 
 for (source, ext_id) in missing:
     increment missed_run_count
