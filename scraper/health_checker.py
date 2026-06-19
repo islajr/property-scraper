@@ -83,20 +83,6 @@ REMOVAL_PHRASES: List[str] = [
     "the page you are looking for",          # generic 404 copy used by several portals
 ]
 
-# URL path fragments that indicate the request landed on a non-listing page
-# after a redirect. Used in conjunction with external_id absence to confirm
-# the redirect is meaningful (not just a URL normalisation).
-GENERIC_PAGE_PATH_FRAGMENTS: List[str] = [
-    "/property-for-sale",
-    "/property-for-rent",
-    "/properties",
-    "/search",
-    "/listings",
-    "/results",
-    "/adverts",
-    "/real-estate",
-    "/showtype",
-]
 
 # How many concurrent HTTP connections to allow at once.
 # Tune this in config.py. Lower = more polite to portals; higher = faster.
@@ -347,10 +333,8 @@ class HealthChecker:
                     log.debug("[health_checker] 404 for %s", url)
                     return True, None
 
-                if (final_url != url
-                        and external_id not in final_url
-                        and _looks_like_generic_page(final_url)):
-                    log.debug("[health_checker] redirect to generic page: %s → %s",
+                if final_url != url and external_id not in final_url:
+                    log.debug("[health_checker] redirect stripped external_id: %s → %s",
                               url, final_url)
                     return True, None
 
@@ -399,32 +383,3 @@ class HealthChecker:
             log.debug("[health_checker] price extraction failed for %s: %s", url, exc)
             return None
 
-
-# ── Module-level helpers ──────────────────────────────────────────────────────
-
-def _looks_like_generic_page(url: str) -> bool:
-    """
-    Returns True when a URL appears to be a homepage, search results page,
-    or category index rather than an individual listing detail page.
-
-    Used only after confirming that the external_id is absent from the URL,
-    so a false positive here (e.g., a listing URL that happens to contain
-    '/search') is extremely unlikely.
-    """
-    parsed = urlparse(url.lower())
-    path   = parsed.path.rstrip("/")
-
-    # Bare domain with no meaningful path — definitely a homepage.
-    if path in ("", "/"):
-        return True
-
-    # Fragment-only navigation (/#section).
-    if not path or path.startswith("/#"):
-        return True
-
-    # Paths that are characteristic of listing index / search pages.
-    for fragment in GENERIC_PAGE_PATH_FRAGMENTS:
-        if path.startswith(fragment) or fragment in path:
-            return True
-
-    return False

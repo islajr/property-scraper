@@ -69,3 +69,125 @@ class TestHealthCheckerMicroBatching:
         # 7. Check calls to checker._run_async (were candidates sliced correctly?)
         assert checker._run_async.call_count == 3
 
+
+class TestHealthCheckerUrlChecking:
+
+    def test_check_listing_active_success(self):
+        import asyncio
+        db = MagicMock()
+        checker = HealthChecker(db)
+        checker._parsers = {}
+
+        mock_resp = AsyncMock()
+        mock_resp.status = 200
+        mock_resp.url = "http://test.com/property/12345"
+        mock_resp.text.return_value = "<html>Active listing</html>"
+
+        mock_session = MagicMock()
+        mock_session.get.return_value.__aenter__.return_value = mock_resp
+
+        checker._extract_observed_price = MagicMock(return_value=500000)
+
+        async def run():
+            return await checker._check_listing_async(
+                mock_session, "http://test.com/property/12345", "12345", "propertypro"
+            )
+
+        is_removed, price = asyncio.run(run())
+
+        assert not is_removed
+        assert price == 500000
+
+    def test_check_listing_not_found(self):
+        import asyncio
+        db = MagicMock()
+        checker = HealthChecker(db)
+
+        mock_resp = AsyncMock()
+        mock_resp.status = 404
+        mock_resp.url = "http://test.com/property/12345"
+
+        mock_session = MagicMock()
+        mock_session.get.return_value.__aenter__.return_value = mock_resp
+
+        async def run():
+            return await checker._check_listing_async(
+                mock_session, "http://test.com/property/12345", "12345", "propertypro"
+            )
+
+        is_removed, price = asyncio.run(run())
+
+        assert is_removed
+        assert price is None
+
+    def test_check_listing_redirect_strips_id(self):
+        import asyncio
+        db = MagicMock()
+        checker = HealthChecker(db)
+
+        mock_resp = AsyncMock()
+        mock_resp.status = 200
+        mock_resp.url = "http://test.com/homepage"
+
+        mock_session = MagicMock()
+        mock_session.get.return_value.__aenter__.return_value = mock_resp
+
+        async def run():
+            return await checker._check_listing_async(
+                mock_session, "http://test.com/property/12345", "12345", "propertypro"
+            )
+
+        is_removed, price = asyncio.run(run())
+
+        assert is_removed
+        assert price is None
+
+    def test_check_listing_redirect_keeps_id(self):
+        import asyncio
+        db = MagicMock()
+        checker = HealthChecker(db)
+        checker._parsers = {}
+
+        mock_resp = AsyncMock()
+        mock_resp.status = 200
+        mock_resp.url = "http://test.com/property/12345/"
+        mock_resp.text.return_value = "<html>Active</html>"
+
+        mock_session = MagicMock()
+        mock_session.get.return_value.__aenter__.return_value = mock_resp
+
+        checker._extract_observed_price = MagicMock(return_value=None)
+
+        async def run():
+            return await checker._check_listing_async(
+                mock_session, "http://test.com/property/12345", "12345", "propertypro"
+            )
+
+        is_removed, price = asyncio.run(run())
+
+        assert not is_removed
+        assert price is None
+
+    def test_check_listing_removal_phrase(self):
+        import asyncio
+        db = MagicMock()
+        checker = HealthChecker(db)
+
+        mock_resp = AsyncMock()
+        mock_resp.status = 200
+        mock_resp.url = "http://test.com/property/12345"
+        mock_resp.text.return_value = "<html>This ad has been deleted!</html>"
+
+        mock_session = MagicMock()
+        mock_session.get.return_value.__aenter__.return_value = mock_resp
+
+        async def run():
+            return await checker._check_listing_async(
+                mock_session, "http://test.com/property/12345", "12345", "propertypro"
+            )
+
+        is_removed, price = asyncio.run(run())
+
+        assert is_removed
+        assert price is None
+
