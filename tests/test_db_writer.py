@@ -279,14 +279,12 @@ class TestSuspectedSold:
 class TestMissedRunConfig:
     """
     These tests guard the config constants that control removal behaviour.
-    If someone accidentally changes MISSED_RUN_REMOVAL_THRESHOLD, a test fails
-    immediately rather than silently starting to remove listings too early/late.
+    If someone accidentally changes a configuration constant, a test fails
+    immediately.
     """
 
-    def test_removal_threshold_is_3(self):
-        assert config.MISSED_RUN_REMOVAL_THRESHOLD == 3
-
     def test_suspected_sold_min_days_is_30(self):
+
         assert config.SUSPECTED_SOLD_MIN_DAYS == 30
 
     def test_pagination_stop_after_known_is_10(self):

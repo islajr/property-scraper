@@ -37,9 +37,6 @@ MAX_CONSECUTIVE_FAILURES = 5   # consecutive errors before aborting a portal
 # this many consecutive listings are already known in the database.
 PAGINATION_STOP_AFTER_KNOWN = 10
 
-# Missed-run threshold before a listing is flipped to REMOVED.
-# 3 consecutive misses = listing is gone (not just a portal blip).
-MISSED_RUN_REMOVAL_THRESHOLD = 3
 
 # Health checker — three-day individual URL verification.
 # Runs as a separate mode (./run.sh --health-check).
