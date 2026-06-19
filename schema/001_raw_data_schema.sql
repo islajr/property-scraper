@@ -55,8 +55,11 @@ CREATE TABLE IF NOT EXISTS raw_data.scraped_listings (
     suspected_sold           BOOLEAN NOT NULL DEFAULT FALSE,
     missed_run_count         SMALLINT NOT NULL DEFAULT 0,
     first_seen_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    last_seen_at             TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    last_seen_at             TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_health_check_at     TIMESTAMPTZ,
+    next_health_check_at     TIMESTAMPTZ
 );
+
 
 -- =============================================================================
 -- Listing history — every price change and status change event.
