@@ -153,7 +153,8 @@ def run():
 
         # ── Database upsert ───────────────────────────────────────────────────
         log.info("Writing to database...")
-        db_stats = db.upsert(normalised, active_listings)
+        scraped_sources = {source for source, info in run_stats.items() if info["status"] == "SUCCESS" and info["raw_count"] > 0}
+        db_stats = db.upsert(normalised, active_listings, scraped_sources=scraped_sources)
 
         # db_stats["per_source"] carries exact new/updated/price_changes counts
         # per portal as measured at write time. Merge them into run_stats so

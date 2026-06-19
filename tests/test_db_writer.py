@@ -145,6 +145,32 @@ class TestUpsertMissingListings:
         assert len(update_calls[1][0][1]) == batch_size * 2
         assert len(update_calls[2][0][1]) == (num_missing - batch_size * 2) * 2
 
+    def test_missing_listings_filtered_by_scraped_sources(self):
+        writer = _make_writer()
+        mock_cursor = MagicMock()
+        writer.conn.cursor.return_value.__enter__ = lambda s: mock_cursor
+
+        active = {
+            ("propertypro", "ext1"): 1000,
+            ("nigeriapropertycentre", "ext2"): 1000,
+        }
+
+        writer._insert_new = MagicMock()
+        writer._update_existing = MagicMock()
+        writer._insert_history_events = MagicMock()
+
+        # Only nigeriapropertycentre was successfully scraped. propertypro was not.
+        stats = writer.upsert([], active, scraped_sources={"nigeriapropertycentre"})
+
+        # We expect cur.execute to be called with UPDATE for nigeriapropertycentre.
+        update_calls = [
+            c for c in mock_cursor.execute.call_args_list 
+            if "UPDATE raw_data.scraped_listings" in c[0][0]
+        ]
+        assert len(update_calls) == 1
+        # The flat args should only contain the pair for nigeriapropertycentre
+        assert update_calls[0][0][1] == ["nigeriapropertycentre", "ext2"]
+
 
 # =============================================================================
 # Price change detection

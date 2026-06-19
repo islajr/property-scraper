@@ -96,7 +96,8 @@ class DatabaseWriter:
 
     def upsert(self,
                listings: List[NormalisedListing],
-               active_listings: ActiveListings) -> Dict:
+               active_listings: ActiveListings,
+               scraped_sources: Optional[Set[str]] = None) -> Dict:
         """
         Upsert all listings from this run and emit history events.
 
@@ -223,6 +224,8 @@ class DatabaseWriter:
         # absence alone causes false positives because listings age off the
         # "recent" feed while still being live on the portal.
         missing = set(active_listings.keys()) - seen_this_run
+        if scraped_sources is not None:
+            missing = {k for k in missing if k[0] in scraped_sources}
         if missing:
             with self.conn.cursor() as cur:
                 pairs = list(missing)
