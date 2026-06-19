@@ -72,7 +72,8 @@ property-scraper/
 │
 ├── schema/
 │   ├── 001_raw_data_schema.sql ← Database tables, indexes — run once
-│   └── 002_add_health_check_at.sql ← Adds health check tracking timestamp to schema
+│   ├── 002_add_health_check_at.sql ← Adds health check tracking timestamp to schema
+│   └── 003_add_next_health_check_at.sql ← Adds pre-calculated next check timestamp to schema
 │
 └── tests/
     ├── conftest.py             ← Shared test helpers and factories
@@ -111,7 +112,6 @@ In local development these come from the `.env` file. In GitHub Actions they are
 | `REQUEST_TIMEOUT` | 15 | Timeout in seconds |
 | `MAX_CONSECUTIVE_FAILURES` | 5 | consecutive errors before aborting |
 | `PAGINATION_STOP_AFTER_KNOWN` | 15 | Duplicate stop check range |
-| `MISSED_RUN_REMOVAL_THRESHOLD` | 3 | Miss count threshold before checker recruitment |
 | `SUSPECTED_SOLD_MIN_DAYS` | 30 | Day range for transaction flag |
 | `HEALTH_CHECK_INTERVAL_DAYS` | 2 | Adaptive cooldown check interval |
 | `HEALTH_CHECK_LIMIT` | 1000 | Max listings checked per run |
@@ -414,10 +414,10 @@ This is the current state of all listings. It does not store history — that go
 | `write_run_log(stats, duration)` | Writes one row per portal to `scrape_runs`. |
 | `fetch_geocode_cache()` | Loads all rows from `geocode_cache` into a dict. Called by `Geocoder.__init__()`. |
 | `save_geocode_cache(nb, city, lat, lng)` | Inserts a new geocode result. `ON CONFLICT DO NOTHING` — idempotent. |
-| `fetch_listings_for_health_check(force_all)` | Returns active listings due for check based on cohort cooldowns (`1.9`/`6.8`/`13.8` days). Limits by `HEALTH_CHECK_LIMIT`. Bypasses constraints if `force_all=True`. |
+| `fetch_listings_for_health_check(force_all)` | Returns active listings due for check based on pre-calculated `next_health_check_at < NOW()`. Limits by `HEALTH_CHECK_LIMIT`. Sorted by relative Overdue Ratio descending to prevent queue starvation. Bypasses constraints if `force_all=True`. |
 | `fetch_last_successful_run(source)` | Queries the `raw_data.scrape_runs` table to find the timestamp of the last successful execution of the source (e.g. `'health_check'`). |
-| `confirm_listing_removed(listing_id, first_seen)` | Sets status to `'REMOVED'`, checks and marks `suspected_sold`, and logs a `REMOVED` history event. |
-| `confirm_listing_active(listing_id, observed_price)` | Resets `missed_run_count` to 0, updates last check timestamp. Logs `PRICE_CHANGE` event if price has adjusted. |
+| `confirm_listing_removed(listing_id, first_seen)` | Sets status to `'REMOVED'`, clears `next_health_check_at` to `NULL`, checks and marks `suspected_sold`, and logs a `REMOVED` history event. |
+| `confirm_listing_active(listing_id, first_seen, observed_price)` | Resets `missed_run_count` to 0, computes and stores `next_health_check_at` based on cohort age, and updates `last_health_check_at`. Logs `PRICE_CHANGE` event if price has adjusted. |
 
 
 ### The upsert logic in detail
@@ -694,8 +694,8 @@ TELEGRAM_CHAT_ID=123456789
    │  └─ If elapsed < 22 hours (and force_all is False) -> log skip and exit early
 
    ├─ DatabaseWriter fetches candidate listings:
-   │  └─ SELECT listings where status = 'ACTIVE' and missed_run_count > 0 due based on age cohort cooldown
-   │     ordered by missed_run_count DESC, last_check ASC
+   │  └─ SELECT listings where status = 'ACTIVE' and missed_run_count > 0 and (next_health_check_at IS NULL or next_health_check_at < NOW())
+   │     ordered by relative Overdue Ratio DESC (to avoid starvation), last_check ASC
    │     capped by LIMIT 1000 (HEALTH_CHECK_LIMIT)
 
    ├─ Orchestrator slices candidate list into batches (HEALTH_CHECK_BATCH_SIZE, e.g. 50)
@@ -714,10 +714,10 @@ TELEGRAM_CHAT_ID=123456789
    │   │
    │   └─ DatabaseWriter writes batch checks immediately (Phase 2):
    │       ├─ If is_removed = True:
-   │       │   ├─ UPDATE status to 'REMOVED', evaluate suspected_sold
+   │       │   ├─ UPDATE status to 'REMOVED', set next_health_check_at = NULL, evaluate suspected_sold
    │       │   └─ INSERT history event: REMOVED
    │       └─ If is_removed = False:
-   │           ├─ Reset missed_run_count = 0, stamp check time
+   │           ├─ Reset missed_run_count = 0, calculate and set next_health_check_at (cohort age interval), stamp last check time
    │           └─ If price changed -> UPDATE price_kobo and INSERT event: PRICE_CHANGE
    │
    ├─ db.write_run_log() (Writes source='health_check' SUCCESS log)

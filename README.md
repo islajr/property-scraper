@@ -49,12 +49,12 @@ Each health check goes through the following stages:
 | 3. Log | If changes are made or listings are found to be removed, they are stored as `PRICE_CHANGE` or as `REMOVED` events respectively with the appropriate information |
 | 4. Notify | Sends a Telegram summary with the run stats and results for notification |
 
-To optimize performance and request volume, the health checker uses **Adaptive Cooldown** intervals based on listing age:
+To optimize performance and database resource usage, the health checker uses **Adaptive Cooldown** intervals based on listing age. The next check date is calculated and persisted at active confirmation time (storing it in `next_health_check_at`), which allows PostgreSQL to query candidates efficiently using a partial B-tree index.
 - `< 14 days old`: Checked every 2 days (1.9 days with buffer)
 - `14-60 days old`: Checked every 7 days (6.8 days with buffer)
 - `> 60 days old`: Checked every 14 days (13.8 days with buffer)
 
-Additionally, it applies a daily queue cap (`HEALTH_CHECK_LIMIT = 1000`) to guarantee a fixed maximum execution time. Checks are executed in micro-batches (default: 50 candidates per batch) so progress is committed incrementally and is resilient to system sleep/power interrupts.
+Additionally, it applies a daily queue cap (`HEALTH_CHECK_LIMIT = 1000`) to guarantee a fixed maximum execution time. To prevent queue starvation (where newer, volatile listings dominate the daily limit), candidates are prioritised using a relative **Overdue Ratio** (how late they are relative to their cohort interval) rather than a simple count of missed runs. Checks are executed in micro-batches (default: 50 candidates per batch) so progress is committed incrementally and is resilient to system sleep/power interrupts.
 
 
 ---
@@ -86,6 +86,7 @@ property-scraper/
 ├── schema/
 │   ├──  001_raw_data_schema.sql # DB tables and indexes — run once
 │   ├──  002_add_health_check_at.sql    # Migration to track health checks
+│   └──  003_add_next_health_check_at.sql    # Migration to add pre-calculated next check column
 │
 └── tests/
     ├── conftest.py
@@ -233,7 +234,6 @@ All configuration is in `config.py`. The key constants:
 | `REQUEST_TIMEOUT` | 15 | Timeout in seconds for HTTP requests |
 | `MAX_CONSECUTIVE_FAILURES` | 5 | Max consecutive failures before early-aborting portal scrape |
 | `PAGINATION_STOP_AFTER_KNOWN` | 5 | Stop paginating after N consecutive known listings |
-| `MISSED_RUN_REMOVAL_THRESHOLD` | 3 | Runs absent before a listing is marked `REMOVED` (for legacy reference) |
 | `SUSPECTED_SOLD_MIN_DAYS` | 30 | Minimum days active to flag a removal as a suspected sale |
 | `HEALTH_CHECK_INTERVAL_DAYS` | 2 | Cooldown backup interval (in days) |
 | `HEALTH_CHECK_LIMIT` | 1000 | Maximum listings checked per health-check run |
