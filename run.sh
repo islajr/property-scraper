@@ -27,7 +27,7 @@ for arg in "$@"; do
 done
 
 # ── 1. Initialise pyenv so its shims are on PATH ───────────────────────────────
-export PYENV_ROOT="${PYENV_ROOT:-$HOME/.pyenv}"
+export PYENV_ROOT="${PYENV_ROOT:-$HOME/.pyenv/versions/3.12.9}"
 if [[ -d "$PYENV_ROOT/bin" ]]; then
     export PATH="$PYENV_ROOT/bin:$PYENV_ROOT/shims:$PATH"
     eval "$(pyenv init -)" 2>/dev/null || true
