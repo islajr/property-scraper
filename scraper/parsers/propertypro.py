@@ -68,20 +68,90 @@ class PropertyProParser(BaseParser):
             return None
 
         title           = _text(soup, TITLE_SELECTOR)
+        if not title:
+            h1 = soup.select_one("h1")
+            if h1:
+                title = h1.get_text(strip=True)
+
         price_currency  = second_text(soup, PRICE_CURRENCY_SELECTOR)
         raw_price       = _text(soup, PRICE_SELECTOR)
-        raw_bedrooms    = _text(soup, BEDROOMS_SELECTOR)
-        raw_bathrooms   = _text(soup, BATHROOMS_SELECTOR)
-        raw_floor       = _text(soup, FLOOR_AREA_SELECTOR)
-        raw_address     = _text(soup, ADDRESS_SELECTOR)
-        description     = _text(soup, DESCRIPTION_SELECTOR)
-        # prop_type       = _text(soup, PROPERTY_TYPE_SELECTOR)
-        agent           = _text(soup, AGENT_NAME_SELECTOR)
-        
+        if raw_price is None or price_currency is None:
+            price_span = None
+            for el in soup.find_all(["span", "h2", "h3", "div"]):
+                txt = el.get_text(strip=True)
+                if txt and (txt.startswith("₦") or txt.startswith("$") or txt.startswith("USD")):
+                    if any(c.isdigit() for c in txt):
+                        price_span = el
+                        break
+            if price_span:
+                combined_price = price_span.get_text(strip=True)
+                if combined_price.startswith("₦"):
+                    price_currency = "₦"
+                    raw_price = combined_price[1:]
+                elif combined_price.startswith("$"):
+                    price_currency = "$"
+                    raw_price = combined_price[1:]
+                elif combined_price.startswith("USD"):
+                    price_currency = "USD"
+                    raw_price = combined_price[3:]
+                else:
+                    price_currency = ""
+                    raw_price = combined_price
+
         # Pre-check for possible null page through marked signs like null prices and currencies
         if raw_price == None or price_currency == None:
             log.warning("[%s] Null Listing: %s. Skipping", self.source, url)    # null listing
-            return
+            return None
+
+        raw_bedrooms    = _text(soup, BEDROOMS_SELECTOR)
+        if raw_bedrooms is None:
+            raw_bedrooms = self._find_feature_by_text(soup, ["bed", "bedroom"])
+
+        raw_bathrooms   = _text(soup, BATHROOMS_SELECTOR)
+        if raw_bathrooms is None:
+            raw_bathrooms = self._find_feature_by_text(soup, ["bath", "bathroom"])
+
+        raw_floor       = _text(soup, FLOOR_AREA_SELECTOR)
+        raw_address     = _text(soup, ADDRESS_SELECTOR)
+        if not raw_address:
+            for el in soup.find_all(["p", "span", "div"]):
+                txt = el.get_text(strip=True)
+                if txt and len(txt) < 150:
+                    if any(token in txt.lower() for token in ["lagos", "abuja", "enugu", "ph", "kano", "ibadan"]):
+                        if title and txt in title:
+                            continue
+                        raw_address = txt
+                        break
+
+        description     = _text(soup, DESCRIPTION_SELECTOR)
+        if not description:
+            for el in soup.find_all("div", class_=lambda x: x and any(c in x.lower() for c in ["desc", "detail", "about"])):
+                txt = el.get_text(strip=True)
+                if txt and len(txt) > 100:
+                    description = el.get_text("\n", strip=True)
+                    break
+
+        agent           = _text(soup, AGENT_NAME_SELECTOR)
+        if not agent:
+            for el in soup.find_all(["h4", "h5", "span", "a"]):
+                txt = el.get_text(strip=True)
+                if txt and len(txt) < 60:
+                    parent = el.parent
+                    is_agent_section = False
+                    for _ in range(3):
+                        if parent:
+                            if parent.name in ["div", "aside", "section"]:
+                                p_class = " ".join(parent.get("class", [])) + str(parent.get("id", ""))
+                                if any(c in p_class.lower() for c in ["sidebar", "agent", "market", "owner", "contact"]):
+                                    is_agent_section = True
+                                    break
+                            parent = parent.parent
+                        else:
+                            break
+                    if is_agent_section:
+                        if not any(lbl in txt.lower() for lbl in ["contact", "agent", "whatsapp", "call", "phone"]):
+                            agent = txt
+                            break
 
         # Price type — PropertyPro encodes in the search URL / breadcrumb
         if "for-sale" in url:
@@ -97,7 +167,7 @@ class PropertyProParser(BaseParser):
             external_id       = ext_id,
             source            = self.source,
             url               = url,
-            title             = title,
+            title             = title or "",
             raw_price         = price_currency + raw_price,
             raw_price_type    = raw_price_type,
             raw_bedrooms      = raw_bedrooms,
@@ -108,6 +178,16 @@ class PropertyProParser(BaseParser):
             property_type_raw = None,
             agent_name        = agent,
         )
+
+    def _find_feature_by_text(self, soup: BeautifulSoup, keywords: List[str]) -> Optional[str]:
+        for el in soup.find_all(["li", "span", "p", "div"]):
+            txt = el.get_text(strip=True)
+            if txt and len(txt) < 50:
+                txt_lower = txt.lower()
+                if any(k in txt_lower for k in keywords):
+                    if any(c.isdigit() for c in txt_lower):
+                        return txt
+        return None
 
     def next_page_url(self, base_search_url: str, page_number: int) -> Optional[str]:
         # PropertyPro uses ?page=N pagination
