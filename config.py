@@ -78,31 +78,54 @@ CANONICAL_NEIGHBOURHOODS = [
     "Omole Phase 1", "Omole Phase 2", "Isheri North", "Berger", "Ogba", "Ikeja GRA", 
     "Ikeja", "Allen Avenue", "Agidingbi", "Oregun", "Ogudu", "Ketu", "Alapere", 
     "Agboville", "Bariga", "Agege", "Alimosho", "Shomolu", "Somolu",
+    "Ajah", "Badore", "Abraham Adesanya", "Thomas Estate", "Olokonla", "Royal Garden Estate",
+    "Ado Road", "Okun Ajah", "Lakowe", "Awoyaya", "Mobil Road", "Ilaje", "Seaside Estate", 
+    "Greenville Estate", "Cooperative Villa", "Langbasa", "Lagos Business School", "Ajiwe",
+    "Alasia", "Peninsula Estate", "Ado", "Langbasa Road", "Costal Road", "Budo Peninsula Estate",
+    "Sunnyville", "Sunny Villa Estate", "Unity Estate", "Rockstone Estate", "Rockstoneville Estate",
+    "Platinum Estate", "Royal Palmwill Estate", "Royal Palm Will Estate", "Dominion City",
+    "Atlantic Nominee Estate", "Atlantic Nominee Layout", "Monastery Road", "Akins Estate",
+    "Jed's Court", "Wealthland Estate", "Mushin", "Oshodi", "Egbeda", "Alagbado", "Ifako-Ijaiye",
+    "Ilashe", "Olorunsogo", "Mafoluku", "Kosofe", "Ikosi", "Mile 12", "Iyana Coker", "Ayobo",
+    "Isheri", "Idera Scheme", "Tipper Garage", "Jonathan Coker Road", "Iyana Coker Road",
+    "Fatai Atere Way", "Matori",
     
     # Abuja - Estates / Sub-areas
     "Maitama", "Asokoro", "Wuse 2", "Wuse", "Garki", "Jabi", "Utako", "Gwarinpa", 
-    "Apo", "Lugbe", "Katampe", "Nbora", "Kuje", "Bwari", "Gwagwalada", "Life Camp", 
+    "Gwarimpa", "Apo", "Lugbe", "Katampe", "Nbora", "Kuje", "Bwari", "Gwagwalada", "Life Camp", 
     "Kubwa", "Dutse", "Mpape", "Lokogoma", "Galadimawa", "Durumi", "Gudu", "Wumba", 
-    "Kado", "Dawaki", "Guzape", "Mabushi", "Aminu Kano Crescent", "Jahi", "Wuye",
-    "Gaduwa", "Karsana", "Idu",
+    "Kado", "Dawaki", "Guzape", "Mabushi", "Mabuchi", "Aminu Kano Crescent", "Jahi", "Wuye",
+    "Gaduwa", "Karsana", "Idu", "Kaura", "Karu", "Karmo", "Kabusa", "Kurudu", "Keffi", "Mararaba",
+    "Kukwaba", "Duboyi", "Pyakassa", "Nyanya", "Karshi", "Central Area", "Central Business District",
+    "CBD", "Games Village", "Dakwo", "Sunnyvale Road", "Associated Estate", "Ochacho Estate",
+    "Dei-Dei", "Jikwoyi", "Orozo", "Wuse Zone 1", "Wuse Zone 2", "Wuse Zone 3", "Wuse Zone 4",
+    "Wuse Zone 5", "Wuse Zone 6", "Wuse Zone 7", "Wuse Zone 8", "Dei Dei",
     
     # Ibadan - Specific
-    "Ring Road", "Dugbe", "Felele", "Akala", "Oluyole", "Jericho", "Sango",
+    "Ring Road", "Dugbe", "Felele", "Akala", "Oluyole", "Jericho", "Sango", "Akinyele",
     
     # Port Harcourt - Specific
     "GRA Port Harcourt", "Trans Amadi", "Rumuola", "Rumuigbo", "Eliozu", "Rumuokoro",
     
     # Ogun - Specific
     "Mowe", "Ewekoro", "Ijebu Ode", "Isiwo", "Magboro", "Shimawa", "Odogbolu",
+    "Sagamu", "Abeokuta", "Agbara", "Arepo", "Ifo", "Obafemi Owode", "Ijebu East",
+    "Ibafo", "Ofada", "Iyana Iyesi", "Akute", "Ibeshe", "Asese", "Nasfat", "Redemption Camp",
     
     # Enugu - Specific
     "Enugu GRA", "Independence Layout",
     
     # Imo - Specific
-    "Owerri", "Ohaji",
+    "Owerri", "Ohaji", "Ngor Okpala",
     
     # Edo / Delta - Specific
-    "Okpanam",
+    "Okpanam", "Warri", "Asaba", "Obomkpa", "Ethiope West", "Oshimili North", "Sapele Road",
+    "Oredo", "Ovia North-East", "Ikpoba Okha",
+    
+    # Other States (Abia, Anambra, Niger, Kaduna, Plateau, Kwara)
+    "Aba", "Obi Ngwa", "Owaza", "Ukwa West", "Awka", "Awka North", "Awka South", "Nibo", "Isiagu",
+    "Dunukofia", "Minna", "Bida Road", "Ungwan Rimi", "Kaduna North", "Kaduna South", "Kakuri",
+    "Rayfield", "Jos North", "Jos South", "Offa", "Kwara",
 
     # ── GENERAL AREA & CITY FALLBACKS (Checked Last) ──────────────────────────
     "Ibeju-Lekki", "Ibeju Lekki", "Lekki", "Lagos Island", "Victoria Island", "Banana Island",
