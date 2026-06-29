@@ -82,7 +82,7 @@ property-scraper/
     ├── test_normaliser.py
     ├── test_geocoder.py
     ├── test_db_writer.py
-    └── test_pipeline.py
+    ├── test_pipeline.py
     └── test_health_checker.py  ← Tests for micro-batched health check execution
 ```
 
