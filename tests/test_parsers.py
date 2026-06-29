@@ -21,7 +21,7 @@ from tests.conftest import load_fixture
 # ── Shared URL constants (the canonical URL embedded in each fixture) ──────────
 PP_URL   = "https://propertypro.ng/property/3-bedroom-flat-apartment-for-rent-old-ikoyi-ikoyi-lagos-7NUGY"
 PRIV_URL = "https://privateproperty.ng/listings/10-bedroom-hotel-for-sale-oniru-victoria-island-lagos-6PBUWY"
-NPC_URL  = "https://nigeriapropertycentre.com/for-rent/flats-apartments/lagos/ajah/3364115-brand-new-2-bedrooms-apartment"
+NPC_URL  = "https://nigeriapropertycentre.com/for-sale/houses/semi-detached-duplexes/lagos/ikoyi/old-ikoyi/3370211-4-bedroom-semi-detached-duplex-off-plan"
 JIJI_URL = "https://jiji.ng/lugbe/houses-apartments-for-sale/4bdrm-duplex-in-voice-of-nigeria-lugbe-district-for-sale-saFgVBX3QXLb3rsljTXA53Ls.html"
 
 
@@ -174,8 +174,8 @@ class TestPrivatePropertyParser:
 
 class TestNigeriaPropertyCentreParser:
     """
-    Fixture: tests/fixtures/nigeriapropertycentre_listing.html
-    Source:  Brand New 2 Bedrooms Apartment, Sangotedo Ajah Lagos
+    Fixture: tests/fixtures/nigeriapropertycentre_listing_page.html
+    Source:  4 Bedroom Semi Detached Duplex. Off Plan, Old Ikoyi
     """
 
     @pytest.fixture(autouse=True)
@@ -192,30 +192,29 @@ class TestNigeriaPropertyCentreParser:
         assert self.result.source == "nigeriapropertycentre"
 
     def test_external_id(self):
-        assert self.result.external_id == "3364115"
+        assert self.result.external_id == "3370211"
 
     def test_title(self):
-        assert "2 Bedroom" in self.result.title or "2 bedroom" in self.result.title
+        assert "4 Bedroom" in self.result.title or "4 bedroom" in self.result.title
 
     def test_price_raw(self):
         assert self.result.raw_price is not None
-        assert "4,000,000" in self.result.raw_price
+        assert "1,800,000,000" in self.result.raw_price
 
-    def test_price_type_inferred_as_rent(self):
-        # "per annum" in price → FOR_RENT
-        assert self.result.raw_price_type == "FOR_RENT"
+    def test_price_type_inferred_as_sale(self):
+        assert self.result.raw_price_type == "FOR_SALE"
 
     def test_address(self):
         assert self.result.raw_address is not None
-        assert "Ajah" in self.result.raw_address or "Sangotedo" in self.result.raw_address
+        assert "Ikoyi" in self.result.raw_address or "Old Ikoyi" in self.result.raw_address
 
     def test_bedrooms_structured(self):
         assert self.result.raw_bedrooms is not None
-        assert "2" in self.result.raw_bedrooms
+        assert "4" in self.result.raw_bedrooms
 
     def test_bathrooms_structured(self):
         assert self.result.raw_bathrooms is not None
-        assert "2" in self.result.raw_bathrooms
+        assert "4" in self.result.raw_bathrooms
 
     def test_description_present(self):
         assert self.result.description is not None
@@ -223,7 +222,7 @@ class TestNigeriaPropertyCentreParser:
 
     def test_agent_name(self):
         assert self.result.agent_name is not None
-        assert "Matrealty" in self.result.agent_name
+        assert "Tophome Properties" in self.result.agent_name
 
     @pytest.mark.parametrize("url,expected_id", [
         ("https://nigeriapropertycentre.com/for-sale/houses/lagos/lekki/3364115-some-house", "3364115"),
