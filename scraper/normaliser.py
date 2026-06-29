@@ -297,16 +297,30 @@ def _clean_for_match(text: str) -> str:
     return " ".join(cleaned.split())
 
 
+def _clean_noise(text: str) -> str:
+    """Helper to strip common noise words from matching comparison."""
+    cleaned = _clean_for_match(text)
+    noise_words = [
+        "estate", "estates", "extension", "extensions", "phase", "ph", "district", "districts",
+        "zone", "zones", "area", "areas", "street", "st", "road", "rd", "avenue", "ave",
+        "close", "cl", "court", "ct", "layout", "gardens", "garden", "villas", "villa",
+        "axis", "stop", "bus stop"
+    ]
+    pattern = r'\b(' + '|'.join(noise_words) + r')\b'
+    cleaned = re.sub(pattern, ' ', cleaned)
+    return " ".join(cleaned.split())
+
+
 def normalise_neighbourhood(raw_address: Optional[str]) -> Tuple[Optional[str], bool]:
     """
     Extract and normalise neighbourhood from raw address string.
 
-    Strategy:
-      1. Check each token/phrase in raw_address against canonical list (cleaned/punctuation-insensitive).
-      2. Use difflib fuzzy match (cutoff 0.80) to handle spelling variants.
-         e.g. "Lekki Ph1", "Lekki ph 1", "Lekki Phase1" → "Lekki Phase 1"
-      3. If no canonical match found, return raw address as neighbourhood
-         with neighbourhood_normalised=False.
+    Strategy cascading tiers:
+      1. Cleaned Exact Match: Substring search (case/punctuation-insensitive).
+      2. Noise-Insensitive Substring Match: Strips suffixes/prefixes (Estate, Phase, etc.) from both sides.
+      3. Chunk-Level Noise-Free Fuzzy Match: Splits on delimiters and fuzzy matches chunk segments.
+      4. Word-Level Fuzzy Match Fallback: Compares individual words (len >= 4) using difflib SequenceMatcher
+         to capture typos/variations (e.g. Gwarimpa/Gwarinpa, Mabuchi/Mabushi).
 
     Returns: (neighbourhood_str, was_normalised)
     """
@@ -316,23 +330,47 @@ def normalise_neighbourhood(raw_address: Optional[str]) -> Tuple[Optional[str], 
     # Sort canonical list by length descending to ensure longer/more specific matches are checked first
     canonical = sorted(config.CANONICAL_NEIGHBOURHOODS, key=len, reverse=True)
 
-    # Try exact match first (case-insensitive and punctuation/spacing-insensitive)
+    # 1. Exact cleaned match
     addr_clean = _clean_for_match(raw_address)
     for nb in canonical:
         nb_clean = _clean_for_match(nb)
         if nb_clean and nb_clean in addr_clean:
             return nb, True
 
-    # Fuzzy match against each word/phrase chunk in the address
-    # Split on comma and slash as neighbourhood delimiters
+    # 2. Suffix/noise-insensitive match
+    addr_noise_free = _clean_noise(raw_address)
+    if addr_noise_free:
+        for nb in canonical:
+            nb_noise_free = _clean_noise(nb)
+            if nb_noise_free and nb_noise_free in addr_noise_free:
+                if len(nb_noise_free) > 2:
+                    return nb, True
+
+    # 3. Chunk-level fuzzy match
     chunks = re.split(r'[,/]', raw_address)
     for chunk in chunks:
-        chunk = chunk.strip()
-        if not chunk:
+        chunk_clean = _clean_noise(chunk)
+        if not chunk_clean or len(chunk_clean) < 3:
             continue
-        matches = difflib.get_close_matches(chunk, canonical, n=1, cutoff=0.80)
-        if matches:
-            return matches[0], True
+        
+        for nb in canonical:
+            nb_clean = _clean_noise(nb)
+            if not nb_clean:
+                continue
+            
+            ratio = difflib.SequenceMatcher(None, chunk_clean, nb_clean).ratio()
+            if ratio >= 0.85:
+                return nb, True
+
+    # 4. Word-level fuzzy fallback (handles typos/variations)
+    words = [w for w in addr_clean.split() if len(w) >= 4]
+    for word in words:
+        for nb in canonical:
+            nb_clean = _clean_for_match(nb)
+            if len(nb_clean) >= 4 and abs(len(word) - len(nb_clean)) <= 1:
+                ratio = difflib.SequenceMatcher(None, word, nb_clean).ratio()
+                if ratio >= 0.85:
+                    return nb, True
 
     # No canonical match — store raw (truncated to 60 chars per schema)
     return raw_address[:60], False
