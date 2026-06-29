@@ -62,16 +62,54 @@ class PrivatePropertyParser(BaseParser):
             return None
 
         title           = _text(soup, TITLE_SELECTOR)
-        price_currency  = _text(soup, TITLE_SELECTOR)
+        if not title:
+            h1 = soup.select_one("h1")
+            if h1:
+                title = h1.get_text(strip=True)
+
         raw_price       = second_text(soup, PRICE_SELECTOR)
-        # raw_price_type= _text(soup, PRICE_TYPE_SELECTOR)
+        if raw_price is None:
+            price_span = None
+            for el in soup.find_all(["span", "strong", "h2", "h3", "div"]):
+                txt = el.get_text(strip=True)
+                if txt and (txt.startswith("₦") or txt.startswith("$") or txt.startswith("USD")):
+                    if any(c.isdigit() for c in txt):
+                        price_span = el
+                        break
+            if price_span:
+                raw_price = price_span.get_text(strip=True)
+
+        # Pre-check for possible null page through marked signs like null prices
+        if raw_price == None:
+            log.warning("[%s] Null Listing: %s. Skipping", self.source, url)    # null listing
+            return None
+
         raw_bedrooms    = _text(soup, BEDROOMS_SELECTOR)
+        if raw_bedrooms is None:
+            raw_bedrooms = self._find_feature_by_text(soup, ["bed", "bedroom"])
+
         raw_bathrooms   = _text(soup, BATHROOMS_SELECTOR)
-        # raw_floor     = _text(soup, FLOOR_AREA_SELECTOR)
+        if raw_bathrooms is None:
+            raw_bathrooms = self._find_feature_by_text(soup, ["bath", "bathroom"])
+
         raw_address     = _text(soup, ADDRESS_SELECTOR)
+        if not raw_address:
+            for el in soup.find_all(["p", "span", "div"]):
+                txt = el.get_text(strip=True)
+                if txt and len(txt) < 150:
+                    if any(token in txt.lower() for token in ["lagos", "abuja", "enugu", "ph", "kano", "ibadan"]):
+                        if title and txt in title:
+                            continue
+                        raw_address = txt
+                        break
+
         description     = _text(soup, DESCRIPTION_SELECTOR)
-        # prop_type     = _text(soup, PROPERTY_TYPE_SELECTOR)
-        # agent           = element_text(soup, AGENT_NAME_SELECTOR, 'alt')
+        if not description:
+            for el in soup.find_all("div", class_=lambda x: x and any(c in x.lower() for c in ["desc", "detail", "about"])):
+                txt = el.get_text(strip=True)
+                if txt and len(txt) > 100:
+                    description = el.get_text("\n", strip=True)
+                    break
         
         # Price type — PrivateProperty encodes in the search URL / breadcrumb
         if "for-sale" in url:
@@ -98,6 +136,16 @@ class PrivatePropertyParser(BaseParser):
             property_type_raw = None,
             agent_name        = None,
         )
+
+    def _find_feature_by_text(self, soup: BeautifulSoup, keywords: List[str]) -> Optional[str]:
+        for el in soup.find_all(["li", "span", "p", "div"]):
+            txt = el.get_text(strip=True)
+            if txt and len(txt) < 50:
+                txt_lower = txt.lower()
+                if any(k in txt_lower for k in keywords):
+                    if any(c.isdigit() for c in txt_lower):
+                        return txt
+        return None
 
     def next_page_url(self, base_search_url: str, page_number: int) -> Optional[str]:
         if config.MAX_PAGES_PER_FEED and page_number > config.MAX_PAGES_PER_FEED:   # safety ceiling
