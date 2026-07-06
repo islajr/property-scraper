@@ -22,6 +22,7 @@
 12. [Full Data Flow](#12-full-data-flow--one-run)
 13. [Debugging](#13-debugging--what-goes-wrong-and-where)
 14. [Ongoing Maintenance](#14-ongoing-maintenance)
+15. [Market Analysis & Snapshots](#15-market-analysis--snapshots)
 
 ---
 ## 1. What This Application Does
@@ -54,6 +55,7 @@ property-scraper/
 ├── pytest.ini                  ← pytest settings
 ├── run.sh                      ← Execution wrapper script (runs discovery or health-checks)
 ├── start_tunnel.py             ← Local residential proxy tunnel daemon (ngrok + local HTTP proxy)
+├── rebuild_snapshots.py        ← Rebuilds weekly snapshot aggregation tables for market reports
 ├── .env                        ← Local credentials (never commit)
 │
 ├── scraper/                    ← The application
@@ -230,33 +232,33 @@ def scrape(self) -> List[RawListing]:
 | `next_page_url(base, page_n)` | Returns the URL for page N, or `None` when pages are exhausted |
 
 ### The three portal parsers
-
+ 
 #### `propertypro.py`
 - Uses `requests` + `BeautifulSoup` (server-rendered HTML)
-- Listing cards on search page: `div.col-md-3`
-- External ID: alphanumeric suffix in URL (e.g. `'7NUGY'` from `/property/3-bed-flat-7NUGY`)
-- Price: `div.pricing` — e.g. `'₦75,000,000/year'`
-- Beds/baths: `div.property-pros li:nth-child(1/2)`
-- Address: `div.content-block p` — first paragraph that contains a location
-- Agent: `div.sidebar-block01` — truncated before `'View more'`
-
+- Listing cards on search page: `.pl-title`
+- External ID: alphanumeric suffix in URL (e.g. `'7NUGY'` from `/property/...-7NUGY`)
+- Price: `.property-pricing>.pricing>h2>strong`. Fallback checks for spans containing currency symbols (`₦`, `$`, `USD`) and numbers.
+- Beds/baths: `.property-contact-block>.property-pros ul li`. Fallback calls helper `_find_feature_by_text` searching for `'bed'` / `'bath'` keywords.
+- Address: `.content-block>p`. Fallback searches paragraphs for city names/location tokens.
+- Agent: `#sidebar .flex-grow-1>a>h4`. Fallback scans parent sidebar tags for agency/owner profiles.
+ 
 #### `privateproperty.py`
 - Uses `requests` + `BeautifulSoup` (server-rendered HTML)
 - Domain: `privateproperty.ng` — **not** `www.privateproperty.com.ng` (that redirects to 404)
-- Listing cards on search page: `div.similar-listings-info`
-- Price: `p.price` — may be in USD for commercial properties
-- Address / property type: `div.property-info h2` — e.g. `'10 bedroom Hotel For Sale Oniru Victoria Island Lagos'`
-- Beds/baths: not structured separately — extracted by normaliser from the address `h2`
-- Agent: `div.marketed-by p`
-
+- Listing cards on search page: `.similar-listings-info`
+- Price: `.property-info .price>strong`. Fallback scans page for currency symbols.
+- Address / property type: `.property-info>p` / `.property-info>h1`. Fallback searches paragraph text for city tokens.
+- Beds/baths: `.property-info .property-benefit>li`. Fallback calls helper `_find_feature_by_text` searching for `'bed'` / `'bath'` keywords.
+- Agent: `.sidebar-main .marketed-by a.media>img`
+ 
 #### `nigeriapropertycentre.py`
 - Uses `requests` + `BeautifulSoup` (server-rendered HTML)
-- Listing cards: `div.wp-block.property.list`
-- Price: `span.property-details-price` — e.g. `'₦4,000,000per annum'`
-- Address: `div.col-sm-8.f15.property-details address` — uses an `<address>` HTML tag, not `<p>`
-- Beds/baths: extracted from structured `itemprop` list in `div.wp-block-footer`
-- Description: `div.tab-content`
-- Agent: `div.panel-body a strong`
+- Listing cards on search page: matches listing ID pattern inside `article` tags (robust against card changes).
+- Price: `span.property-details-price` (falls back to searching classless spans with currency symbols).
+- Address: `div.col-sm-8.f15.property-details address` (falls back to text adjacent to map pin icons).
+- Beds/baths: extracts from structured `itemprop` list in `div.wp-block-footer` (falls back to flex grid containers via helper `_find_feature_value`).
+- Description: `div.tab-content` (falls back to text under the `'About this property'` heading).
+- Agent: `div.panel-body a strong` (falls back to matching both `/agents/` and `/property-owners/` URL profiles).
 
 <!-- #### `jiji.py`
 
@@ -328,16 +330,18 @@ Classifies as `FOR_SALE` or `FOR_RENT` by scanning all three fields for keywords
 Maps raw portal property type strings to canonical enum values using `PROPERTY_TYPE_MAP`. Falls back to partial matching (if `'duplex'` appears anywhere in the string → `DETACHED_DUPLEX`). Unknown types are stored as uppercased underscored versions of the raw string.
 
 ### `normalise_neighbourhood(raw_address: str) → (str, bool)`
-
-Returns `(neighbourhood_name, was_normalised)`. Three-step strategy:
-
-1. **Exact match:** check if any canonical name appears as a substring in the raw address
-2. **Fuzzy match:** split address on commas, run each chunk through `difflib.get_close_matches(cutoff=0.80)` against the canonical list
-3. **Fallback:** return the raw address truncated to 60 characters, with `normalised=False`
+ 
+Returns `(neighbourhood_name, was_normalised)`. Implements a cascading 4-tier matching strategy:
+ 
+1. **Cleaned Exact Match**: Substring search ignoring punctuation/spacing (e.g. `'Lekki Phase 1, Lagos'` matches `'Lekki Phase 1'`).
+2. **Noise-Insensitive Substring Match**: Strips common suffix/prefix terms (like `'estate'`, `'extension'`, `'phase'`, `'road'`, `'street'`, `'layout'`, `'close'`, `'court'`) from both sides before matching (e.g. matching `'Victory Park'` to canonical `'Victory Park Estate'`).
+3. **Chunk-Level Noise-Free Fuzzy Match**: Splits address on delimiters (comma, slash) and fuzzy-matches segments against canonical list.
+4. **Word-Level Fuzzy Match Fallback**: Compares individual words (length >= 4) using `difflib.SequenceMatcher` with a threshold of 0.85 to capture spelling/transcription variations and typos (e.g. resolving `'Gwarimpa'` to `'Gwarinpa'`, or `'Mabuchi'` to `'Mabushi'`).
 
 ```
 'Lekki Phase 1, Lagos'       → ('Lekki Phase 1', True)
 'Lekki Ph1, Lagos'           → ('Lekki Phase 1', True)   # fuzzy matched
+'Gwarimpa, Abuja'            → ('Gwarinpa', True)        # typo fuzzy resolved
 'Some New Estate, Ogun'      → ('Some New Estate, Ogun', False)  # stored raw
 ```
 
@@ -814,5 +818,21 @@ The most common failure. Causes in order of likelihood:
 - Add a `TestNewPortalParser` class to `test_parsers.py`
 
 ### Refreshing the canonical neighbourhood list
-
+ 
 Edit `CANONICAL_NEIGHBOURHOODS` in `config.py`. This list is shared with the P0 synthetic data generator — update P0's copy too. New neighbourhoods start appearing in the DB immediately; old ones remain matched.
+
+---
+
+## 15. Market Analysis & Snapshots
+
+The market analysis aggregation layer generates clean, week-by-week (Monday to Sunday) metrics to track real estate activity across all canonical neighbourhoods.
+
+### Rebuilding Snapshots (`rebuild_snapshots.py`)
+
+A standalone database utility that can be executed to fully recalculate and overwrite the `market.neighbourhood_snapshots` table from ground-truth data:
+* **Timeline Boundaries**: Dynamically finds the first listing in `scraped_listings` (oldest record dates back to April 7, 2026) and groups the timeline into complete calendar weeks (Monday 00:00:00 to Sunday 23:59:59).
+* **Historical Pricing Reconstruction**: Instead of using current static price snapshots, the script processes price change history (`raw_data.listing_history`) to determine the exact listing price *as of the snapshot week's Sunday* (ensuring accurate percentiles).
+* **Pre-filters**:
+  * Listings without normalised neighbourhoods (`neighbourhood_normalised = False`) are ignored.
+  * Neighbourhood-weeks with `active_listing_count <= 1` are ignored to prevent noise/outliers from polluting percentiles.
+* **Batch Upsert**: Truncates the table and executes bulk operations (batch size = 200). Deterministic primary key `id` matches `md5(neighbourhood + snapshot_week_date_string)`.
