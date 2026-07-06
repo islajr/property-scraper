@@ -866,39 +866,135 @@ This section details common operational errors, structural failures, and the exa
 
 ## 14. Ongoing Maintenance
 
-### When a portal changes its HTML (expected regularly)
+This section outlines standard procedures for maintaining the scraper's parsing layers, adding coverage domains, and extending normalisation dictionaries.
 
-1. Run `./run.sh` — Telegram shows ❌ or 0 listings for the affected portal
-2. Open the live portal in browser, navigate to a listing
-3. DevTools → Inspector, find the element wrapping the broken field
-4. Update the relevant `SELECTOR` constant in `scraper/parsers/<portal>.py`
-5. Save the page source to `tests/fixtures/<portal>_listing.html`
-6. `pytest tests/test_parsers.py::Test<Portal>Parser -v`
-7. If tests pass, run `./run.sh` again
+---
 
-### Adding a new portal
+### 14.1. Repairing Selector Drift
 
-- Create `scraper/parsers/newportal.py` — subclass `BaseParser`, define `source`/`base_url`/`search_url`, implement `get_listing_urls()`, `parse_listing()`, `next_page_url()`
-- Add `NewPortalParser(active_listings)` to the parsers list in `orchestrator.py`
-- Save a fixture HTML page to `tests/fixtures/newportal_listing.html`
-- Add a `TestNewPortalParser` class to `test_parsers.py`
+When a portal alters its layout, search or detail parsers will fail, resulting in 0 listings processed or empty database records.
 
-### Refreshing the canonical neighbourhood list
- 
-Edit `CANONICAL_NEIGHBOURHOODS` in `config.py`. This list is shared with the P0 synthetic data generator — update P0's copy too. New neighbourhoods start appearing in the DB immediately; old ones remain matched.
+1. **Identify the Failure**: Review the Telegram notification or pipeline execution logs to identify the failing portal (e.g. `nigeriapropertycentre`).
+2. **Retrieve the Live HTML**: Locate a live listing URL from the portal and execute the diagnosis script to fetch its raw markup:
+   ```bash
+   .venv/bin/python diagnose.py "https://nigeriapropertycentre.com/..."
+   ```
+   This writes the server-rendered HTML payload directly to `debug.html`.
+3. **Map the New Layout**: Open `debug.html` alongside browser DevTools and determine the updated CSS query paths.
+4. **Update the Parser Constants**: Modify the uppercase CSS selector constants defined at the top of the portal's parser script (e.g. `scraper/parsers/nigeriapropertycentre.py`):
+   ```python
+   # Example: Update PRICE_SELECTOR if it changed from span.property-details-price
+   PRICE_SELECTOR = 'div.listing-price-container span.price'
+   ```
+5. **Update local Fixtures**: Save the updated listing HTML source into the tests directory to serve as the new fixture for regression testing:
+   * Target Path: `tests/fixtures/<portal>_listing_page.html` (or `tests/fixtures/nigeriapropertycentre_listing_page.html`).
+6. **Execute Unit Tests**: Run pytest to verify the parser extracts all attributes (price, address, beds, bathrooms, agent) without errors:
+   ```bash
+   pytest tests/test_parsers.py::TestNigeriaPropertyCentreParser -v
+   ```
+7. **Deploy**: Stage and commit the selector changes and updated HTML fixtures to the git repository.
+
+---
+
+### 14.2. Adding a New Portal Parser
+
+To ingest listings from a new source, subclass the base scraping class and register it in the orchestrator:
+
+1. **Subclass the Base Parser**: Create a new parser module under `scraper/parsers/newportal.py`. Inherit from `BaseParser` (defined in `scraper/parsers/base_parser.py`) and override the required properties and methods:
+   * `source` (str): Unique identifier for deduplication (e.g. `'jiji'`).
+   * `base_url` (str): Root domain of the portal.
+   * `search_url` (str): Entry search results page URL.
+   * `get_listing_urls(self, soup)`: Extracts detail page URLs from search results page parsed via `BeautifulSoup`.
+   * `parse_listing(self, soup, url)`: Parses the detail page's `BeautifulSoup` document and returns a `RawListing` object (or `None` on unrecoverable extraction failure).
+   * `next_page_url(self, base_url, page_number)`: Returns the string URL for page number N, or `None` if pages are exhausted.
+2. **Register the Parser**: Open `scraper/orchestrator.py` and import the new parser class. Register it in the `PARSERS` execution list inside `run_discovery()`:
+   ```python
+   from scraper.parsers.newportal import NewPortalParser
+   # Added to discovery pipeline parsers array
+   parsers = [
+       NigeriaPropertyCentreParser(active_listings),
+       PropertyProParser(active_listings),
+       PrivatePropertyParser(active_listings),
+       NewPortalParser(active_listings)
+   ]
+   ```
+3. **Write Regression Tests**:
+   * Save a sample listing page source to `tests/fixtures/newportal_listing.html`.
+   * Open `tests/test_parsers.py` and implement a unit test class `TestNewPortalParser` verifying successful extraction.
+
+---
+
+### 14.3. Refreshing the Canonical Neighbourhood List
+
+1. **Add Canonical Entries**: Open `config.py` and append new locations to the `CANONICAL_NEIGHBOURHOODS` list. Use the standard canonical casing (e.g., `'Abraham Adesanya'`, `'Orchid'`).
+2. **Propagate to Synthetic Pipeline**: Ensure the new values are mirrored in the P0 synthetic data generator definitions to maintain alignment.
+3. **Database Normalisation Re-run**: Any newly added canonical entry will be picked up by the normaliser cascading matcher (`scraper/normaliser.py`). On the next scraper run, any matching raw listings will automatically normalise and have their coordinates populated by the geocoder.
 
 ---
 
 ## 15. Market Analysis & Snapshots
 
-The market analysis aggregation layer generates clean, week-by-week (Monday to Sunday) metrics to track real estate activity across all canonical neighbourhoods.
+The market aggregation engine acts as a standalone reporting layer, translating raw listings into weekly time-series datasets to track metrics over time.
 
-### Rebuilding Snapshots (`rebuild_snapshots.py`)
+### 15.1. Timeline Calculations (`rebuild_snapshots.py`)
 
-A standalone database utility that can be executed to fully recalculate and overwrite the `market.neighbourhood_snapshots` table from ground-truth data:
-* **Timeline Boundaries**: Dynamically finds the first listing in `scraped_listings` (oldest record dates back to April 7, 2026) and groups the timeline into complete calendar weeks (Monday 00:00:00 to Sunday 23:59:59).
-* **Historical Pricing Reconstruction**: Instead of using current static price snapshots, the script processes price change history (`raw_data.listing_history`) to determine the exact listing price *as of the snapshot week's Sunday* (ensuring accurate percentiles).
-* **Pre-filters**:
-  * Listings without normalised neighbourhoods (`neighbourhood_normalised = False`) are ignored.
-  * Neighbourhood-weeks with `active_listing_count <= 1` are ignored to prevent noise/outliers from polluting percentiles.
-* **Batch Upsert**: Truncates the table and executes bulk operations (batch size = 200). Deterministic primary key `id` matches `md5(neighbourhood + snapshot_week_date_string)`.
+The script `rebuild_snapshots.py` processes raw listings to construct snapshots:
+1. **Find Timeline Start**: Queries the oldest record date:
+   ```sql
+   SELECT MIN(first_seen_at) FROM raw_data.scraped_listings;
+   ```
+2. **Align to Calendar Weeks**: Calculates the Monday date of that oldest week using `timedelta(days=date.weekday())`. It then generates a sequence of weekly brackets up to the most recent completed Sunday.
+3. **Load Ground Truth into Memory**:
+   * Fetches all normalised listings (`neighbourhood_normalised = True`) to load metadata (`id`, `city`, `neighbourhood`, `first_seen_at`, `last_seen_at`, `listing_status`, `price_kobo`).
+   * Fetches the entire `listing_history` of type `PRICE_CHANGE` (reconstructing price changes) and groups them by `listing_id` in memory to prevent repeated query latency.
+
+---
+
+### 15.2. Pure Python Percentile Interpolation
+
+To calculate price percentiles (p25, median, p75, p90) without requiring third-party library installations (like `numpy` or `scipy`), `rebuild_snapshots.py` implements a linear interpolation percentile function:
+```python
+def calculate_percentile(sorted_data, pct):
+    if not sorted_data:
+        return None
+    n = len(sorted_data)
+    idx = (pct / 100.0) * (n - 1)
+    low = int(idx)
+    high = min(n - 1, low + 1)
+    weight = idx - low
+    return float(sorted_data[low] * (1.0 - weight) + sorted_data[high] * weight)
+```
+This ensures standard mathematical percentile alignment while keeping the script lightweight and runnable in any default virtual environment.
+
+---
+
+### 15.3. Reconstructing Historical Pricing
+
+When calculating metrics for a past week, using the listing's current `price_kobo` would bias historical percentiles if a price change occurred. The reconstruction algorithm traces backwards:
+```python
+# Reconstruct listing price as of target week's w_end
+price = item["price_kobo"]
+history = history_by_listing.get(lid, [])
+for ev in history:
+    if ev["event_date"] > w_end:
+        if ev["old_value"] is not None:
+            price = ev["old_value"]
+```
+* **Event Scopes**: For each active listing during the target week, the loop traces chronological price changes in reverse, restoring the value to the price that was active at the end of that week.
+
+---
+
+### 15.4. Exclusions and Noise Filters
+
+* **Unnormalised Listings**: Excluded since raw addresses cannot be confidently grouped.
+* **Low-Sample Filter**: Any neighbourhood-week where `active_listing_count <= 1` is skipped. This stops lone properties (which could have pricing errors or be unrepresentative) from skewing percentiles, preserving database integrity.
+
+---
+
+### 15.5. Idempotent Batched Insertion
+
+* **Deterministic Primary Key**: Key `id` is computed using an MD5 hash of the concatenated variables:
+  `hashlib.md5(f"{neighbourhood}{snapshot_week_date_string}".encode()).hexdigest()`
+* **Upsert Guard**: Insertion is run via `cur.executemany` with a batch size of 200, protected by an `ON CONFLICT (id) DO NOTHING` constraint. This prevents duplication when re-running migrations.
+
+---
