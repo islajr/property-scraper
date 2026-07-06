@@ -736,65 +736,131 @@ TELEGRAM_CHAT_ID=123456789
 
 ## 13. Debugging — What Goes Wrong and Where
 
-### Portal returns 0 listings
+This section details common operational errors, structural failures, and the exact classes, methods, and code boundaries that enable or resolve them.
 
-The most common failure. Causes in order of likelihood:
+---
 
-- **Selector drift:** the portal changed its HTML. Check `LISTING_CARD_SELECTOR` in the parser. Run `diagnose.py` to get fresh HTML, inspect in browser DevTools.
-- **403 Forbidden / Cloud Blocking:** Bot detection blocking cloud subnet ranges (e.g. GitHub Actions runners). Make sure the local residential proxy tunnel (`start_tunnel.py`) is active and repository secrets on GitHub are synced with the tunnel address. Note: portals like propertypro.ng and privateproperty.com.ng also block public VPNs/exit nodes (like WARP and Tor exit nodes).
-- **Playwright timeout:** Jiji's JS did not finish loading. `SELECTOR_TIMEOUT` is 20 seconds — increase if needed.
-- **robots.txt false positive:** verify `robots.txt` manually. The fix was changing `can_fetch('*', url)` to `can_fetch(HEADERS['User-Agent'], url)`.
+### 13.1. Portal Returns 0 Listings (Discovery Mode)
 
-### ngrok Tunnel Connection Drops (ProxyError)
+* **Symptom**: Running a discovery cycle (via `run.sh` or `orchestrator.py`) finishes with 0 ingested items for a specific portal, logging a warnings trend.
+* **Likely Causes & Code Solutions**:
+  1. **HTML Selector Drift**: The target portal has modified its CSS/HTML layout.
+     * *Responsible Classes*: Subclasses of `BaseParser` (e.g. `NigeriaPropertyCentreParser`, `PropertyProParser`, `PrivatePropertyParser` in `scraper/parsers/`).
+     * *Methods Affected*: `get_listing_urls(self, soup)` (failing to extract URLs from listing lists) and `parse_listing(self, soup, url)` (returning `None` because primary fields like price or address fail to match).
+     * *Diagnosis Procedure*: Execute the debug script `diagnose.py` with the portal target URL. It downloads the server-side HTML to a local file (`debug.html`) so you can test new selector configurations.
+     * *Failsafe Mechanism*: The parsers use search-based helper methods (`_find_feature_value` and `_find_feature_by_text`) that fall back to keyword scanning across siblings and parent grids when static CSS selectors fail.
+  2. **403 Forbidden / Cloud Subnet Blocks**: Portals deploy anti-bot protections (like Cloudflare or AWS WAF) blocking cloud ranges (e.g. GitHub Actions runners) and commercial VPN exits.
+     * *Responsible Code*: `scraper/parsers/base_parser.py` inside `BaseParser._http_get()`.
+     * *Fix Implementation*: Discovery runs must route through the proxy client configuration `proxies = {'http': PROXY_URL, 'https': PROXY_URL}` loaded from `config.PROXY_URL`. Ensure the local proxy tunnel `start_tunnel.py` is running and authenticated.
+  3. **robots.txt Wildcard Blocks**: `BaseParser._can_fetch()` checks permissions against portal policies.
+     * *Responsible Class*: `urllib.robotparser.RobotFileParser`.
+     * *Resolution*: Ensure the check is executed using the specific scraper User-Agent string instead of a generic wildcard (`*`): `self.robot_parser.can_fetch(HEADERS['User-Agent'], url)`. This avoids false-positive blocks since portals often block wildcard bots while permitting verified agents.
 
-- **Symptom**: GHA runner workflow fails with:
-  `ProxyError('Unable to connect to proxy', RemoteDisconnected('Remote end closed connection without response'))`
-- **Cause**: Censorship firewalls or restrictive ISPs using Deep Packet Inspection (DPI) or TCP Resets (RST) to terminate ngrok tunnels.
-- **Fix**: The scraper's built-in `MAX_RETRIES = 3` with exponential backoff handles this. If drops are very frequent, modify the ngrok launch command in `start_tunnel.py` to specify an alternate server region (e.g. `ngrok tcp 8118 --region eu`).
+---
 
-### systemd Tunnel Output Logs Frozen
+### 13.2. ngrok Tunnel Connection Drops (`ProxyError`)
 
-- **Symptom**: Checking the logs via `journalctl --user -u scraper-tunnel.service -f` shows no request proxying output.
-- **Cause**: Python buffers standard output by default when stdout/stderr is redirected to a non-interactive console.
-- **Fix**: Ensure that `Environment=PYTHONUNBUFFERED=1` is specified in the systemd service template inside the `[Service]` section.
+* **Symptom**: Logs show `requests.exceptions.ProxyError` or `urllib3.exceptions.MaxRetryError` terminating a scraping run.
+* **Cause**: Network firewalls or ISPs triggering TCP Resets (`RST` packets) or terminating ngrok connections during deep packet inspection.
+* **Code Mechanism**:
+  * *Affected Class/Method*: `BaseParser._http_get(self, url, headers)` handles outgoing HTTP connections.
+  * *Retry Architecture*: Requests are wrapped in a retry handler configured by `MAX_RETRIES` (default: 3) and `RETRY_BACKOFF_BASE` (default: 2.0). It catches `ProxyError` and exponential-sleeps to recover from brief drops:
+    ```python
+    try:
+        response = self.session.get(url, proxies=self.proxies, timeout=REQUEST_TIMEOUT)
+    except (requests.exceptions.ProxyError, requests.exceptions.ConnectionError):
+        # wait (base ** retry_attempt) seconds and retry
+    ```
+  * *Tunnel Action*: If drops are persistent, edit the ngrok command in `start_tunnel.py` to change region flags (e.g. from `us` to `eu` or `ap`).
 
-### Health Check script exits immediately without performing checks
+---
 
-- **Cause**: The application-level Timing Guard is preventing redundant checks. If a successful check completed less than 22 hours ago, it will skip execution.
-- **Fix**: Run the command with the `--all` or `--force` flag (e.g. `./run.sh --health-check --all`) to bypass the guard.
+### 13.3. systemd Tunnel Output Logs Frozen
 
-### Health Check outputs "Pre-flight network check failed" and exits
+* **Symptom**: Checking proxy logs via `journalctl --user -u scraper-tunnel.service -f` shows no output.
+* **Cause**: Python buffers standard output by default when stdout/stderr is redirected to non-interactive journals.
+* **Solution**:
+  * *Affected Service File*: `/etc/systemd/user/scraper-tunnel.service`.
+  * *Implementation*: Ensure the service definition includes `Environment=PYTHONUNBUFFERED=1` inside the `[Service]` block to force immediate stream flushing.
 
-- **Cause**: The script cannot resolve the database connection hostname (DNS lookup failed). This indicates your internet connection is down or DNS is misconfigured.
-- **Fix**: Verify your network connectivity. The script exits cleanly to avoid raising critical database connection alarms while offline.
+---
 
-### `ModuleNotFoundError: No module named 'scraper'`
+### 13.4. Health Check Exits Instantly Without Checking Listings
 
+* **Symptom**: Running `./run.sh --health-check` completes in under 2 seconds without executing HTTP requests.
+* **Cause**: The application-level Timing Guard blocks redundant checks to avoid scraping detection.
+* **Code Mechanism**:
+  * *Affected Class*: `DatabaseWriter` in `scraper/db_writer.py`.
+  * *Method Enforcing Guard*: `db.check_health_run_allowed(self)` queries `scrape_runs` for the last successful health check run:
+    ```sql
+    SELECT run_at FROM raw_data.scrape_runs 
+    WHERE source = 'health_check' AND status = 'SUCCESS' 
+    ORDER BY run_at DESC LIMIT 1
+    ```
+    If `NOW() - run_at` is less than `22 hours` (`config.HEALTH_CHECK_RUN_INTERVAL_HOURS`), it returns `False`, causing the orchestrator to exit early.
+  * *Bypass Flag*: Run with `--force` or `--all` flags. This configures `orchestrator.py` to pass `force_all=True` to the database writer, bypassing the timing check entirely.
 
-- pytest is not finding the project root. Ensure root `conftest.py` exists and inserts the project root into `sys.path`.
-- Run `pytest` from the project root directory, not from inside `tests/`.
+---
 
-### `psycopg2-binary` build failure
+### 13.5. Health Check Exits with "Pre-flight network check failed"
 
-- You are running Python 3.13. `psycopg2-binary==2.9.9` has no pre-built wheel for 3.13.
-- Fix: use Python 3.12 (`pyenv install 3.12.9 && pyenv local 3.12.9`), delete `.venv` and re-run.
-- Or: upgrade to `psycopg2-binary==2.9.10` which has 3.13 wheels.
+* **Symptom**: Console logs show `[ERROR] Pre-flight network check failed. Exiting.`
+* **Cause**: The runner has no internet connectivity or DNS resolution is failing.
+* **Code Mechanism**:
+  * *Affected File/Function*: `scraper/orchestrator.py` inside `check_database_dns()`.
+  * *Underlying Method*:
+    ```python
+    import socket
+    def check_database_dns():
+        # extracts host from DATABASE_URL
+        socket.gethostbyname(db_host)
+    ```
+  * *Purpose*: Exits cleanly before initiating database pools, preventing loud stack traces (`psycopg2.OperationalError`) from triggering pager duties when the host network is offline.
 
-### `TypeError: argument of type 'module' is not iterable`
+---
 
-- A parser was constructed with `config` (the module) instead of `active_listings` (the dict).
-- Old scaffold passed `config` to parsers. Current orchestrator passes `active_listings`. Replace `orchestrator.py` with the current version.
+### 13.6. `ModuleNotFoundError: No module named 'scraper'`
 
-### `playwright install` fails with `libasound2` error
+* **Symptom**: Running tests or launching the pipeline throws a import path exception.
+* **Cause**: The Python runtime's search path (`sys.path`) does not include the project root folder.
+* **Code Resolution**:
+  * *Affected Configurations*: `pytest.ini` and `conftest.py` in the root folder.
+  * *Implementation*: Root-level `conftest.py` adds the absolute path of the project to `sys.path` on test startup. Always run commands from the project root directory (e.g. `python3 -m scraper.orchestrator` instead of executing `python scraper/orchestrator.py`).
 
-- GitHub Actions runs Ubuntu 24.04 (Noble) which renamed `libasound2` → `libasound2t64`.
-- `playwright install --with-deps` uses a hardcoded script that still requests the old name.
-- Fix: install Chromium deps manually (`libnss3`, `libatk1.0-0t64`, etc.) then run `playwright install chromium` without `--with-deps`.
+---
 
-### Geocoder always returns `geocoded=False`
+### 13.7. `psycopg2-binary` Build Failures on Python 3.13
 
-- Check that `NOMINATIM_AGENT` in `geocoder.py` is set to a real application name and contact email — Nominatim may block generic or empty User-Agents.
-- The memory cache is empty on first run — every unique neighbourhood makes one API call. The 1.1 second sleep between calls means 80 neighbourhoods takes ~90 seconds. This is normal.
+* **Symptom**: Virtualenv setup (`pip install -r requirements.txt`) fails when compiling `psycopg2`.
+* **Cause**: Pre-compiled wheels for version `2.9.9` do not support Python 3.13, causing it to fall back to compilation which requires local PostgreSQL development headers (`libpq-dev`).
+* **Resolution**:
+  * Use Python 3.12 (standard target defined in `.python-version`).
+  * Alternatively, upgrade to `psycopg2-binary==2.9.10` in `requirements.txt` which contains pre-compiled Python 3.13 wheels.
+
+---
+
+### 13.8. `TypeError: argument of type 'module' is not iterable`
+
+* **Symptom**: Pipeline startup crashes with a type exception on parser instantiation.
+* **Cause**: Passing the `config.py` module to a parser constructor instead of the active listings cache.
+* **Code Mechanism**:
+  * *Affected Classes*: `BaseParser` subclasses (which accept `active_listings: dict` in their `__init__` constructor).
+  * *Method Fix*: In `scraper/orchestrator.py`, ensure the instantiation passes the active listings fetched from the database:
+    ```python
+    active_listings = db.fetch_active_listings()
+    parser = NigeriaPropertyCentreParser(active_listings)
+    ```
+
+---
+
+### 13.9. Geocoder Always Returns `geocoded=False`
+
+* **Symptom**: All listings processed show `geocoded = False` in the database.
+* **Cause**: OpenStreetMap Nominatim blocks requests without valid User-Agents or contact emails.
+* **Code Mechanism**:
+  * *Affected Class/Method*: `Geocoder` in `scraper/geocoder.py` inside `geocode(self, neighbourhood, city)`.
+  * *API Compliance*: Ensure `NOMINATIM_AGENT` is configured with a valid email (read from `NOMINATIM_CONTACT_EMAIL` in `config.py`).
+  * *Rate Limiting*: Nominatim requires a strict 1.0 second delay between requests. The geocoder enforces this via `time.sleep(1.1)` for cache misses. On a fresh database, matching 80 neighbourhoods will take ~90 seconds. Subsequent cycles read coordinates instantly from `raw_data.geocode_cache` (loaded into memory at geocoder startup).
 
 ---
 
