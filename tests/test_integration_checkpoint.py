@@ -16,7 +16,8 @@ def clean_checkpoints():
 @patch("scraper.parsers.base_parser.BaseParser._load_robots_txt")
 @patch("scraper.orchestrator.DatabaseWriter")
 @patch("scraper.orchestrator.Geocoder")
-def test_discovery_orchestrator_resume_from_checkpoint(mock_geocoder, mock_db_writer, mock_robots):
+@patch("scraper.orchestrator.notifier")
+def test_discovery_orchestrator_resume_from_checkpoint(mock_notifier, mock_geocoder, mock_db_writer, mock_robots):
     mock_robots.return_value = None
     # Set up mocks
     mock_db = MagicMock()
