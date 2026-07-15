@@ -13,9 +13,11 @@ def clean_checkpoints():
     checkpoint.clear_checkpoint()
 
 
+@patch("scraper.parsers.base_parser.BaseParser._load_robots_txt")
 @patch("scraper.orchestrator.DatabaseWriter")
 @patch("scraper.orchestrator.Geocoder")
-def test_discovery_orchestrator_resume_from_checkpoint(mock_geocoder, mock_db_writer):
+def test_discovery_orchestrator_resume_from_checkpoint(mock_geocoder, mock_db_writer, mock_robots):
+    mock_robots.return_value = None
     # Set up mocks
     mock_db = MagicMock()
     mock_db_writer.return_value = mock_db
@@ -58,9 +60,11 @@ def test_discovery_orchestrator_resume_from_checkpoint(mock_geocoder, mock_db_wr
     assert loaded is None
 
 
+@patch("scraper.parsers.base_parser.BaseParser._load_robots_txt")
 @patch("scraper.orchestrator.DatabaseWriter")
 @patch("scraper.orchestrator.notifier")
-def test_health_check_orchestrator_resume_from_checkpoint(mock_notifier, mock_db_writer):
+def test_health_check_orchestrator_resume_from_checkpoint(mock_notifier, mock_db_writer, mock_robots):
+    mock_robots.return_value = None
     # Set up mocks
     mock_db = MagicMock()
     mock_db_writer.return_value = mock_db
