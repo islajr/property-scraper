@@ -20,6 +20,7 @@ and Abuja, you will exhaust new geocoding requests within the first 2 runs.
 from __future__ import annotations
 
 import time
+import random
 import logging
 import dataclasses
 from typing import Dict, List, Optional, Tuple
@@ -74,15 +75,29 @@ class Geocoder:
         query  = f"{neighbourhood}, {city or 'Nigeria'}, Nigeria"
         params = {"q": query, "format": "json", "limit": 1, "countrycodes": "ng", "addressdetails": 0}
 
-        time.sleep(NOMINATIM_DELAY)  # Nominatim fair-use: 1 req/sec
+        max_retries = 3
+        backoff_base = 2
+        results = None
 
-        try:
-            resp = self.session.get(NOMINATIM_URL, params=params, timeout=10)
-            resp.raise_for_status()
-            results = resp.json()
-        except Exception as exc:
-            log.error("Nominatim error for %r: %s", query, exc)
-            return None, None
+        for attempt in range(max_retries + 1):
+            time.sleep(NOMINATIM_DELAY)  # Nominatim fair-use: 1 req/sec
+            try:
+                resp = self.session.get(NOMINATIM_URL, params=params, timeout=10)
+                resp.raise_for_status()
+                results = resp.json()
+                break
+            except (requests.Timeout, requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError) as exc:
+                if attempt < max_retries:
+                    wait = (backoff_base ** attempt) + random.uniform(0, 1)
+                    log.warning("[geocoder] Transient Nominatim error for %r (attempt %d/%d) — retrying in %.1fs: %s",
+                                query, attempt + 1, max_retries + 1, wait, exc)
+                    time.sleep(wait)
+                    continue
+                log.error("[geocoder] Max Nominatim retries exceeded on exception for %r: %s", query, exc)
+                return None, None
+            except Exception as exc:
+                log.error("[geocoder] Non-retryable Nominatim error for %r: %s", query, exc)
+                return None, None
 
         if not results:
             log.debug("No Nominatim result for: %r", query)

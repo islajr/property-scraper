@@ -37,7 +37,7 @@ import logging
 import random
 import time
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Callable, Any
 from urllib.parse import urlparse
 
 import aiohttp
@@ -131,7 +131,12 @@ class HealthChecker:
 
     # ── Public entry point ────────────────────────────────────────────────────
 
-    def run(self, force_all: bool = False) -> Dict[str, int]:
+    def run(
+        self,
+        force_all: bool = False,
+        checkpoint_state: Optional[Dict[str, Any]] = None,
+        on_batch_complete: Optional[Callable[[List[Dict], int, Dict[str, int]], None]] = None,
+    ) -> Dict[str, int]:
         """
         Fetch all health-check candidates from the DB, verify them in micro-batches
         concurrently, and write results to the DB immediately after each batch completes.
@@ -139,27 +144,41 @@ class HealthChecker:
         Returns a stats dict:
             {checked, confirmed_removed, confirmed_active, price_changes, errors}
         """
-        stats: Dict[str, int] = {
-            "checked":           0,
-            "confirmed_removed": 0,
-            "confirmed_active":  0,
-            "price_changes":     0,
-            "errors":            0,
-        }
+        # Load starting state from checkpoint if available
+        if checkpoint_state:
+            stats = checkpoint_state.get("stats", {
+                "checked": 0, "confirmed_removed": 0, "confirmed_active": 0, "price_changes": 0, "errors": 0
+            })
+            candidates = checkpoint_state.get("candidates", [])
+            start_idx = checkpoint_state.get("last_processed_idx", 0)
+            log.info("[health_checker] Resuming health checks from checkpoint at index %d/%d", start_idx, len(candidates))
+        else:
+            stats = {
+                "checked":           0,
+                "confirmed_removed": 0,
+                "confirmed_active":  0,
+                "price_changes":     0,
+                "errors":            0,
+            }
+            candidates = self.db.fetch_listings_for_health_check(force_all=force_all)
+            start_idx = 0
+            log.info("[health_checker] %d listings due for health check", len(candidates))
 
-        candidates = self.db.fetch_listings_for_health_check(force_all=force_all)
-        log.info("[health_checker] %d listings due for health check", len(candidates))
-
-        if not candidates:
+        if not candidates or start_idx >= len(candidates):
             log.info("[health_checker] Nothing to check — all listings are up to date.")
             return stats
 
+        # Sieve remaining candidates from the start_idx
+        remaining_candidates = candidates[start_idx:]
         batch_size = getattr(config, "HEALTH_CHECK_BATCH_SIZE", 50)
-        batches = [candidates[i : i + batch_size] for i in range(0, len(candidates), batch_size)]
-        log.info("[health_checker] Slicing candidates into %d batches of size %d", len(batches), batch_size)
+        batches = [remaining_candidates[i : i + batch_size] for i in range(0, len(remaining_candidates), batch_size)]
+        log.info("[health_checker] Slicing %d remaining candidates into %d batches of size %d", 
+                 len(remaining_candidates), len(batches), batch_size)
 
+        current_idx = start_idx
         for batch_idx, batch in enumerate(batches, 1):
-            log.info("[health_checker] Processing batch %d/%d (size: %d)...", batch_idx, len(batches), len(batch))
+            log.info("[health_checker] Processing batch %d/%d (size: %d, index: %d)...", 
+                     batch_idx, len(batches), len(batch), current_idx)
 
             # ── Phase 1: async HTTP (current batch) ───────────────────────────
             # All network I/O happens here concurrently for this batch. No DB calls inside.
@@ -197,6 +216,9 @@ class HealthChecker:
                         log.debug("[health_checker] still active: [%s] %s",
                                   result.source, result.external_id)
 
+            current_idx += len(batch)
+            if on_batch_complete:
+                on_batch_complete(candidates, current_idx, stats)
 
         log.info(
             "[health_checker] complete — checked: %d  removed: %d  "
@@ -320,43 +342,55 @@ class HealthChecker:
         """
         Async equivalent of the old _check_listing. Fetches the URL and returns
         (is_removed, observed_price_kobo).
-
-        observed_price_kobo is None when the listing is removed, or when price
-        extraction fails — the latter is non-fatal, the listing stays active.
+        Retries on timeout or connection errors with backoff to survive PC sleep.
         """
-        try:
-            async with session.get(url, allow_redirects=True) as resp:
-                status    = resp.status
-                final_url = str(resp.url)
+        max_retries = 4
+        backoff_base = 5
 
-                if status == 404:
-                    log.debug("[health_checker] 404 for %s", url)
-                    return True, None
+        for attempt in range(max_retries + 1):
+            try:
+                # Set a per-request timeout to ensure we don't hang indefinitely
+                request_timeout = aiohttp.ClientTimeout(total=15)
+                async with session.get(url, allow_redirects=True, timeout=request_timeout) as resp:
+                    status    = resp.status
+                    final_url = str(resp.url)
 
-                if final_url != url and external_id not in final_url:
-                    log.debug("[health_checker] redirect stripped external_id: %s → %s",
-                              url, final_url)
-                    return True, None
+                    if status == 404:
+                        log.debug("[health_checker] 404 for %s", url)
+                        return True, None
 
-                if status == 200:
-                    # Read body only on a 200 — saves bandwidth on error pages.
-                    body = await resp.text(errors="replace")
-                    body_lower = body.lower()
+                    if final_url != url and external_id not in final_url:
+                        log.debug("[health_checker] redirect stripped external_id: %s → %s",
+                                  url, final_url)
+                        return True, None
 
-                    for phrase in REMOVAL_PHRASES:
-                        if phrase in body_lower:
-                            log.debug("[health_checker] removal phrase '%s' in %s",
-                                      phrase, url)
-                            return True, None
+                    if status == 200:
+                        # Read body only on a 200 — saves bandwidth on error pages.
+                        body = await resp.text(errors="replace")
+                        body_lower = body.lower()
 
-                    # Listing is confirmed active — try to extract current price.
-                    # Failure here is non-fatal.
-                    observed_price = self._extract_observed_price(body, url, source)
-                    return False, observed_price
+                        for phrase in REMOVAL_PHRASES:
+                            if phrase in body_lower:
+                                log.debug("[health_checker] removal phrase '%s' in %s",
+                                          phrase, url)
+                                return True, None
 
-        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
-            # Network-level errors: treat as "can't confirm removed", not an error.
-            log.debug("[health_checker] request error for %s: %s", url, exc)
+                        # Listing is confirmed active — try to extract current price.
+                        observed_price = self._extract_observed_price(body, url, source)
+                        return False, observed_price
+
+                    # Force retry on other status codes (5xx, etc.) by raising
+                    resp.raise_for_status()
+
+            except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+                if attempt < max_retries:
+                    wait = (backoff_base ** attempt) + random.uniform(0, 1)
+                    log.warning("[health_checker] Transient check error on %s (attempt %d/%d) — retrying in %.1fs: %s",
+                                url, attempt + 1, max_retries + 1, wait, exc)
+                    await asyncio.sleep(wait)
+                    continue
+                log.error("[health_checker] Max check retries exceeded on exception for %s: %s", url, exc)
+                raise exc
 
         return False, None
 

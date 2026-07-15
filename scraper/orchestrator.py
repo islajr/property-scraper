@@ -32,6 +32,7 @@ import psycopg2
 
 import config
 from scraper import normaliser
+from scraper import checkpoint
 from scraper.db_writer import DatabaseWriter
 from scraper.geocoder import Geocoder
 from scraper import notifier
@@ -79,6 +80,14 @@ def run():
     run_start = time.time()
     db = None
 
+    # Check for --fresh flag
+    fresh_run = "--fresh" in sys.argv
+
+    # Try loading checkpoint
+    chk = None
+    if not fresh_run:
+        chk = checkpoint.load_checkpoint("discovery")
+
     try:
         # ── Initialise infrastructure ─────────────────────────────────────────
         db       = DatabaseWriter(config.DATABASE_URL)
@@ -91,6 +100,13 @@ def run():
         # ── Run each portal parser ────────────────────────────────────────────
         all_raw    = []
         run_stats  = {}   # {source: {status, raw_count, error}}
+        completed_portals = set()
+
+        if chk:
+            all_raw = chk.get("collected_raw_listings", [])
+            run_stats = chk.get("run_stats", {})
+            completed_portals = set(chk.get("completed_portals", []))
+            log.info("Resuming run with %d raw listings already in memory", len(all_raw))
 
         # Check for --portals flag (comma-separated list, e.g. --portals=privateproperty,nigeriapropertycentre)
         allowed_portals = None
@@ -111,28 +127,99 @@ def run():
 
         for parser in parsers:
             source = parser.source
+            
+            # Skip if already completed
+            if source in completed_portals:
+                log.info("── Skipping completed portal: %s ──", source)
+                continue
+
             log.info("── Scraping: %s ──", source)
+            
+            # Prepare feed completions tracker for checkpoint callbacks
+            completed_feeds = []
+            if chk and chk.get("partial_portal") == source:
+                completed_feeds = chk.get("completed_feeds", [])
+
+            # Define page callback
+            def make_page_complete_callback(source_name, feeds_list):
+                def callback(feed_url, page_num, page_results):
+                    # Append new items to in-memory list
+                    all_raw.extend(page_results)
+                    
+                    # Update local statistics
+                    if source_name not in run_stats:
+                        run_stats[source_name] = {
+                            "status": "IN_PROGRESS",
+                            "raw_count": 0,
+                            "new": 0, "updated": 0, "price_changes": 0, "suspected_sold": 0
+                        }
+                    run_stats[source_name]["raw_count"] = len([r for r in all_raw if r.source == source_name])
+                    
+                    # Save checkpoint
+                    checkpoint.save_checkpoint({
+                        "mode": "discovery",
+                        "completed_portals": list(completed_portals),
+                        "partial_portal": source_name,
+                        "completed_feeds": list(feeds_list),
+                        "partial_feed": feed_url,
+                        "partial_feed_page": page_num,
+                        "collected_raw_listings": all_raw,
+                        "run_stats": run_stats
+                    })
+                return callback
+
             try:
-                raw = parser.scrape()
-                all_raw.extend(raw)
+                # Run scrape with checkpoint and callback
+                parser.scrape(
+                    checkpoint_state=chk,
+                    on_page_complete=make_page_complete_callback(source, completed_feeds)
+                )
+                
+                # When done, update run_stats for success
                 run_stats[source] = {
                     "status":    "SUCCESS",
-                    "raw_count": len(raw),
-                    # new/updated/price_changes filled in after db.upsert()
+                    "raw_count": len([r for r in all_raw if r.source == source]),
                     "new":           0,
                     "updated":       0,
                     "price_changes": 0,
                     "suspected_sold": 0,
                 }
-                log.info("[%s] Collected %d listings", source, len(raw))
+                completed_portals.add(source)
+                
+                # Save checkpoint showing portal completed
+                checkpoint.save_checkpoint({
+                    "mode": "discovery",
+                    "completed_portals": list(completed_portals),
+                    "partial_portal": None,
+                    "completed_feeds": [],
+                    "partial_feed": None,
+                    "partial_feed_page": 1,
+                    "collected_raw_listings": all_raw,
+                    "run_stats": run_stats
+                })
+                
+                log.info("[%s] Scrape complete. Collected total %d listings", source, run_stats[source]["raw_count"])
+                
             except Exception as exc:
                 log.error("[%s] FAILED: %s", source, exc, exc_info=True)
                 run_stats[source] = {
                     "status":    "FAILED",
-                    "raw_count": 0,
+                    "raw_count": len([r for r in all_raw if r.source == source]),
                     "new":       0, "updated": 0,
                     "error":     str(exc)[:500],
                 }
+                # Even if failed, save checkpoint showing this portal failed so we can skip/move on if restarted
+                completed_portals.add(source)
+                checkpoint.save_checkpoint({
+                    "mode": "discovery",
+                    "completed_portals": list(completed_portals),
+                    "partial_portal": None,
+                    "completed_feeds": [],
+                    "partial_feed": None,
+                    "partial_feed_page": 1,
+                    "collected_raw_listings": all_raw,
+                    "run_stats": run_stats
+                })
 
         raw_total = len(all_raw)
         log.info("Total raw listings collected from portals: %d", raw_total)
@@ -157,16 +244,12 @@ def run():
         db_stats = db.upsert(normalised, active_listings, scraped_sources=scraped_sources)
 
         # db_stats["per_source"] carries exact new/updated/price_changes counts
-        # per portal as measured at write time. Merge them into run_stats so
-        # both the Telegram notification and the run log reflect real numbers,
-        # not fractional approximations.
         for source in run_stats:
             if run_stats[source]["status"] == "SUCCESS":
                 per = db_stats["per_source"].get(source, {})
                 run_stats[source]["new"]            = per.get("new",           0)
                 run_stats[source]["updated"]        = per.get("updated",       0)
                 run_stats[source]["price_changes"]  = per.get("price_changes", 0)
-                # suspected_sold is not per-source in current db_stats; zero is correct
                 run_stats[source]["suspected_sold"] = 0
 
         log.info(
@@ -204,6 +287,9 @@ def run():
         # ── Telegram notification ─────────────────────────────────────────────
         notifier.send_summary(aggregate, run_stats, duration,
                               total_listings=total_listings)
+
+        # Clear checkpoint on successful completion of the entire run
+        checkpoint.clear_checkpoint()
 
         log.info(
             "Run complete in %.1fs — new: %d, updated: %d, "
@@ -246,12 +332,20 @@ def run_health_checks(force_all: bool = False):
         log.warning("[orchestrator] Pre-flight network check failed: database hostname is unreachable (DNS resolution failed). Assuming offline/no network. Exiting cleanly.")
         return
 
+    # Check for --fresh flag
+    fresh_run = "--fresh" in sys.argv
+
+    # Try loading checkpoint
+    chk = None
+    if not fresh_run:
+        chk = checkpoint.load_checkpoint("health_check")
+
     db = None
     try:
         db = DatabaseWriter(config.DATABASE_URL)
 
-        # 2. Timing Guard check (skip if success run happened < 22 hours ago, unless force_all is True)
-        if not force_all:
+        # 2. Timing Guard check (skip if success run happened < 22 hours ago, unless force_all is True or resuming from chk)
+        if not force_all and not chk:
             last_run = db.fetch_last_successful_run("health_check")
             if last_run:
                 now = datetime.now(timezone.utc)
@@ -265,8 +359,21 @@ def run_health_checks(force_all: bool = False):
         from scraper.health_checker import HealthChecker
         checker = HealthChecker(db)
         
+        # Define callback for saving checkpoint progress
+        def on_batch_complete(candidates, last_processed_idx, stats):
+            checkpoint.save_checkpoint({
+                "mode": "health_check",
+                "candidates": candidates,
+                "last_processed_idx": last_processed_idx,
+                "stats": stats
+            })
+
         run_start = time.time()
-        stats   = checker.run(force_all=force_all)
+        stats   = checker.run(
+            force_all=force_all,
+            checkpoint_state=chk,
+            on_batch_complete=on_batch_complete
+        )
         duration = time.time() - run_start
 
         # 3. Log the successful run
@@ -280,6 +387,9 @@ def run_health_checks(force_all: bool = False):
                 "error": None
             }
         }, duration)
+
+        # Clear checkpoint on successful completion
+        checkpoint.clear_checkpoint()
 
         try:
             notifier.send_health_check_summary(stats)

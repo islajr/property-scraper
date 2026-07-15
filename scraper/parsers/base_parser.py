@@ -19,7 +19,7 @@ import logging
 import random
 import time
 from abc import ABC, abstractmethod
-from typing import Dict, Generator, List, Optional, Set, Tuple
+from typing import Dict, Generator, List, Optional, Set, Tuple, Callable
 from urllib.parse import urljoin, urlparse
 from urllib.robotparser import RobotFileParser
 
@@ -79,7 +79,11 @@ class BaseParser(ABC):
 
     # ── Main scrape method ─────────────────────────────────────────────────────
 
-    def scrape(self) -> List[RawListing]:
+    def scrape(
+        self,
+        checkpoint_state: Optional[Dict[str, Any]] = None,
+        on_page_complete: Optional[Callable[[str, int, List[RawListing]], None]] = None
+    ) -> List[RawListing]:
         """
         Paginate through all search_urls (sale + rent) and parse each listing.
 
@@ -93,13 +97,42 @@ class BaseParser(ABC):
         consecutive_failures = 0
         max_consecutive_failures = getattr(config, "MAX_CONSECUTIVE_FAILURES", 5)
 
+        # Retrieve checkpoint progression if matching this portal
+        completed_feeds = set()
+        resume_feed = None
+        resume_page = 1
+
+        if checkpoint_state and checkpoint_state.get("partial_portal") == self.source:
+            completed_feeds = set(checkpoint_state.get("completed_feeds", []))
+            resume_feed = checkpoint_state.get("partial_feed")
+            resume_page = checkpoint_state.get("partial_feed_page", 1)
+            # Pre-populate results with already-collected listings for this portal from the checkpoint
+            results = [r for r in checkpoint_state.get("collected_raw_listings", []) if r.source == self.source]
+            log.info("[%s] Resuming scrape from checkpoint: %d listings pre-loaded", self.source, len(results))
+
         for base_search_url in self.search_urls:
             if consecutive_failures >= max_consecutive_failures:
                 break
+
+            # Skip completed feeds
+            if base_search_url in completed_feeds:
+                log.info("[%s] Skipping already completed feed: %s", self.source, base_search_url)
+                continue
+
             log.info("[%s] Starting search feed: %s", self.source, base_search_url)
             consecutive_known = 0
-            page_number = 1
-            current_url = base_search_url
+            
+            # Determine start page
+            if resume_feed == base_search_url:
+                page_number = resume_page
+                # Reset resume flags so subsequent feeds start at page 1
+                resume_feed = None
+                resume_page = 1
+                log.info("[%s] Resuming feed at page %d", self.source, page_number)
+            else:
+                page_number = 1
+
+            current_url = self.next_page_url(base_search_url, page_number) if page_number > 1 else base_search_url
 
             while current_url:
                 if consecutive_failures >= max_consecutive_failures:
@@ -124,6 +157,7 @@ class BaseParser(ABC):
                     log.info("[%s] No listings found on page %d — end of results", self.source, page_number)
                     break
 
+                page_results: List[RawListing] = []
                 for url in listing_urls:
                     if consecutive_failures >= max_consecutive_failures:
                         break
@@ -158,14 +192,27 @@ class BaseParser(ABC):
                     try:
                         listing = self.parse_listing(soup, url)
                         if listing:
-                            results.append(listing)
+                            page_results.append(listing)
                     except Exception as exc:    # null listing page
                         log.error("[%s] Parse error for %s: %s", self.source, url, exc, exc_info=True)
+
+                # Add page results to overall portal results
+                results.extend(page_results)
+
+                # Trigger checkpoint callback at the end of the page
+                if on_page_complete:
+                    on_page_complete(base_search_url, page_number, page_results)
 
                 if current_url is not None:
                     page_number += 1
                     current_url = self.next_page_url(base_search_url, page_number)
                     self._polite_delay()
+
+            # Feed completed: mark it completed
+            completed_feeds.add(base_search_url)
+            if checkpoint_state and "completed_feeds" in checkpoint_state:
+                if base_search_url not in checkpoint_state["completed_feeds"]:
+                    checkpoint_state["completed_feeds"].append(base_search_url)
 
         log.info("[%s] Scrape complete: %d listings collected", self.source, len(results))
         return results
@@ -173,15 +220,19 @@ class BaseParser(ABC):
     # ── HTTP helpers ───────────────────────────────────────────────────────────
 
     def _get(self, url: str, retries: int = 0) -> Optional[str]:
-        """GET a URL with retry + exponential backoff on 429 / timeout."""
+        """GET a URL with retry + exponential backoff on 429 / timeout / connection errors."""
         timeout = getattr(config, "REQUEST_TIMEOUT", 15)
+        max_retries = getattr(config, "MAX_RETRIES", 5)
+        backoff_base = getattr(config, "RETRY_BACKOFF_BASE", 5)
+        
         try:
             resp = self.session.get(url, timeout=timeout)
 
             if resp.status_code == 429:
-                if retries < config.MAX_RETRIES:
-                    wait = (config.RETRY_BACKOFF_BASE ** retries) + random.uniform(0, 1)
-                    log.warning("[%s] 429 rate limit on %s — waiting %.1fs", self.source, url, wait)
+                if retries < max_retries:
+                    wait = (backoff_base ** retries) + random.uniform(0, 1)
+                    log.warning("[%s] 429 rate limit on %s — retrying (attempt %d/%d) in %.1fs", 
+                                self.source, url, retries + 1, max_retries, wait)
                     time.sleep(wait)
                     return self._get(url, retries + 1)
                 log.error("[%s] Max retries exceeded on 429 for %s", self.source, url)
@@ -194,15 +245,15 @@ class BaseParser(ABC):
             resp.raise_for_status()
             return resp.text
 
-        except requests.Timeout:
-            if retries < config.MAX_RETRIES:
-                wait = config.RETRY_BACKOFF_BASE ** retries
-                log.warning("[%s] Timeout on %s — retry %d in %.1fs", self.source, url, retries + 1, wait)
+        except (requests.Timeout, requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError) as exc:
+            if retries < max_retries:
+                wait = (backoff_base ** retries) + random.uniform(0, 1)
+                log.warning("[%s] Transient error on %s (attempt %d/%d) — retrying in %.1fs: %s", 
+                            self.source, url, retries + 1, max_retries, wait, exc)
                 time.sleep(wait)
                 return self._get(url, retries + 1)
-            log.error("[%s] Max retries on timeout for %s", self.source, url)
+            log.error("[%s] Max retries exceeded on exception for %s: %s", self.source, url, exc)
             return None
-
         except requests.RequestException as exc:
             log.error("[%s] Request error for %s: %s", self.source, url, exc)
             return None
