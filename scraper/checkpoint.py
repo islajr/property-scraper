@@ -19,28 +19,44 @@ CHECKPOINT_PATH = ".scraper_checkpoint.json"
 MAX_AGE_HOURS = 24
 
 
+def _serialize_val(val: Any) -> Any:
+    """Recursively convert custom types (datetime, dataclass) to JSON-serializable forms."""
+    import dataclasses
+    if isinstance(val, datetime):
+        return {"__datetime__": val.isoformat()}
+    elif isinstance(val, dict):
+        return {k: _serialize_val(v) for k, v in val.items()}
+    elif isinstance(val, list):
+        return [_serialize_val(v) for v in val]
+    elif isinstance(val, tuple):
+        return tuple(_serialize_val(v) for v in val)
+    elif dataclasses.is_dataclass(val):
+        return _serialize_val(dataclasses.asdict(val))
+    return val
+
+
+def _deserialize_val(val: Any) -> Any:
+    """Recursively restore custom types (datetime) from serialized representations."""
+    if isinstance(val, dict):
+        if "__datetime__" in val and len(val) == 1:
+            return datetime.fromisoformat(val["__datetime__"])
+        return {k: _deserialize_val(v) for k, v in val.items()}
+    elif isinstance(val, list):
+        return [_deserialize_val(v) for v in val]
+    return val
+
+
 def save_checkpoint(state: Dict[str, Any]) -> None:
     """Atomically write scraper state to a checkpoint file."""
     try:
-        # Shallow copy to avoid mutating caller's dictionary
-        state_copy = dict(state)
-        state_copy["timestamp"] = datetime.now(timezone.utc).isoformat()
-        
-        # Serialize RawListing objects in discovery mode
-        if "collected_raw_listings" in state_copy and state_copy["collected_raw_listings"]:
-            import dataclasses
-            serialized_listings = []
-            for item in state_copy["collected_raw_listings"]:
-                if isinstance(item, RawListing):
-                    serialized_listings.append(dataclasses.asdict(item))
-                else:
-                    serialized_listings.append(item)
-            state_copy["collected_raw_listings"] = serialized_listings
+        # Convert and serialize everything recursively
+        serialized_state = _serialize_val(state)
+        serialized_state["timestamp"] = datetime.now(timezone.utc).isoformat()
 
         # Write to temporary file first, then swap atomically to avoid corruption
         temp_path = CHECKPOINT_PATH + ".tmp"
         with open(temp_path, "w", encoding="utf-8") as f:
-            json.dump(state_copy, f, indent=2, ensure_ascii=False)
+            json.dump(serialized_state, f, indent=2, ensure_ascii=False)
         os.replace(temp_path, CHECKPOINT_PATH)
         log.debug("Checkpoint saved: %s", CHECKPOINT_PATH)
     except Exception as exc:
@@ -58,15 +74,15 @@ def load_checkpoint(expected_mode: str) -> Optional[Dict[str, Any]]:
 
     try:
         with open(CHECKPOINT_PATH, "r", encoding="utf-8") as f:
-            state = json.load(f)
+            raw_state = json.load(f)
 
         # Validate mode
-        if state.get("mode") != expected_mode:
-            log.info("Checkpoint mode %r does not match expected mode %r. Ignoring.", state.get("mode"), expected_mode)
+        if raw_state.get("mode") != expected_mode:
+            log.info("Checkpoint mode %r does not match expected mode %r. Ignoring.", raw_state.get("mode"), expected_mode)
             return None
 
         # Validate timestamp age
-        ts_str = state.get("timestamp")
+        ts_str = raw_state.get("timestamp")
         if not ts_str:
             log.warning("Checkpoint has no timestamp. Ignoring.")
             return None
@@ -76,6 +92,9 @@ def load_checkpoint(expected_mode: str) -> Optional[Dict[str, Any]]:
         if now - timestamp > timedelta(hours=MAX_AGE_HOURS):
             log.info("Checkpoint is expired (older than %d hours). Ignoring.", MAX_AGE_HOURS)
             return None
+
+        # Recursively deserialize all custom types
+        state = _deserialize_val(raw_state)
 
         # Deserialise RawListings if in discovery mode
         if expected_mode == "discovery" and "collected_raw_listings" in state:

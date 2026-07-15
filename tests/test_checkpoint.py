@@ -66,11 +66,12 @@ def test_discovery_checkpoint_serialization():
 
 
 def test_health_check_checkpoint_serialization():
+    dt = datetime(2026, 7, 15, 10, 30, tzinfo=timezone.utc)
     state = {
         "mode": "health_check",
         "candidates": [
-            {"id": 1, "source": "propertypro", "external_id": "a"},
-            {"id": 2, "source": "privateproperty", "external_id": "b"},
+            {"id": 1, "source": "propertypro", "external_id": "a", "first_seen_at": dt},
+            {"id": 2, "source": "privateproperty", "external_id": "b", "first_seen_at": None},
         ],
         "last_processed_idx": 1,
         "stats": {
@@ -90,6 +91,7 @@ def test_health_check_checkpoint_serialization():
     assert loaded["mode"] == "health_check"
     assert len(loaded["candidates"]) == 2
     assert loaded["candidates"][0]["id"] == 1
+    assert loaded["candidates"][0]["first_seen_at"] == dt
     assert loaded["last_processed_idx"] == 1
     assert loaded["stats"]["confirmed_active"] == 1
 
