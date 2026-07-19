@@ -41,10 +41,11 @@ PAGINATION_STOP_AFTER_KNOWN = 10
 # Health checker — three-day individual URL verification.
 # Runs as a separate mode (./run.sh --health-check).
 HEALTH_CHECK_INTERVAL_DAYS = 2   # re-check every listing at least this often
-HEALTH_CHECK_DELAY_MIN     = 3  # seconds between requests
-HEALTH_CHECK_DELAY_MAX     = 1
+HEALTH_CHECK_DELAY_MIN     = 2.0  # minimum seconds between requests
+HEALTH_CHECK_DELAY_MAX     = 5.0  # maximum seconds between requests
 HEALTH_CHECK_LIMIT         = 1000 # Maximum listings to check per health check run
-HEALTH_CHECK_BATCH_SIZE         = 50   # Size of concurrently processed chunks
+HEALTH_CHECK_BATCH_SIZE    = 50   # Size of concurrently processed chunks
+HEALTH_CHECK_CONCURRENCY   = 10   # Max concurrent HTTP requests (polite rate limit)
 HEALTH_CHECK_RUN_INTERVAL_HOURS = 22   # Minimum hours between daily runs
 
 
