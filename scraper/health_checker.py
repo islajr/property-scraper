@@ -383,13 +383,14 @@ class HealthChecker:
                     resp.raise_for_status()
 
             except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+                exc_detail = f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__
                 if attempt < max_retries:
                     wait = (backoff_base ** attempt) + random.uniform(0, 1)
-                    log.warning("[health_checker] Transient check error on %s (attempt %d/%d) — retrying in %.1fs: %s",
-                                url, attempt + 1, max_retries + 1, wait, exc)
+                    log.warning("[health_checker] Transient check error [%s] on %s (attempt %d/%d) — retrying in %.1fs",
+                                exc_detail, url, attempt + 1, max_retries + 1, wait)
                     await asyncio.sleep(wait)
                     continue
-                log.error("[health_checker] Max check retries exceeded on exception for %s: %s", url, exc)
+                log.error("[health_checker] Max check retries exceeded [%s] for %s", exc_detail, url)
                 raise exc
 
         return False, None
