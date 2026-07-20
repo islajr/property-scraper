@@ -191,3 +191,36 @@ class TestHealthCheckerUrlChecking:
         assert is_removed
         assert price is None
 
+    def test_graduated_logging_and_capped_backoff(self):
+        import asyncio
+        import aiohttp
+        db = MagicMock()
+        checker = HealthChecker(db)
+
+        mock_session = MagicMock()
+        mock_session.get.side_effect = aiohttp.ClientConnectionError("Connection lost")
+
+        with patch("scraper.health_checker.log") as mock_log, \
+             patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+
+            async def run():
+                try:
+                    await checker._check_listing_async(
+                        mock_session, "http://test.com/property/12345", "12345", "propertypro"
+                    )
+                except Exception:
+                    pass
+
+            asyncio.run(run())
+
+            # Verify graduated logging: attempts 0 & 1 log debug, attempts 2 & 3 log warning
+            assert mock_log.debug.call_count == 2
+            assert mock_log.warning.call_count == 2
+            assert mock_log.error.call_count == 1
+
+            # Verify sleep call delays were capped (base 2 with cap at 30s)
+            delays = [call[0][0] for call in mock_sleep.call_args_list]
+            for delay in delays:
+                assert delay <= 31.0  # max cap 30 + jitter < 1
+
+
