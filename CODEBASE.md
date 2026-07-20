@@ -17,12 +17,13 @@
 7. [Database](#7-database-scraperdb_writerpy--schema)
 8. [Orchestrator](#8-orchestrator-scraperorchestatorpy)
 9. [Notifier](#9-notifier-scrapernotifierpy)
-10. [Tests](#10-tests-tests)
-11. [Running the Scraper](#11-running-the-scraper-runsh)
-12. [Full Data Flow](#12-full-data-flow--one-run)
-13. [Debugging](#13-debugging--what-goes-wrong-and-where)
-14. [Ongoing Maintenance](#14-ongoing-maintenance)
-15. [Market Analysis & Snapshots](#15-market-analysis--snapshots)
+10. [State Checkpointing](#10-state-checkpointing-scrapercheckpointpy)
+11. [Tests](#11-tests-tests)
+12. [Running the Scraper](#12-running-the-scraper-runsh)
+13. [Full Data Flow](#13-full-data-flow--one-run)
+14. [Debugging](#14-debugging--what-goes-wrong-and-where)
+15. [Ongoing Maintenance](#15-ongoing-maintenance)
+16. [Market Analysis & Snapshots](#16-market-analysis--snapshots)
 
 ---
 ## 1. What This Application Does
@@ -65,6 +66,7 @@ property-scraper/
 │   ├── geocoder.py             ← Neighbourhood → lat/lng (Nominatim + cache)
 │   ├── db_writer.py            ← All database reads and writes
 │   ├── health_checker.py       ← Async URL verification and cohort engine (Health Check mode)
+│   ├── checkpoint.py           ← State persistence engine (.scraper_checkpoint.json)
 │   ├── notifier.py             ← Telegram notification triggers
 │   └── parsers/
 │       ├── base_parser.py      ← Shared HTTP + pagination infrastructure
@@ -85,7 +87,9 @@ property-scraper/
     ├── test_geocoder.py
     ├── test_db_writer.py
     ├── test_pipeline.py
-    └── test_health_checker.py  ← Tests for micro-batched health check execution
+    ├── test_checkpoint.py      ← Tests for state serialization & expiration
+    ├── test_integration_checkpoint.py ← Offline integration tests for checkpoint resume
+    └── test_health_checker.py  ← Tests for micro-batched health check & domain semaphores
 ```
 
 ---
@@ -118,6 +122,9 @@ In local development these come from the `.env` file. In GitHub Actions they are
 | `HEALTH_CHECK_INTERVAL_DAYS` | 2 | Adaptive cooldown check interval |
 | `HEALTH_CHECK_LIMIT` | 1000 | Max listings checked per run |
 | `HEALTH_CHECK_BATCH_SIZE` | 50 | Micro-batch size for resilient DB commits |
+| `HEALTH_CHECK_CONCURRENCY` | 10 | Max global HTTP socket concurrency for health checks |
+| `HEALTH_CHECK_PER_DOMAIN_CONCURRENCY` | 3 | Max concurrent HTTP requests per portal domain |
+| `HEALTH_CHECK_MAX_BACKOFF_DELAY` | 30.0 | Upper sleep cap (seconds) for exponential backoff retries |
 | `HEALTH_CHECK_RUN_INTERVAL_HOURS` | 22 | Daily timing guard limit |
 | `UPSERT_BATCH_SIZE` | 200 | DB bulk batch size |
 
@@ -549,7 +556,24 @@ If `TELEGRAM_BOT_TOKEN` or `TELEGRAM_CHAT_ID` are not set, it logs a warning and
 
 ---
 
-## 10. Tests (`tests/`)
+## 10. State Checkpointing (`scraper/checkpoint.py`)
+
+`checkpoint.py` provides execution state persistence so that interrupted runs (due to PC sleep, power cuts, or runner timeouts) can resume seamlessly without duplicating work.
+
+### Functions
+
+* `save_checkpoint(state: Dict)`: Writes state to a temporary file (`.scraper_checkpoint.json.tmp`) and renames it atomically to `.scraper_checkpoint.json`. Stamped with a `saved_at` UTC timestamp.
+* `load_checkpoint() -> Optional[Dict]`: Reads `.scraper_checkpoint.json`. If the checkpoint is missing, corrupted, or older than 24 hours (`CHECKPOINT_MAX_AGE_HOURS`), it returns `None` (ignoring stale state).
+* `clear_checkpoint()`: Deletes `.scraper_checkpoint.json` once a run completes cleanly.
+
+### Recursive Datetime Serialization
+Database rows retrieved during health checks contain Python `datetime` objects. To prevent JSON serialization crashes (`TypeError: Object of type datetime is not JSON serializable`), `checkpoint.py` uses recursive serialization helpers:
+* `_serialize_state(obj)`: Recursively walks data structures. Converts `datetime` instances into ISO-8601 string dictionaries: `{"__datetime__": "2026-07-20T21:00:00+00:00"}`.
+* `_deserialize_state(obj)`: Reconstructs ISO-8601 string dictionaries back into Python `datetime` instances upon load.
+
+---
+
+## 11. Tests (`tests/`)
 
 ### Philosophy
 
@@ -564,6 +588,9 @@ Every test is fully offline. There are no live network calls, no real database c
 | `test_geocoder.py` | Cache init, cache hits, API call behaviour, error handling, batch behaviour |
 | `test_db_writer.py` | Upsert routing (new vs existing), price change detection, `suspected_sold` logic |
 | `test_pipeline.py` | Parser → normalise → geocode chain without any live calls |
+| `test_checkpoint.py` | Unit tests for checkpoint saving, loading, expiration, and recursive datetime serialization |
+| `test_integration_checkpoint.py` | Offline integration tests verifying discovery and health-check orchestrator resume logic |
+| `test_health_checker.py` | Micro-batched async execution, per-domain semaphores, backoff capping, and graduated log levels |
 
 ### `conftest.py` files
 
