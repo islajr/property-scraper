@@ -238,7 +238,9 @@ Both Discovery runs and Health Checks support automatic execution checkpointing 
 
 To handle transient network drops when the host machine enters sleep mode or changes network environments:
 *   **Scrapers and Geocoder**: Synchronous HTTP GET requests to portals and OpenStreetMap/Nominatim geocoding automatically retry up to `5` times with exponential backoff + random jitter (cooldown base starts at 5s, waiting up to ~150s total before failing).
-*   **Health Checks**: Asynchronous URL requests retry up to `4` times on connection resets or timeouts. If all retries fail, it logs an error but **does not** mark the listing checked in the database, ensuring it remains queued for the next run.
+*   **Health Checks**: Asynchronous URL requests retry up to `4` times on connection resets or timeouts using base-2 exponential backoff with a hard upper cap of `30s` per sleep (`HEALTH_CHECK_MAX_BACKOFF_DELAY`).
+*   **Per-Portal Domain Semaphores**: Concurrent HTTP requests are isolated per portal domain (`HEALTH_CHECK_PER_DOMAIN_CONCURRENCY = 3`), ensuring no single real estate website is hit with a thundering herd burst.
+*   **Graduated Logging**: Initial transient retry attempts (attempts 1 and 2) are logged silently at `DEBUG` level. `WARNING` is reserved for persistent failures (attempts 3 and 4), keeping production `journalctl` logs clean and uncluttered.
 
 ---
 
