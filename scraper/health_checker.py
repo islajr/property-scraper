@@ -36,6 +36,7 @@ import asyncio
 import logging
 import random
 import time
+from collections import defaultdict
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple, Callable, Any
 from urllib.parse import urlparse
@@ -240,7 +241,9 @@ class HealthChecker:
         out one coroutine per candidate behind a semaphore.
         """
         concurrency = getattr(config, "HEALTH_CHECK_CONCURRENCY", _DEFAULT_CONCURRENCY)
-        semaphore   = asyncio.Semaphore(concurrency)
+        per_domain_limit = getattr(config, "HEALTH_CHECK_PER_DOMAIN_CONCURRENCY", 3)
+        global_semaphore = asyncio.Semaphore(concurrency)
+        domain_semaphores = defaultdict(lambda: asyncio.Semaphore(per_domain_limit))
 
         # TCPConnector: limit total open sockets to the same cap. ssl=False
         # disables certificate verification for speed; set ssl=True if your
@@ -254,10 +257,15 @@ class HealthChecker:
             timeout=timeout,
             trust_env=True,
         ) as session:
-            tasks = [
-                self._check_with_semaphore(session, semaphore, row)
-                for row in candidates
-            ]
+            tasks = []
+            for row in candidates:
+                url = row.get("url", "")
+                domain = urlparse(url).netloc.lower() or row.get("source", "default")
+                tasks.append(
+                    self._check_with_semaphore(
+                        session, global_semaphore, domain_semaphores[domain], row
+                    )
+                )
             # return_exceptions=True: a crashed coroutine doesn't abort the rest.
             raw = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -281,54 +289,56 @@ class HealthChecker:
 
     async def _check_with_semaphore(
         self,
-        session:   aiohttp.ClientSession,
-        semaphore: asyncio.Semaphore,
-        row:       Dict,
+        session:          aiohttp.ClientSession,
+        global_semaphore: asyncio.Semaphore,
+        domain_semaphore: asyncio.Semaphore,
+        row:              Dict,
     ) -> _CheckResult:
         """
         Wraps _check_listing_async with:
-          - semaphore: caps concurrent open connections
+          - global & domain semaphores: caps overall open connections and per-portal load
           - per-request random delay: polite jitter so we don't send a
             thundering herd at portal servers the moment we acquire the slot
           - per-listing exception handling: errors become an error-flagged result
         """
-        async with semaphore:
-            # Jitter: random delay between MIN and MAX before each request.
-            # This spreads load across the portal's rate-limit windows.
-            delay = random.uniform(
-                config.HEALTH_CHECK_DELAY_MIN,
-                config.HEALTH_CHECK_DELAY_MAX,
-            )
-            await asyncio.sleep(delay)
+        async with global_semaphore:
+            async with domain_semaphore:
+                # Jitter: random delay between MIN and MAX before each request.
+                # This spreads load across the portal's rate-limit windows.
+                delay = random.uniform(
+                    config.HEALTH_CHECK_DELAY_MIN,
+                    config.HEALTH_CHECK_DELAY_MAX,
+                )
+                await asyncio.sleep(delay)
 
-            listing_id  = row["id"]
-            source      = row["source"]
-            external_id = row["external_id"]
-            url         = row["url"]
-            first_seen  = row["first_seen_at"]
+                listing_id  = row["id"]
+                source      = row["source"]
+                external_id = row["external_id"]
+                url         = row["url"]
+                first_seen  = row["first_seen_at"]
 
-            try:
-                is_removed, observed_price = await self._check_listing_async(
-                    session, url, external_id, source
-                )
-                return _CheckResult(
-                    listing_id=listing_id,
-                    source=source,
-                    external_id=external_id,
-                    first_seen=first_seen,
-                    is_removed=is_removed,
-                    observed_price=observed_price,
-                )
-            except Exception as exc:
-                return _CheckResult(
-                    listing_id=listing_id,
-                    source=source,
-                    external_id=external_id,
-                    first_seen=first_seen,
-                    is_removed=False,
-                    observed_price=None,
-                    error=str(exc),
-                )
+                try:
+                    is_removed, observed_price = await self._check_listing_async(
+                        session, url, external_id, source
+                    )
+                    return _CheckResult(
+                        listing_id=listing_id,
+                        source=source,
+                        external_id=external_id,
+                        first_seen=first_seen,
+                        is_removed=is_removed,
+                        observed_price=observed_price,
+                    )
+                except Exception as exc:
+                    return _CheckResult(
+                        listing_id=listing_id,
+                        source=source,
+                        external_id=external_id,
+                        first_seen=first_seen,
+                        is_removed=False,
+                        observed_price=None,
+                        error=str(exc),
+                    )
 
     # ── Core detection logic ──────────────────────────────────────────────────
 
@@ -345,7 +355,8 @@ class HealthChecker:
         Retries on timeout or connection errors with backoff to survive PC sleep.
         """
         max_retries = 4
-        backoff_base = 5
+        backoff_base = 2
+        max_backoff_delay = getattr(config, "HEALTH_CHECK_MAX_BACKOFF_DELAY", 30.0)
 
         for attempt in range(max_retries + 1):
             try:
@@ -385,9 +396,14 @@ class HealthChecker:
             except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
                 exc_detail = f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__
                 if attempt < max_retries:
-                    wait = (backoff_base ** attempt) + random.uniform(0, 1)
-                    log.warning("[health_checker] Transient check error [%s] on %s (attempt %d/%d) — retrying in %.1fs",
-                                exc_detail, url, attempt + 1, max_retries + 1, wait)
+                    raw_wait = (backoff_base ** attempt) + random.uniform(0, 1)
+                    wait = min(raw_wait, max_backoff_delay)
+                    if attempt < 2:
+                        log.debug("[health_checker] Transient check error [%s] on %s (attempt %d/%d) — retrying in %.1fs",
+                                  exc_detail, url, attempt + 1, max_retries + 1, wait)
+                    else:
+                        log.warning("[health_checker] Transient check error [%s] on %s (attempt %d/%d) — retrying in %.1fs",
+                                    exc_detail, url, attempt + 1, max_retries + 1, wait)
                     await asyncio.sleep(wait)
                     continue
                 log.error("[health_checker] Max check retries exceeded [%s] for %s", exc_detail, url)
