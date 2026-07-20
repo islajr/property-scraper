@@ -45,7 +45,9 @@ HEALTH_CHECK_DELAY_MIN     = 2.0  # minimum seconds between requests
 HEALTH_CHECK_DELAY_MAX     = 5.0  # maximum seconds between requests
 HEALTH_CHECK_LIMIT         = 1000 # Maximum listings to check per health check run
 HEALTH_CHECK_BATCH_SIZE    = 50   # Size of concurrently processed chunks
-HEALTH_CHECK_CONCURRENCY   = 10   # Max concurrent HTTP requests (polite rate limit)
+HEALTH_CHECK_CONCURRENCY   = 10   # Max total concurrent HTTP requests
+HEALTH_CHECK_PER_DOMAIN_CONCURRENCY = 3 # Max concurrent requests per domain portal
+HEALTH_CHECK_MAX_BACKOFF_DELAY      = 30.0 # Upper cap for exponential backoff sleep (seconds)
 HEALTH_CHECK_RUN_INTERVAL_HOURS = 22   # Minimum hours between daily runs
 
 
