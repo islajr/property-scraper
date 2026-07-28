@@ -1,12 +1,16 @@
 {
   "site_title": "PS-0 PropertyScraper Telemetry Dashboard",
-  "last_updated": "2026-07-28 12:46:42 UTC",
+  "last_updated": "2026-07-28 12:56:42 UTC",
+  "system_status": "OPERATIONAL",
+  "system_status_class": "operational",
   "total_ingested": 43648,
   "active_listings": 12131,
   "cities_count": 8,
   "neighbourhoods_count": 197,
   "dedup_rate": "14.2",
   "anomalies_filtered": 42,
+  "sparkline_ingested": "<svg class=\"sparkline\" width=\"140\" height=\"36\" viewBox=\"0 0 140 36\"><polyline fill=\"none\" stroke=\"var(--gold-light)\" stroke-width=\"2\" stroke-linejoin=\"round\" stroke-linecap=\"round\" points=\"4.0,32.0 26.0,27.1 48.0,21.2 70.0,16.6 92.0,12.0 114.0,7.6 136.0,4.0\" /></svg>",
+  "sparkline_active": "<svg class=\"sparkline\" width=\"140\" height=\"36\" viewBox=\"0 0 140 36\"><polyline fill=\"none\" stroke=\"var(--gold-light)\" stroke-width=\"2\" stroke-linejoin=\"round\" stroke-linecap=\"round\" points=\"4.0,32.0 26.0,26.0 48.0,20.0 70.0,14.8 92.0,10.5 114.0,6.6 136.0,4.0\" /></svg>",
   "portals": [
     {
       "name": "PropertyPro.ng",

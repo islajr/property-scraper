@@ -3,34 +3,51 @@
 PS-0 Dashboard Compiler Script
 Compiles templates/dashboard.html.j2 + templates/style.css + data/telemetry.json
 into static export web/index.html, web/sitemap.xml, and web/robots.txt
+Includes SHA-256 hash checking to skip unchanged builds.
 """
 
 import json
 import os
 import sys
+import hashlib
 from datetime import datetime, timezone
 import jinja2
 
 from generate_telemetry import generate_telemetry
 
-def render_dashboard():
+def compute_metrics_hash(telemetry_data):
+    """Compute SHA-256 hash of telemetry metrics, ignoring volatile timestamp."""
+    data_copy = dict(telemetry_data)
+    data_copy.pop("last_updated", None)
+    serialized = json.dumps(data_copy, sort_keys=True)
+    return hashlib.sha256(serialized.encode('utf-8')).hexdigest()
+
+def render_dashboard(force=False):
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     templates_dir = os.path.join(base_dir, "templates")
     data_dir = os.path.join(base_dir, "data")
     web_dir = os.path.join(base_dir, "web")
     
     telemetry_file = os.path.join(data_dir, "telemetry.json")
+    hash_file = os.path.join(data_dir, ".telemetry_hash")
     style_file = os.path.join(templates_dir, "style.css")
     template_file = os.path.join(templates_dir, "dashboard.html.j2")
 
     os.makedirs(web_dir, exist_ok=True)
 
-    # 1. Ensure telemetry data exists
-    if not os.path.exists(telemetry_file):
-        telemetry_data = generate_telemetry()
-    else:
-        with open(telemetry_file, 'r', encoding='utf-8') as f:
-            telemetry_data = json.load(f)
+    # 1. Generate/load telemetry data
+    telemetry_data = generate_telemetry()
+    current_hash = compute_metrics_hash(telemetry_data)
+    previous_hash = ""
+
+    if os.path.exists(hash_file):
+        with open(hash_file, 'r', encoding='utf-8') as f:
+            previous_hash = f.read().strip()
+
+    # If metrics hash is unchanged and force is not set, skip build
+    if current_hash == previous_hash and not force and os.path.exists(os.path.join(web_dir, "index.html")):
+        print("ℹ️ Telemetry metrics unchanged — static dashboard build skipped.")
+        return False
 
     # 2. Read style.css
     with open(style_file, 'r', encoding='utf-8') as f:
@@ -82,7 +99,13 @@ Sitemap: https://ps0.akinmokun.com/sitemap.xml
         f.write(robots_content.strip())
     print(f"✅ Generated robots.txt: {robots_path}")
 
+    # Save new hash
+    with open(hash_file, 'w', encoding='utf-8') as f:
+        f.write(current_hash)
+
     print("🚀 Build completed successfully for ps0.akinmokun.com static export!")
+    return True
 
 if __name__ == "__main__":
-    render_dashboard()
+    force_build = "--force" in sys.argv
+    render_dashboard(force=force_build)

@@ -22,8 +22,10 @@ error() { echo -e "${RED}[run]${NC} $*" >&2; }
 
 # ── Detect run mode ────────────────────────────────────────────────────────────
 MODE_FLAG=""
+IS_PREVIEW=false
 for arg in "$@"; do
     [[ "$arg" == "--health-check" ]] && MODE_FLAG="--health-check" && break
+    [[ "$arg" == "--preview" ]] && IS_PREVIEW=true && break
 done
 
 # ── 1. Initialise pyenv so its shims are on PATH ───────────────────────────────
@@ -83,6 +85,20 @@ fi
 
 source "$VENV_DIR/bin/activate"
 info "Virtualenv active: $(python3 --version)"
+
+# ── Preview Mode Fast Path ───────────────────────────────────────────────────
+if [[ "$IS_PREVIEW" == "true" ]]; then
+    info "Mode: PREVIEW — Compiling static dashboard and starting local HTTP server..."
+    python3 scripts/render_dashboard.py --force
+    echo ""
+    echo -e "${GREEN}===================================================================${NC}"
+    echo -e "${GREEN}🌐 Local PS-0 Telemetry Dashboard preview live at:${NC} http://localhost:8080"
+    echo -e "${GREEN}Press Ctrl+C to stop local preview server.${NC}"
+    echo -e "${GREEN}===================================================================${NC}"
+    echo ""
+    python3 -m http.server 8080 -d web
+    exit 0
+fi
 
 # ── 5. Dependencies ───────────────────────────────────────────────────────────
 info "Installing dependencies..."

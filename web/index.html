@@ -7,6 +7,22 @@
   <meta name="description" content="Public Data Engineering Telemetry & Pipeline Health Dashboard for PS-0 PropertyScraper. Live multi-portal ingestion metrics, data hygiene, and deduplication statistics.">
   <meta name="robots" content="index, follow">
   
+  <!-- Schema.org JSON-LD Dataset Markup -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org/",
+    "@type": "Dataset",
+    "name": "PS-0 PropertyScraper Telemetry & Pipeline Health Dataset",
+    "description": "Public Data Engineering Telemetry & Pipeline Health Dashboard showcasing multi-portal harvesting, spatial coverage, and listing deduplication stats.",
+    "url": "https://ps0.akinmokun.com",
+    "provider": {
+      "@type": "Organization",
+      "name": "akinmokun.com",
+      "url": "https://akinmokun.com"
+    }
+  }
+  </script>
+
   <!-- CSS Stylesheet -->
   <style>
     /* PS-0 PropertyScraper Telemetry Dashboard Stylesheet */
@@ -136,13 +152,36 @@ a:hover {
   color: var(--live);
 }
 
+.status-badge.degraded {
+  background: rgba(234, 179, 8, 0.1);
+  border-color: rgba(234, 179, 8, 0.3);
+  color: #eab308;
+}
+
+.status-badge.maintenance {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+}
+
 .status-dot {
   width: 7px;
   height: 7px;
-  background-color: var(--live);
+  background-color: currentColor;
   border-radius: 50%;
-  box-shadow: 0 0 8px var(--live);
+  box-shadow: 0 0 8px currentColor;
   animation: pulse-dot 2s infinite ease-in-out;
+}
+
+.sparkline-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sparkline {
+  display: inline-block;
+  vertical-align: middle;
 }
 
 @keyframes pulse-dot {
@@ -547,7 +586,7 @@ a:hover {
         akinmokun.com <span>PS-0</span>
       </a>
       
-      <div class="status-badge" id="status-indicator">
+      <div class="status-badge operational" id="status-indicator">
         <span class="status-dot"></span>
         <span>OPERATIONAL</span>
       </div>
@@ -568,7 +607,7 @@ a:hover {
         <div class="hero-meta">
           <span class="tag">Pipeline Telemetry</span>
           <span>•</span>
-          <span>Last Updated: <strong class="mono-cell gold">2026-07-28 12:46:42 UTC</strong></span>
+          <span>Last Updated: <strong class="mono-cell gold">2026-07-28 12:56:42 UTC</strong></span>
         </div>
         <h1 class="hero-title" id="main-title">PS-0 PropertyScraper</h1>
         <p class="hero-subtitle">
@@ -585,13 +624,19 @@ a:hover {
         
         <div class="metrics-grid">
           <div class="metric-card" id="card-total-ingested">
-            <div class="metric-label">Total Records Ingested</div>
+            <div class="sparkline-header">
+              <div class="metric-label">Total Records Ingested</div>
+              <svg class="sparkline" width="140" height="36" viewBox="0 0 140 36"><polyline fill="none" stroke="var(--gold-light)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="4.0,32.0 26.0,27.1 48.0,21.2 70.0,16.6 92.0,12.0 114.0,7.6 136.0,4.0" /></svg>
+            </div>
             <div class="metric-value">43,648</div>
             <div class="metric-sub">Multi-portal cumulative scraped raw listings</div>
           </div>
 
           <div class="metric-card" id="card-active-listings">
-            <div class="metric-label">Active Unique Listings</div>
+            <div class="sparkline-header">
+              <div class="metric-label">Active Unique Listings</div>
+              <svg class="sparkline" width="140" height="36" viewBox="0 0 140 36"><polyline fill="none" stroke="var(--gold-light)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="4.0,32.0 26.0,26.0 48.0,20.0 70.0,14.8 92.0,10.5 114.0,6.6 136.0,4.0" /></svg>
+            </div>
             <div class="metric-value">12,131</div>
             <div class="metric-sub">Verified active & deduplicated property listings</div>
           </div>
