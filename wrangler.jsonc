@@ -1,6 +1,0 @@
-{
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "ps0-property-scraper",
-  "pages_build_output_dir": "web",
-  "compatibility_date": "2026-07-28"
-}
