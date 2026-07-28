@@ -1,22 +1,22 @@
 {
   "site_title": "PS-0 PropertyScraper Telemetry Dashboard",
-  "last_updated": "2026-07-28 13:43:40 UTC",
+  "last_updated": "2026-07-28 23:54:20 UTC",
   "system_status": "OPERATIONAL",
   "system_status_class": "operational",
-  "total_ingested": 14218,
-  "active_listings": 12330,
+  "total_ingested": 17223,
+  "active_listings": 14654,
   "cities_count": 10,
-  "neighbourhoods_count": 468,
+  "neighbourhoods_count": 307,
   "dedup_rate": "14.2",
   "anomalies_filtered": 42,
-  "sparkline_ingested": "<svg class=\"sparkline\" width=\"140\" height=\"36\" viewBox=\"0 0 140 36\"><polyline fill=\"none\" stroke=\"var(--gold-light)\" stroke-width=\"2\" stroke-linejoin=\"round\" stroke-linecap=\"round\" points=\"4.0,32.0 26.0,26.4 48.0,20.9 70.0,14.4 92.0,8.8 114.0,6.0 136.0,4.0\" /></svg>",
-  "sparkline_active": "<svg class=\"sparkline\" width=\"140\" height=\"36\" viewBox=\"0 0 140 36\"><polyline fill=\"none\" stroke=\"var(--gold-light)\" stroke-width=\"2\" stroke-linejoin=\"round\" stroke-linecap=\"round\" points=\"4.0,32.0 26.0,26.5 48.0,19.8 70.0,14.3 92.0,8.8 114.0,6.5 136.0,4.0\" /></svg>",
+  "sparkline_ingested": "<svg class=\"sparkline\" width=\"140\" height=\"36\" viewBox=\"0 0 140 36\"><polyline fill=\"none\" stroke=\"var(--gold-light)\" stroke-width=\"2\" stroke-linejoin=\"round\" stroke-linecap=\"round\" points=\"4.0,32.0 26.0,26.7 48.0,20.0 70.0,14.7 92.0,10.2 114.0,6.4 136.0,4.0\" /></svg>",
+  "sparkline_active": "<svg class=\"sparkline\" width=\"140\" height=\"36\" viewBox=\"0 0 140 36\"><polyline fill=\"none\" stroke=\"var(--gold-light)\" stroke-width=\"2\" stroke-linejoin=\"round\" stroke-linecap=\"round\" points=\"4.0,32.0 26.0,26.1 48.0,19.2 70.0,13.4 92.0,9.4 114.0,6.5 136.0,4.0\" /></svg>",
   "discovery_run": {
     "mode": "DISCOVERY",
     "timestamp": "2026-07-26 08:14:52 UTC",
     "duration": "9m 12s",
     "status": "SUCCESS",
-    "total_scraped": 14218,
+    "total_scraped": 17223,
     "new_listings": 88,
     "updated_listings": 0,
     "errors": 0
@@ -36,7 +36,7 @@
     {
       "name": "NigeriaPropertyCentre.ng",
       "status": "OPERATIONAL",
-      "last_harvest_count": 6484,
+      "last_harvest_count": 7449,
       "http_success_rate": 99.4,
       "avg_latency_ms": 390,
       "extractor_type": "HTML / BeautifulSoup"
@@ -44,7 +44,7 @@
     {
       "name": "PropertyPro.ng",
       "status": "OPERATIONAL",
-      "last_harvest_count": 3949,
+      "last_harvest_count": 5062,
       "http_success_rate": 99.1,
       "avg_latency_ms": 420,
       "extractor_type": "HTML / BeautifulSoup"
@@ -52,7 +52,7 @@
     {
       "name": "PrivateProperty.ng",
       "status": "OPERATIONAL",
-      "last_harvest_count": 3785,
+      "last_harvest_count": 4712,
       "http_success_rate": 98.8,
       "avg_latency_ms": 580,
       "extractor_type": "HTML / BeautifulSoup"

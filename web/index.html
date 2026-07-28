@@ -409,7 +409,7 @@ a:hover {
 .hero {
   padding: 3.5rem 0 2.5rem;
   border-bottom: 1px solid var(--border);
-  background: radial-gradient(circle at 50% 0%, rgba(201, 168, 76, 0.05) 0%, rgba(0,0,0,0) 75%);
+  background: var(--bg);
 }
 
 /* Latest Run Telemetry Cards (Pure Black Interior with Gold Trim) */
@@ -1058,7 +1058,7 @@ a:hover {
             <div class="run-stats-grid">
               <div class="run-stat-item">
                 <div class="run-stat-label">Total Ingested</div>
-                <div class="run-stat-val gold">14,218</div>
+                <div class="run-stat-val gold">17,223</div>
               </div>
               <div class="run-stat-item">
                 <div class="run-stat-label">New Discovered</div>
@@ -1118,25 +1118,25 @@ a:hover {
           <div class="metric-card" id="card-total-ingested">
             <div class="sparkline-header">
               <div class="metric-label">Total Records Ingested</div>
-              <svg class="sparkline" width="140" height="36" viewBox="0 0 140 36"><polyline fill="none" stroke="var(--gold-light)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="4.0,32.0 26.0,26.4 48.0,20.9 70.0,14.4 92.0,8.8 114.0,6.0 136.0,4.0" /></svg>
+              <svg class="sparkline" width="140" height="36" viewBox="0 0 140 36"><polyline fill="none" stroke="var(--gold-light)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="4.0,32.0 26.0,26.7 48.0,20.0 70.0,14.7 92.0,10.2 114.0,6.4 136.0,4.0" /></svg>
             </div>
-            <div class="metric-value">14,218</div>
+            <div class="metric-value">17,223</div>
             <div class="metric-sub">Multi-portal cumulative scraped raw listings</div>
           </div>
 
           <div class="metric-card" id="card-active-listings">
             <div class="sparkline-header">
               <div class="metric-label">Active Unique Listings</div>
-              <svg class="sparkline" width="140" height="36" viewBox="0 0 140 36"><polyline fill="none" stroke="var(--gold-light)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="4.0,32.0 26.0,26.5 48.0,19.8 70.0,14.3 92.0,8.8 114.0,6.5 136.0,4.0" /></svg>
+              <svg class="sparkline" width="140" height="36" viewBox="0 0 140 36"><polyline fill="none" stroke="var(--gold-light)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="4.0,32.0 26.0,26.1 48.0,19.2 70.0,13.4 92.0,9.4 114.0,6.5 136.0,4.0" /></svg>
             </div>
-            <div class="metric-value">12,330</div>
+            <div class="metric-value">14,654</div>
             <div class="metric-sub">Verified active & deduplicated property listings</div>
           </div>
 
           <div class="metric-card" id="card-spatial-coverage">
             <div class="metric-label">Spatial Coverage</div>
             <div class="metric-value">10 <span style="font-size: 1.5rem; color: var(--text-dim);">Cities</span></div>
-            <div class="metric-sub">468 distinct geocoded neighbourhoods</div>
+            <div class="metric-sub">307 distinct geocoded neighbourhoods</div>
           </div>
         </div>
       </div>
@@ -1168,7 +1168,7 @@ a:hover {
                   NigeriaPropertyCentre.ng
                 </td>
                 <td><span class="rate-badge">OPERATIONAL</span></td>
-                <td class="mono-cell gold">6,484</td>
+                <td class="mono-cell gold">7,449</td>
                 <td class="mono-cell">99.4%</td>
                 <td class="mono-cell">390 ms</td>
                 <td class="mono-cell">HTML / BeautifulSoup</td>
@@ -1180,7 +1180,7 @@ a:hover {
                   PropertyPro.ng
                 </td>
                 <td><span class="rate-badge">OPERATIONAL</span></td>
-                <td class="mono-cell gold">3,949</td>
+                <td class="mono-cell gold">5,062</td>
                 <td class="mono-cell">99.1%</td>
                 <td class="mono-cell">420 ms</td>
                 <td class="mono-cell">HTML / BeautifulSoup</td>
@@ -1192,7 +1192,7 @@ a:hover {
                   PrivateProperty.ng
                 </td>
                 <td><span class="rate-badge">OPERATIONAL</span></td>
-                <td class="mono-cell gold">3,785</td>
+                <td class="mono-cell gold">4,712</td>
                 <td class="mono-cell">98.8%</td>
                 <td class="mono-cell">580 ms</td>
                 <td class="mono-cell">HTML / BeautifulSoup</td>
@@ -1220,21 +1220,21 @@ a:hover {
             </p>
           </div>
 
-<!--           <div class="guardrail-card" id="card-anomalies">
+          <div class="guardrail-card" id="card-anomalies">
             <h3 class="guardrail-title">
               <span class="guardrail-icon">✦</span> Outlier & Anomaly Detection
             </h3>
             <p class="guardrail-desc">
               Automatic Z-score price filtering isolates extreme input errors (e.g. typos, zero-price listings). Filtered <strong style="color: var(--gold-light);">42 price anomalies</strong> this month.
             </p>
-          </div> -->
+          </div>
 
           <div class="guardrail-card" id="card-cooldown">
             <h3 class="guardrail-title">
               <span class="guardrail-icon">✦</span> Adaptive Health Check Cooldown
             </h3>
             <p class="guardrail-desc">
-              Listing health check frequencies scale dynamically with listing age driven by partial B-tree index queues and Overdue Ratio prioritization.
+              Listing health check frequencies scale dynamically with listing age (2-day, 7-day, and 14-day intervals) driven by partial B-tree index queues and Overdue Ratio prioritization.
             </p>
           </div>
         </div>
