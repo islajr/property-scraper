@@ -267,10 +267,10 @@ a:hover {
   position: fixed;
   inset: 0;
   z-index: 55;
-  background: rgba(0, 0, 0, 0.96);
+  background: rgba(0, 0, 0, 0.98);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  padding-top: 5rem;
+  padding-top: 1rem;
   display: flex;
   flex-direction: column;
   opacity: 0;
@@ -283,11 +283,57 @@ a:hover {
   pointer-events: auto;
 }
 
+.mobile-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.mobile-drawer-title {
+  font-family: var(--font-serif);
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.mobile-drawer-close {
+  background: var(--surface-2);
+  border: 1px solid var(--border-2);
+  color: var(--gold-light);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  padding: 0.4rem 0.85rem;
+  border-radius: 3px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: all 0.15s ease;
+}
+
+.mobile-drawer-close:hover {
+  background: var(--gold-tint);
+  border-color: var(--gold);
+}
+
 .mobile-drawer-nav {
   display: flex;
   flex-direction: column;
   padding: 1.5rem;
   height: 100%;
+  overflow-y: auto;
+}
+
+.mobile-drawer-section-title {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--gold);
+  margin-top: 1.75rem;
+  margin-bottom: 0.5rem;
 }
 
 .mobile-drawer-link {
@@ -510,7 +556,8 @@ a:hover {
 .hero-quicklinks {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.85rem;
   font-family: var(--font-mono);
   font-size: 0.75rem;
   color: var(--text-dim);
@@ -518,6 +565,8 @@ a:hover {
 
 .hero-quicklinks a {
   color: var(--text-dim);
+  white-space: nowrap; /* Prevents square brackets from breaking onto separate lines on mobile */
+  display: inline-block;
 }
 
 .hero-quicklinks a:hover {
@@ -900,17 +949,17 @@ a:hover {
         <span class="hamburger-bar bar-mid"></span>
         <span class="hamburger-bar bar-bot"></span>
       </button>
-      <ul class="nav-links" id="nav-links">
-        <li><a href="#overview">Overview</a></li>
-        <li><a href="#run-telemetry">Run Telemetry</a></li>
-        <li><a href="#portals">Portal Health</a></li>
-        <li><a href="#hygiene">Data Hygiene</a></li>
-      </ul>
     </div>
   </header>
 
   <!-- Mobile Navigation Drawer -->
   <div class="mobile-drawer" id="mobile-drawer" role="dialog" aria-modal="true" aria-label="Mobile Navigation">
+    <div class="mobile-drawer-header">
+      <span class="mobile-drawer-title">akinmokun.com</span>
+      <button class="mobile-drawer-close" id="mobile-drawer-close" aria-label="Close navigation menu">
+        <span>Close ×</span>
+      </button>
+    </div>
     <nav class="mobile-drawer-nav">
       <a href="https://akinmokun.com/" class="mobile-drawer-link"><span>Home</span> <span>→</span></a>
       <a href="https://akinmokun.com/about" class="mobile-drawer-link"><span>About</span> <span>→</span></a>
@@ -919,6 +968,12 @@ a:hover {
       <a href="https://reports.akinmokun.com/" target="_blank" class="mobile-drawer-link"><span>Reports</span> <span>↗</span></a>
       <a href="https://ps0.akinmokun.com" class="mobile-drawer-link" style="color: var(--gold-light);"><span>PS-0 Telemetry</span> <span>✦</span></a>
       <a href="https://akinmokun.com/credentials" class="mobile-drawer-link"><span>Credentials</span> <span>→</span></a>
+
+      <div class="mobile-drawer-section-title">In-Page Telemetry Jumps</div>
+      <a href="#overview" class="mobile-drawer-link"><span>[ Overview ]</span> <span>↓</span></a>
+      <a href="#run-telemetry" class="mobile-drawer-link"><span>[ Run Logs ]</span> <span>↓</span></a>
+      <a href="#portals" class="mobile-drawer-link"><span>[ Portal Matrix ]</span> <span>↓</span></a>
+      <a href="#hygiene" class="mobile-drawer-link"><span>[ Data Hygiene ]</span> <span>↓</span></a>
 
       <div class="mobile-drawer-footer">
         akinmokun.com • Sovereign Polymath Protocol
@@ -1189,6 +1244,7 @@ a:hover {
     document.addEventListener('DOMContentLoaded', function() {
       const toggle = document.getElementById('mobile-nav-toggle');
       const drawer = document.getElementById('mobile-drawer');
+      const closeBtn = document.getElementById('mobile-drawer-close');
       let isOpen = false;
 
       function setDrawerState(open) {
@@ -1203,6 +1259,13 @@ a:hover {
         toggle.addEventListener('click', function(e) {
           e.stopPropagation();
           setDrawerState(!isOpen);
+        });
+      }
+
+      if (closeBtn) {
+        closeBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          setDrawerState(false);
         });
       }
 

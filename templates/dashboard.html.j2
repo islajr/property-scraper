@@ -104,17 +104,17 @@
         <span class="hamburger-bar bar-mid"></span>
         <span class="hamburger-bar bar-bot"></span>
       </button>
-      <ul class="nav-links" id="nav-links">
-        <li><a href="#overview">Overview</a></li>
-        <li><a href="#run-telemetry">Run Telemetry</a></li>
-        <li><a href="#portals">Portal Health</a></li>
-        <li><a href="#hygiene">Data Hygiene</a></li>
-      </ul>
     </div>
   </header>
 
   <!-- Mobile Navigation Drawer -->
   <div class="mobile-drawer" id="mobile-drawer" role="dialog" aria-modal="true" aria-label="Mobile Navigation">
+    <div class="mobile-drawer-header">
+      <span class="mobile-drawer-title">akinmokun.com</span>
+      <button class="mobile-drawer-close" id="mobile-drawer-close" aria-label="Close navigation menu">
+        <span>Close ×</span>
+      </button>
+    </div>
     <nav class="mobile-drawer-nav">
       <a href="https://akinmokun.com/" class="mobile-drawer-link"><span>Home</span> <span>→</span></a>
       <a href="https://akinmokun.com/about" class="mobile-drawer-link"><span>About</span> <span>→</span></a>
@@ -123,6 +123,12 @@
       <a href="https://reports.akinmokun.com/" target="_blank" class="mobile-drawer-link"><span>Reports</span> <span>↗</span></a>
       <a href="https://ps0.akinmokun.com" class="mobile-drawer-link" style="color: var(--gold-light);"><span>PS-0 Telemetry</span> <span>✦</span></a>
       <a href="https://akinmokun.com/credentials" class="mobile-drawer-link"><span>Credentials</span> <span>→</span></a>
+
+      <div class="mobile-drawer-section-title">In-Page Telemetry Jumps</div>
+      <a href="#overview" class="mobile-drawer-link"><span>[ Overview ]</span> <span>↓</span></a>
+      <a href="#run-telemetry" class="mobile-drawer-link"><span>[ Run Logs ]</span> <span>↓</span></a>
+      <a href="#portals" class="mobile-drawer-link"><span>[ Portal Matrix ]</span> <span>↓</span></a>
+      <a href="#hygiene" class="mobile-drawer-link"><span>[ Data Hygiene ]</span> <span>↓</span></a>
 
       <div class="mobile-drawer-footer">
         akinmokun.com • Sovereign Polymath Protocol
@@ -369,6 +375,7 @@
     document.addEventListener('DOMContentLoaded', function() {
       const toggle = document.getElementById('mobile-nav-toggle');
       const drawer = document.getElementById('mobile-drawer');
+      const closeBtn = document.getElementById('mobile-drawer-close');
       let isOpen = false;
 
       function setDrawerState(open) {
@@ -383,6 +390,13 @@
         toggle.addEventListener('click', function(e) {
           e.stopPropagation();
           setDrawerState(!isOpen);
+        });
+      }
+
+      if (closeBtn) {
+        closeBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          setDrawerState(false);
         });
       }
 
