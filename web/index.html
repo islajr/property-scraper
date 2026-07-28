@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PS-0 PropertyScraper Telemetry Dashboard</title>
+  <meta name="description" content="Public Data Engineering Telemetry & Pipeline Health Dashboard for PS-0 PropertyScraper. Live multi-portal ingestion metrics, data hygiene, and deduplication statistics.">
+  <meta name="robots" content="index, follow">
+  
+  <!-- CSS Stylesheet -->
+  <style>
+    /* PS-0 PropertyScraper Telemetry Dashboard Stylesheet */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,600;0,700;1,400&display=swap');
+
+:root {
+  /* Canvas & Surface Palette (Deep Obsidian Dark Mode) */
+  --bg:          #000000;   /* Pure black canvas */
+  --surface:     #111111;   /* Card surface background */
+  --surface-2:   #161616;   /* Subtext container fill */
+  --border:      #1e1e1e;   /* Subtle container border */
+  --border-2:    #2a2a2a;   /* Active / hover border */
+  --text:        #f0f0f0;   /* Primary text */
+  --text-dim:    #a3a3a3;   /* Secondary text */
+  --text-muted:  #666666;   /* Labels & captions */
+  
+  /* Accent Colors */
+  --gold:        #c9a84c;   /* Primary gold accent */
+  --gold-light:  #e0c070;   /* Bright gold for headlines & JSON keys */
+  --gold-tint:   rgba(201, 168, 76, 0.04); /* Card hover tint */
+  --gold-border: rgba(201, 168, 76, 0.3);  /* Card hover border */
+  --live:        #4ade80;   /* Operational status pulse green */
+  --live-tint:   rgba(74, 222, 128, 0.1);
+
+  /* Typography Triad */
+  --font-serif: "Playfair Display", Georgia, serif;
+  --font-sans:  "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono:  Menlo, Hack, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+
+  /* Container width */
+  --max-width: 1200px;
+}
+
+/* Reset & Global Base */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  overflow-x: hidden;
+}
+
+a {
+  color: var(--gold-light);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+a:hover {
+  color: var(--gold);
+}
+
+/* Layout Containers */
+.container {
+  width: 100%;
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+/* Sticky Header & Navbar */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+
+.navbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 4.25rem;
+}
+
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-family: var(--font-serif);
+  font-weight: 600;
+  font-size: 1.15rem;
+  color: var(--text);
+}
+
+.nav-brand span {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border-2);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  color: var(--gold);
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: var(--live-tint);
+  border: 1px solid rgba(74, 222, 128, 0.25);
+  padding: 0.35rem 0.75rem;
+  border-radius: 9999px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--live);
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  background-color: var(--live);
+  border-radius: 50%;
+  box-shadow: 0 0 8px var(--live);
+  animation: pulse-dot 2s infinite ease-in-out;
+}
+
+@keyframes pulse-dot {
+  0% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 1.75rem;
+  list-style: none;
+}
+
+.nav-links a {
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.nav-links a:hover {
+  color: var(--text);
+}
+
+/* Hero Section */
+.hero {
+  padding: 4rem 0 3rem;
+  border-bottom: 1px solid var(--border);
+  background: radial-gradient(circle at 50% 0%, rgba(201, 168, 76, 0.06) 0%, rgba(0,0,0,0) 70%);
+}
+
+.hero-meta {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.hero-meta .tag {
+  color: var(--gold);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.hero-title {
+  font-family: var(--font-serif);
+  font-size: 2.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+  margin-bottom: 1rem;
+  background: linear-gradient(135deg, #ffffff 0%, var(--gold-light) 60%, var(--gold) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.hero-subtitle {
+  font-size: 1.125rem;
+  color: var(--text-dim);
+  max-width: 760px;
+  line-height: 1.7;
+}
+
+/* Metric Counter Cards */
+.metrics-section {
+  padding: 3rem 0;
+}
+
+.section-label {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--gold);
+  margin-bottom: 0.5rem;
+}
+
+.section-title {
+  font-family: var(--font-serif);
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 1.5rem;
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.25rem;
+}
+
+.metric-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.75rem;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.metric-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--gold-border);
+  background: linear-gradient(180deg, var(--surface) 0%, var(--surface-2) 100%);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+.metric-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.metric-card:hover::before {
+  opacity: 1;
+}
+
+.metric-label {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+}
+
+.metric-value {
+  font-family: var(--font-mono);
+  font-size: 2.75rem;
+  font-weight: 700;
+  color: var(--gold-light);
+  line-height: 1.1;
+  margin-bottom: 0.5rem;
+}
+
+.metric-sub {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+/* Health Matrix Table */
+.matrix-section {
+  padding: 3rem 0;
+  border-top: 1px solid var(--border);
+}
+
+.table-wrapper {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+.health-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.9rem;
+}
+
+.health-table th {
+  background: var(--surface-2);
+  padding: 1rem 1.25rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+}
+
+.health-table td {
+  padding: 1.15rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+
+.health-table tr:last-child td {
+  border-bottom: none;
+}
+
+.health-table tr:hover td {
+  background: var(--surface-2);
+}
+
+.portal-name {
+  font-weight: 600;
+  font-family: var(--font-sans);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.portal-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--live);
+}
+
+.mono-cell {
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+}
+
+.mono-cell.gold {
+  color: var(--gold-light);
+  font-weight: 600;
+}
+
+.rate-badge {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  background: var(--live-tint);
+  color: var(--live);
+  border: 1px solid rgba(74, 222, 128, 0.2);
+}
+
+/* Code Showcase Terminal */
+.showcase-section {
+  padding: 3rem 0;
+  border-top: 1px solid var(--border);
+}
+
+.code-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  gap: 1.5rem;
+}
+
+.code-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.code-header {
+  background: var(--surface-2);
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.code-title {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.code-badge {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  background: var(--border);
+  color: var(--text-muted);
+}
+
+.code-badge.clean {
+  background: var(--gold-tint);
+  color: var(--gold-light);
+  border: 1px solid var(--gold-border);
+}
+
+.code-content {
+  padding: 1.25rem;
+  font-family: var(--font-mono);
+  font-size: 0.825rem;
+  line-height: 1.5;
+  color: var(--text-dim);
+  overflow-x: auto;
+  white-space: pre;
+}
+
+/* Syntax Highlighting Tokens */
+.json-key { color: var(--gold-light); font-weight: 600; }
+.json-str { color: #9ecbff; }
+.json-num { color: #f78c6c; }
+.json-bool { color: #c792ea; }
+.json-null { color: var(--text-muted); }
+.raw-html { color: #e5c07b; }
+
+/* Hygiene & Guardrails Section */
+.guardrails-section {
+  padding: 3rem 0 4rem;
+  border-top: 1px solid var(--border);
+}
+
+.guardrails-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1.25rem;
+}
+
+.guardrail-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
+.guardrail-title {
+  font-family: var(--font-sans);
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.guardrail-icon {
+  color: var(--gold);
+}
+
+.guardrail-desc {
+  font-size: 0.875rem;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+
+/* Footer */
+.site-footer {
+  margin-top: auto;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  padding: 2.5rem 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.footer-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.footer-brand {
+  font-family: var(--font-serif);
+  color: var(--text-dim);
+}
+
+.footer-links {
+  display: flex;
+  gap: 1.5rem;
+  list-style: none;
+}
+
+.footer-links a {
+  color: var(--text-muted);
+}
+
+.footer-links a:hover {
+  color: var(--gold);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .hero-title {
+    font-size: 2rem;
+  }
+  .code-grid {
+    grid-template-columns: 1fr;
+  }
+  .nav-links {
+    display: none; /* simple responsive fallback */
+  }
+}
+
+  </style>
+</head>
+<body>
+
+  <!-- Sticky Navbar -->
+  <header class="site-header" id="header">
+    <div class="container navbar">
+      <a href="https://akinmokun.com" class="nav-brand" id="brand-link">
+        akinmokun.com <span>PS-0</span>
+      </a>
+      
+      <div class="status-badge" id="status-indicator">
+        <span class="status-dot"></span>
+        <span>OPERATIONAL</span>
+      </div>
+
+      <ul class="nav-links" id="nav-links">
+        <li><a href="#overview">Overview</a></li>
+        <li><a href="#portals">Portal Health</a></li>
+        <li><a href="#schema">Schema & Transformation</a></li>
+        <li><a href="#hygiene">Data Hygiene</a></li>
+      </ul>
+    </div>
+  </header>
+
+  <main>
+    <!-- Hero Section -->
+    <section class="hero" id="overview">
+      <div class="container">
+        <div class="hero-meta">
+          <span class="tag">Pipeline Telemetry</span>
+          <span>•</span>
+          <span>Last Updated: <strong class="mono-cell gold">2026-07-28 12:46:42 UTC</strong></span>
+        </div>
+        <h1 class="hero-title" id="main-title">PS-0 PropertyScraper</h1>
+        <p class="hero-subtitle">
+          Autonomous multi-portal data engineering pipeline harvesting, normalizing, geocoding, and deduplicating Nigerian real estate listing telemetry in real-time.
+        </p>
+      </div>
+    </section>
+
+    <!-- Big Monospace Telemetry Counters -->
+    <section class="metrics-section">
+      <div class="container">
+        <div class="section-label">Real-Time Ingestion</div>
+        <h2 class="section-title">Pipeline Volumes & Coverage</h2>
+        
+        <div class="metrics-grid">
+          <div class="metric-card" id="card-total-ingested">
+            <div class="metric-label">Total Records Ingested</div>
+            <div class="metric-value">43,648</div>
+            <div class="metric-sub">Multi-portal cumulative scraped raw listings</div>
+          </div>
+
+          <div class="metric-card" id="card-active-listings">
+            <div class="metric-label">Active Unique Listings</div>
+            <div class="metric-value">12,131</div>
+            <div class="metric-sub">Verified active & deduplicated property listings</div>
+          </div>
+
+          <div class="metric-card" id="card-spatial-coverage">
+            <div class="metric-label">Spatial Coverage</div>
+            <div class="metric-value">8 <span style="font-size: 1.5rem; color: var(--text-dim);">Cities</span></div>
+            <div class="metric-sub">197 distinct geocoded neighbourhoods</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Source Portal Health Matrix -->
+    <section class="matrix-section" id="portals">
+      <div class="container">
+        <div class="section-label">Source System Telemetry</div>
+        <h2 class="section-title">Portal Ingestion Health Matrix</h2>
+
+        <div class="table-wrapper">
+          <table class="health-table" id="portal-health-table">
+            <thead>
+              <tr>
+                <th>Portal Target</th>
+                <th>Harvest Status</th>
+                <th>Last Run Listings</th>
+                <th>HTTP Success %</th>
+                <th>Avg Latency</th>
+                <th>Extractor Type</th>
+              </tr>
+            </thead>
+            <tbody>
+              
+              <tr>
+                <td class="portal-name">
+                  <span class="portal-indicator"></span>
+                  PropertyPro.ng
+                </td>
+                <td><span class="rate-badge">OPERATIONAL</span></td>
+                <td class="mono-cell gold">18,450</td>
+                <td class="mono-cell">99.4%</td>
+                <td class="mono-cell">420 ms</td>
+                <td class="mono-cell">HTML / BeautifulSoup</td>
+              </tr>
+              
+              <tr>
+                <td class="portal-name">
+                  <span class="portal-indicator"></span>
+                  PrivateProperty.ng
+                </td>
+                <td><span class="rate-badge">OPERATIONAL</span></td>
+                <td class="mono-cell gold">14,210</td>
+                <td class="mono-cell">98.8%</td>
+                <td class="mono-cell">580 ms</td>
+                <td class="mono-cell">JSON-LD / Scrapy</td>
+              </tr>
+              
+              <tr>
+                <td class="portal-name">
+                  <span class="portal-indicator"></span>
+                  NigeriaPropertyCentre.ng
+                </td>
+                <td><span class="rate-badge">OPERATIONAL</span></td>
+                <td class="mono-cell gold">10,988</td>
+                <td class="mono-cell">99.1%</td>
+                <td class="mono-cell">390 ms</td>
+                <td class="mono-cell">Paginated HTML</td>
+              </tr>
+              
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Data Transformation & Sanitization Showcase (Raw vs Clean JSON) -->
+    <section class="showcase-section" id="schema">
+      <div class="container">
+        <div class="section-label">Normalization Engine</div>
+        <h2 class="section-title">Raw Extraction vs Clean PS-0 Schema</h2>
+
+        <div class="code-grid">
+          <!-- Raw Unstructured Sample -->
+          <div class="code-box" id="raw-json-box">
+            <div class="code-header">
+              <div class="code-title">
+                <span>Raw Unstructured Ingestion Payload</span>
+              </div>
+              <span class="code-badge">RAW HTML/JSON</span>
+            </div>
+            <pre class="code-content"><code>{
+  <span class="json-key">"raw_title"</span>: <span class="json-str">"Luxury 4 Bed Fully Detached Duplex in Lekki Phase 1!!!"</span>,
+  <span class="json-key">"price_text"</span>: <span class="json-str">"₦250,000,000 / year"</span>,
+  <span class="json-key">"loc_string"</span>: <span class="json-str">"Off Admiralty Way, Lekki Phase 1, Lagos State"</span>,
+  <span class="json-key">"bed_str"</span>: <span class="json-str">"4 Bedrooms / 5 Baths"</span>,
+  <span class="json-key">"portal_url"</span>: <span class="json-str">"https://example-portal.ng/property/view/892019"</span>,
+  <span class="json-key">"scraped_timestamp"</span>: <span class="json-str">"2026-07-28 11:20:41 UTC"</span>
+}</code></pre>
+          </div>
+
+          <!-- Normalized Clean PS-0 Schema Sample -->
+          <div class="code-box" id="clean-json-box">
+            <div class="code-header">
+              <div class="code-title">
+                <span>Sanitized & Geocoded PS-0 Entity</span>
+              </div>
+              <span class="code-badge clean">PS-0 NORMALIZED</span>
+            </div>
+            <pre class="code-content"><code>{
+  <span class="json-key">"dedup_hash"</span>: <span class="json-str">"a8f9c42b10e5d930811e74a8"</span>,
+  <span class="json-key">"title_clean"</span>: <span class="json-str">"4 Bedroom Fully Detached Duplex"</span>,
+  <span class="json-key">"price_ngn"</span>: <span class="json-num">250000000</span>,
+  <span class="json-key">"bedrooms"</span>: <span class="json-num">4</span>,
+  <span class="json-key">"bathrooms"</span>: <span class="json-num">5</span>,
+  <span class="json-key">"normalized_location"</span>: <span class="json-str">"Lekki Phase 1"</span>,
+  <span class="json-key">"city"</span>: <span class="json-str">"Lagos"</span>,
+  <span class="json-key">"latitude"</span>: <span class="json-num">6.4474</span>,
+  <span class="json-key">"longitude"</span>: <span class="json-num">3.4723</span>,
+  <span class="json-key">"is_active"</span>: <span class="json-bool">true</span>
+}</code></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Deduplication & Data Hygiene Guardrails -->
+    <section class="guardrails-section" id="hygiene">
+      <div class="container">
+        <div class="section-label">Pipeline Resilience</div>
+        <h2 class="section-title">Data Hygiene & Quality Guardrails</h2>
+
+        <div class="guardrails-grid">
+          <div class="guardrail-card" id="card-dedup">
+            <h3 class="guardrail-title">
+              <span class="guardrail-icon">✦</span> Cross-Portal Deduplication
+            </h3>
+            <p class="guardrail-desc">
+              Multi-tiered hashing on normalized title, neighbourhood, price cohort, and spatial coordinates. Merges cross-posted listings with <strong style="color: var(--gold-light);">14.2% duplicate merge rate</strong> across targets.
+            </p>
+          </div>
+
+          <div class="guardrail-card" id="card-anomalies">
+            <h3 class="guardrail-title">
+              <span class="guardrail-icon">✦</span> Outlier & Anomaly Detection
+            </h3>
+            <p class="guardrail-desc">
+              Automatic Z-score price filtering isolates extreme input errors (e.g. typos, zero-price listings). Filtered <strong style="color: var(--gold-light);">42 price anomalies</strong> this month.
+            </p>
+          </div>
+
+          <div class="guardrail-card" id="card-cooldown">
+            <h3 class="guardrail-title">
+              <span class="guardrail-icon">✦</span> Adaptive Health Check Cooldown
+            </h3>
+            <p class="guardrail-desc">
+              Listing health check frequencies scale dynamically with listing age (2-day, 7-day, and 14-day intervals) driven by partial B-tree index queues and Overdue Ratio prioritization.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <div class="footer-brand">
+        PS-0 Telemetry Dashboard • <a href="https://akinmokun.com" target="_blank">akinmokun.com</a>
+      </div>
+      <ul class="footer-links">
+        <li><a href="https://reports.akinmokun.com">Reports</a></li>
+        <li><a href="https://propertyintel.akinmokun.com">PropertyIntel</a></li>
+        <li><a href="https://ps0.akinmokun.com">PS-0 Subdomain</a></li>
+      </ul>
+    </div>
+  </footer>
+
+</body>
+</html>

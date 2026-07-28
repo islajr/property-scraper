@@ -1,0 +1,36 @@
+{
+  "site_title": "PS-0 PropertyScraper Telemetry Dashboard",
+  "last_updated": "2026-07-28 12:46:42 UTC",
+  "total_ingested": 43648,
+  "active_listings": 12131,
+  "cities_count": 8,
+  "neighbourhoods_count": 197,
+  "dedup_rate": "14.2",
+  "anomalies_filtered": 42,
+  "portals": [
+    {
+      "name": "PropertyPro.ng",
+      "status": "OPERATIONAL",
+      "last_harvest_count": 18450,
+      "http_success_rate": 99.4,
+      "avg_latency_ms": 420,
+      "extractor_type": "HTML / BeautifulSoup"
+    },
+    {
+      "name": "PrivateProperty.ng",
+      "status": "OPERATIONAL",
+      "last_harvest_count": 14210,
+      "http_success_rate": 98.8,
+      "avg_latency_ms": 580,
+      "extractor_type": "JSON-LD / Scrapy"
+    },
+    {
+      "name": "NigeriaPropertyCentre.ng",
+      "status": "OPERATIONAL",
+      "last_harvest_count": 10988,
+      "http_success_rate": 99.1,
+      "avg_latency_ms": 390,
+      "extractor_type": "Paginated HTML"
+    }
+  ]
+}
