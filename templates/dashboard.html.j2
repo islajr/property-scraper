@@ -4,23 +4,65 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ telemetry.site_title | default('PS-0 PropertyScraper Telemetry Dashboard') }}</title>
-  <meta name="description" content="Public Data Engineering Telemetry & Pipeline Health Dashboard for PS-0 PropertyScraper. Live multi-portal ingestion metrics, data hygiene, and deduplication statistics.">
-  <meta name="robots" content="index, follow">
+  <meta name="description" content="Public Data Engineering Telemetry & Pipeline Health Dashboard for PS-0 PropertyScraper. Live multi-portal ingestion metrics, data hygiene, and deduplication statistics for Nigerian property listings.">
+  <meta name="keywords" content="PS-0, PropertyScraper, Telemetry Dashboard, Data Engineering, Nigerian Real Estate, Data Pipeline, Property Analytics, Data Hygiene, Deduplication">
+  <meta name="author" content="akinmokun.com">
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+  <meta name="theme-color" content="#000000">
   
-  <!-- Schema.org JSON-LD Dataset Markup -->
+  <!-- Canonical Link -->
+  <link rel="canonical" href="https://ps0.akinmokun.com/">
+
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://ps0.akinmokun.com/">
+  <meta property="og:title" content="{{ telemetry.site_title | default('PS-0 PropertyScraper Telemetry Dashboard') }}">
+  <meta property="og:description" content="Live data engineering telemetry, multi-portal extraction health, spatial coverage, and deduplication stats for PS-0 PropertyScraper.">
+  <meta property="og:site_name" content="PS-0 PropertyScraper Telemetry">
+  <meta property="og:locale" content="en_US">
+
+  <!-- Twitter Cards -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:url" content="https://ps0.akinmokun.com/">
+  <meta name="twitter:title" content="{{ telemetry.site_title | default('PS-0 PropertyScraper Telemetry Dashboard') }}">
+  <meta name="twitter:description" content="Live multi-portal ingestion metrics, data hygiene, and spatial coverage for PS-0 PropertyScraper.">
+
+  <!-- Google Fonts Preconnect & Optimization -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <!-- Schema.org JSON-LD Multi-Schema (Dataset + WebSite) -->
   <script type="application/ld+json">
-  {
-    "@context": "https://schema.org/",
-    "@type": "Dataset",
-    "name": "PS-0 PropertyScraper Telemetry & Pipeline Health Dataset",
-    "description": "Public Data Engineering Telemetry & Pipeline Health Dashboard showcasing multi-portal harvesting, spatial coverage, and listing deduplication stats.",
-    "url": "https://ps0.akinmokun.com",
-    "provider": {
-      "@type": "Organization",
-      "name": "akinmokun.com",
-      "url": "https://akinmokun.com"
+  [
+    {
+      "@context": "https://schema.org/",
+      "@type": "Dataset",
+      "@id": "https://ps0.akinmokun.com/#dataset",
+      "name": "PS-0 PropertyScraper Telemetry & Pipeline Health Dataset",
+      "description": "Public Data Engineering Telemetry & Pipeline Health Dashboard showcasing multi-portal harvesting, spatial coverage, and listing deduplication stats for Nigerian real estate.",
+      "url": "https://ps0.akinmokun.com",
+      "isAccessibleForFree": true,
+      "keywords": ["Real Estate", "Data Pipeline", "Web Scraping", "Deduplication", "Telemetry"],
+      "provider": {
+        "@type": "Organization",
+        "name": "akinmokun.com",
+        "url": "https://akinmokun.com"
+      }
+    },
+    {
+      "@context": "https://schema.org/",
+      "@type": "WebSite",
+      "@id": "https://ps0.akinmokun.com/#website",
+      "url": "https://ps0.akinmokun.com/",
+      "name": "PS-0 PropertyScraper Telemetry",
+      "description": "Data engineering telemetry & status dashboard for PS-0 PropertyScraper.",
+      "publisher": {
+        "@type": "Organization",
+        "name": "akinmokun.com",
+        "url": "https://akinmokun.com"
+      }
     }
-  }
+  ]
   </script>
 
   <!-- CSS Stylesheet -->
