@@ -4,12 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PS-0 PropertyScraper Telemetry Dashboard</title>
-  <meta name="description" content="Public Data Engineering Telemetry & Pipeline Health Dashboard for PS-0 PropertyScraper. Live multi-portal ingestion metrics, data hygiene, and deduplication statistics for Nigerian property listings.">
+  <meta name="description" content="Public Data Engineering Telemetry & Pipeline Health Dashboard for PS-0 PropertyScraper. Live multi-portal extraction metrics, data hygiene, and deduplication statistics.">
   <meta name="keywords" content="PS-0, PropertyScraper, Telemetry Dashboard, Data Engineering, Nigerian Real Estate, Data Pipeline, Property Analytics, Data Hygiene, Deduplication">
-  <meta name="author" content="akinmokun.com">
+  <meta name="author" content="Isaac Akinmokun">
   <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
   <meta name="theme-color" content="#000000">
   
+  <!-- Favicon & Apple Touch Icon -->
+  <link rel="icon" type="image/png" sizes="32x32" href="isaac-akinmokun-apple-touch-icon.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="isaac-akinmokun-apple-touch-icon.png">
+
   <!-- Canonical Link -->
   <link rel="canonical" href="https://ps0.akinmokun.com/">
 
@@ -25,13 +29,13 @@
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:url" content="https://ps0.akinmokun.com/">
   <meta name="twitter:title" content="PS-0 PropertyScraper Telemetry Dashboard">
-  <meta name="twitter:description" content="Live multi-portal ingestion metrics, data hygiene, and spatial coverage for PS-0 PropertyScraper.">
+  <meta name="twitter:description" content="Live multi-portal extraction metrics, data hygiene, and spatial coverage for PS-0 PropertyScraper.">
 
-  <!-- Google Fonts Preconnect & Optimization -->
+  <!-- Google Fonts Preconnect -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
-  <!-- Schema.org JSON-LD Multi-Schema (Dataset + WebSite) -->
+  <!-- Schema.org JSON-LD Multi-Schema (Dataset + WebSite + Person) -->
   <script type="application/ld+json">
   [
     {
@@ -68,10 +72,11 @@
   <!-- CSS Stylesheet -->
   <style>
     /* PS-0 PropertyScraper Telemetry Dashboard Stylesheet */
+/* Aligned with akinmokun.com (islajr.github.io) design system */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,600;0,700;1,400&display=swap');
 
 :root {
-  /* Canvas & Surface Palette (Deep Obsidian Dark Mode) */
+  /* Canvas & Surface Palette (Obsidian Dark Mode) */
   --bg:          #000000;   /* Pure black canvas */
   --surface:     #111111;   /* Card surface background */
   --surface-2:   #161616;   /* Subtext container fill */
@@ -79,7 +84,7 @@
   --border-2:    #2a2a2a;   /* Active / hover border */
   --text:        #f0f0f0;   /* Primary text */
   --text-dim:    #a3a3a3;   /* Secondary text */
-  --text-muted:  #666666;   /* Labels & captions */
+  --text-muted:  #555555;   /* Labels & captions */
   
   /* Accent Colors */
   --gold:        #c9a84c;   /* Primary gold accent */
@@ -89,13 +94,13 @@
   --live:        #4ade80;   /* Operational status pulse green */
   --live-tint:   rgba(74, 222, 128, 0.1);
 
-  /* Typography Triad */
+  /* Typography Triad matching akinmokun.com */
   --font-serif: "Playfair Display", Georgia, serif;
   --font-sans:  "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono:  Menlo, Hack, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
-  /* Container width */
-  --max-width: 1200px;
+  /* Layout width matching main domain */
+  --max-width: 1000px;
 }
 
 /* Reset & Global Base */
@@ -109,8 +114,8 @@ html {
   background-color: var(--bg);
   color: var(--text);
   font-family: var(--font-sans);
-  font-size: 16px;
-  line-height: 1.6;
+  font-size: 15px;
+  line-height: 1.625;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -124,16 +129,16 @@ body {
 }
 
 a {
-  color: var(--gold-light);
+  color: var(--text-dim);
   text-decoration: none;
-  transition: color 0.2s ease;
+  transition: color 0.15s ease;
 }
 
 a:hover {
-  color: var(--gold);
+  color: var(--text);
 }
 
-/* Layout Containers */
+/* Container */
 .container {
   width: 100%;
   max-width: var(--max-width);
@@ -141,11 +146,11 @@ a:hover {
   padding: 0 1.5rem;
 }
 
-/* Sticky Header & Navbar */
+/* Sticky Navbar matching akinmokun.com */
 .site-header {
   position: sticky;
   top: 0;
-  z-index: 100;
+  z-index: 50;
   background: rgba(0, 0, 0, 0.85);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -156,29 +161,162 @@ a:hover {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 4.25rem;
+  height: 4.5rem;
 }
 
 .nav-brand {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  font-family: var(--font-serif);
-  font-weight: 600;
-  font-size: 1.15rem;
-  color: var(--text);
+  gap: 0.65rem;
+  transition: opacity 0.15s ease;
 }
 
-.nav-brand span {
+.nav-brand:hover {
+  opacity: 0.7;
+}
+
+.brand-logo {
+  width: 32px;
+  height: 32px;
+  border-radius: 3px;
+  object-fit: cover;
+}
+
+.brand-badge {
   font-family: var(--font-mono);
   font-size: 0.75rem;
   background: var(--surface-2);
   border: 1px solid var(--border-2);
-  padding: 0.15rem 0.4rem;
-  border-radius: 4px;
+  padding: 0.15rem 0.45rem;
+  border-radius: 3px;
   color: var(--gold);
 }
 
+/* Desktop Nav Links */
+.desktop-nav {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  list-style: none;
+}
+
+.desktop-nav a {
+  font-size: 0.8125rem; /* 13px matching main domain */
+  color: var(--text-dim);
+  font-weight: 400;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.desktop-nav a:hover {
+  color: var(--text);
+}
+
+.desktop-nav a.active {
+  color: var(--gold-light);
+  font-weight: 500;
+}
+
+.ext-arrow {
+  color: var(--text-muted);
+  font-size: 0.6875rem;
+}
+
+/* Mobile Hamburger Toggle */
+.mobile-nav-toggle {
+  display: none;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  width: 2rem;
+  height: 2rem;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  z-index: 60;
+}
+
+.hamburger-bar {
+  display: block;
+  height: 1px;
+  width: 1.25rem;
+  background-color: var(--text-dim);
+  transition: transform 0.3s ease, opacity 0.3s ease;
+  transform-origin: center;
+}
+
+/* Hamburger Open States */
+.mobile-nav-toggle.open .bar-top {
+  transform: rotate(45deg) translateY(6px);
+}
+
+.mobile-nav-toggle.open .bar-mid {
+  opacity: 0;
+  transform: scaleX(0);
+}
+
+.mobile-nav-toggle.open .bar-bot {
+  transform: rotate(-45deg) translateY(-6px);
+}
+
+/* Mobile Navigation Drawer */
+.mobile-drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  background: rgba(0, 0, 0, 0.96);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  padding-top: 5rem;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+.mobile-drawer.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.mobile-drawer-nav {
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem;
+  height: 100%;
+}
+
+.mobile-drawer-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 0;
+  border-bottom: 1px solid rgba(30, 30, 30, 0.6);
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  color: var(--text-dim);
+}
+
+.mobile-drawer-link:hover {
+  color: var(--text);
+}
+
+.mobile-drawer-footer {
+  margin-top: auto;
+  padding-top: 2rem;
+  padding-bottom: 2rem;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--text-muted);
+}
+
+/* Status Badges */
 .status-badge {
   display: inline-flex;
   align-items: center;
@@ -215,76 +353,78 @@ a:hover {
   animation: pulse-dot 2s infinite ease-in-out;
 }
 
-.sparkline-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.sparkline {
-  display: inline-block;
-  vertical-align: middle;
-}
-
 @keyframes pulse-dot {
   0% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.4; transform: scale(0.85); }
   100% { opacity: 1; transform: scale(1); }
 }
 
-.nav-links {
-  display: flex;
-  align-items: center;
-  gap: 1.75rem;
-  list-style: none;
-}
-
-.nav-links a {
-  color: var(--text-dim);
-  font-size: 0.9rem;
-  font-weight: 500;
-}
-
-.nav-links a:hover {
-  color: var(--text);
-}
-
-/* Hero Section */
+/* Hero Section & Top Action Bar */
 .hero {
-  padding: 4rem 0 3rem;
+  padding: 3.5rem 0 2.5rem;
   border-bottom: 1px solid var(--border);
-  background: radial-gradient(circle at 50% 0%, rgba(201, 168, 76, 0.06) 0%, rgba(0,0,0,0) 70%);
+  background: radial-gradient(circle at 50% 0%, rgba(201, 168, 76, 0.05) 0%, rgba(0,0,0,0) 75%);
 }
 
-.hero-meta {
+.hero-center-bar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 1rem;
-  margin-bottom: 1rem;
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  color: var(--text-muted);
+  margin-bottom: 1.5rem;
 }
 
-.hero-meta .tag {
-  color: var(--gold);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
+.repo-badge-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  background: var(--surface);
+  border: 1px solid var(--gold-border);
+  padding: 0.35rem 0.85rem;
+  border-radius: 3px;
+  color: var(--gold-light);
+  transition: all 0.15s ease;
+}
+
+.repo-badge-link:hover {
+  background: var(--gold-tint);
+  border-color: var(--gold);
+  color: var(--gold-light);
+  transform: translateY(-1px);
+}
+
+.hero-quicklinks {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.hero-quicklinks a {
+  color: var(--text-dim);
+}
+
+.hero-quicklinks a:hover {
+  color: var(--gold-light);
 }
 
 .hero-title {
   font-family: var(--font-serif);
   font-size: 2.75rem;
   font-weight: 700;
-  line-height: 1.2;
+  line-height: 1.25;
   margin-bottom: 1rem;
-  background: linear-gradient(135deg, #ffffff 0%, var(--gold-light) 60%, var(--gold) 100%);
+  background: linear-gradient(135deg, #ffffff 0%, var(--gold-light) 65%, var(--gold) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
 .hero-subtitle {
-  font-size: 1.125rem;
+  font-size: 1.05rem;
   color: var(--text-dim);
   max-width: 760px;
   line-height: 1.7;
@@ -321,43 +461,35 @@ a:hover {
 .metric-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 4px;
   padding: 1.75rem;
-  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
-  position: relative;
-  overflow: hidden;
+  transition: transform 0.15s ease, border-color 0.15s ease;
 }
 
 .metric-card:hover {
   transform: translateY(-2px);
   border-color: var(--gold-border);
   background: linear-gradient(180deg, var(--surface) 0%, var(--surface-2) 100%);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
 
-.metric-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, var(--gold), transparent);
-  opacity: 0;
-  transition: opacity 0.2s ease;
-}
-
-.metric-card:hover::before {
-  opacity: 1;
+.sparkline-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
 }
 
 .metric-label {
   font-family: var(--font-mono);
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-muted);
-  margin-bottom: 0.75rem;
+}
+
+.sparkline {
+  display: inline-block;
+  vertical-align: middle;
 }
 
 .metric-value {
@@ -383,7 +515,7 @@ a:hover {
 .table-wrapper {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 4px;
   overflow-x: auto;
 }
 
@@ -391,12 +523,12 @@ a:hover {
   width: 100%;
   border-collapse: collapse;
   text-align: left;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
 }
 
 .health-table th {
   background: var(--surface-2);
-  padding: 1rem 1.25rem;
+  padding: 0.85rem 1.25rem;
   font-family: var(--font-mono);
   font-size: 0.75rem;
   text-transform: uppercase;
@@ -406,7 +538,7 @@ a:hover {
 }
 
 .health-table td {
-  padding: 1.15rem 1.25rem;
+  padding: 1.1rem 1.25rem;
   border-bottom: 1px solid var(--border);
   color: var(--text);
 }
@@ -447,9 +579,9 @@ a:hover {
 .rate-badge {
   display: inline-block;
   font-family: var(--font-mono);
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   padding: 0.2rem 0.5rem;
-  border-radius: 4px;
+  border-radius: 3px;
   background: var(--live-tint);
   color: var(--live);
   border: 1px solid rgba(74, 222, 128, 0.2);
@@ -463,14 +595,14 @@ a:hover {
 
 .code-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
   gap: 1.5rem;
 }
 
 .code-box {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 4px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -489,16 +621,13 @@ a:hover {
   font-family: var(--font-mono);
   font-size: 0.8rem;
   color: var(--text-dim);
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
 }
 
 .code-badge {
   font-family: var(--font-mono);
   font-size: 0.7rem;
   padding: 0.15rem 0.4rem;
-  border-radius: 4px;
+  border-radius: 3px;
   background: var(--border);
   color: var(--text-muted);
 }
@@ -512,7 +641,7 @@ a:hover {
 .code-content {
   padding: 1.25rem;
   font-family: var(--font-mono);
-  font-size: 0.825rem;
+  font-size: 0.8125rem;
   line-height: 1.5;
   color: var(--text-dim);
   overflow-x: auto;
@@ -524,10 +653,8 @@ a:hover {
 .json-str { color: #9ecbff; }
 .json-num { color: #f78c6c; }
 .json-bool { color: #c792ea; }
-.json-null { color: var(--text-muted); }
-.raw-html { color: #e5c07b; }
 
-/* Hygiene & Guardrails Section */
+/* Hygiene Section */
 .guardrails-section {
   padding: 3rem 0 4rem;
   border-top: 1px solid var(--border);
@@ -535,20 +662,19 @@ a:hover {
 
 .guardrails-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 1.25rem;
 }
 
 .guardrail-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 4px;
   padding: 1.5rem;
 }
 
 .guardrail-title {
-  font-family: var(--font-sans);
-  font-size: 1.05rem;
+  font-size: 1rem;
   font-weight: 600;
   color: var(--text);
   margin-bottom: 0.5rem;
@@ -567,14 +693,16 @@ a:hover {
   line-height: 1.6;
 }
 
-/* Footer */
+/* Footer matching SiteFooter.tsx on akinmokun.com */
 .site-footer {
   margin-top: auto;
   border-top: 1px solid var(--border);
-  background: var(--surface);
-  padding: 2.5rem 0;
-  font-size: 0.85rem;
+  background: var(--bg);
+  padding: 2rem 0;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem; /* 11px matching main domain */
   color: var(--text-muted);
+  letter-spacing: 0.04em;
 }
 
 .footer-inner {
@@ -585,35 +713,46 @@ a:hover {
   gap: 1rem;
 }
 
-.footer-brand {
-  font-family: var(--font-serif);
-  color: var(--text-dim);
+.footer-left {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
 }
 
 .footer-links {
   display: flex;
-  gap: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
   list-style: none;
 }
 
 .footer-links a {
   color: var(--text-muted);
+  transition: color 0.15s ease;
 }
 
 .footer-links a:hover {
-  color: var(--gold);
+  color: var(--text);
 }
 
-/* Responsive adjustments */
-@media (max-width: 768px) {
+.footer-links a.repo-highlight {
+  color: var(--gold-light);
+}
+
+/* Responsive breakpoint matching sm: (640px) */
+@media (max-width: 639px) {
+  .desktop-nav {
+    display: none;
+  }
+  .mobile-nav-toggle {
+    display: flex;
+  }
   .hero-title {
     font-size: 2rem;
   }
-  .code-grid {
-    grid-template-columns: 1fr;
-  }
-  .nav-links {
-    display: none; /* simple responsive fallback */
+  .footer-inner {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 
@@ -621,36 +760,77 @@ a:hover {
 </head>
 <body>
 
-  <!-- Sticky Navbar -->
+  <!-- Sticky Navbar Aligned with akinmokun.com -->
   <header class="site-header" id="header">
     <div class="container navbar">
-      <a href="https://akinmokun.com" class="nav-brand" id="brand-link">
-        akinmokun.com <span>PS-0</span>
+      <!-- Logo + Brand -->
+      <a href="https://akinmokun.com" class="nav-brand" id="brand-link" aria-label="akinmokun.com home">
+        <img src="isaac-akinmokun-apple-touch-icon.png" alt="Isaac Akinmokun" class="brand-logo" width="32" height="32">
+        <span class="brand-badge">PS-0</span>
       </a>
       
-      <div class="status-badge operational" id="status-indicator">
-        <span class="status-dot"></span>
-        <span>OPERATIONAL</span>
-      </div>
+      <!-- Desktop Navigation -->
+      <nav aria-label="Main navigation">
+        <ul class="desktop-nav">
+          <li><a href="https://akinmokun.com/">Home</a></li>
+          <li><a href="https://akinmokun.com/about">About</a></li>
+          <li><a href="https://akinmokun.com/now">Now</a></li>
+          <li><a href="https://akinmokun.com/blog/" target="_blank">Blog <span class="ext-arrow">↗</span></a></li>
+          <li><a href="https://reports.akinmokun.com/" target="_blank">Reports <span class="ext-arrow">↗</span></a></li>
+          <li><a href="https://ps0.akinmokun.com" class="active">PS-0 Telemetry</a></li>
+          <li><a href="https://akinmokun.com/credentials">Credentials</a></li>
+        </ul>
+      </nav>
 
-      <ul class="nav-links" id="nav-links">
-        <li><a href="#overview">Overview</a></li>
-        <li><a href="#portals">Portal Health</a></li>
-        <li><a href="#schema">Schema & Transformation</a></li>
-        <li><a href="#hygiene">Data Hygiene</a></li>
-      </ul>
+      <!-- Mobile Hamburger Toggle Button -->
+      <button class="mobile-nav-toggle" id="mobile-nav-toggle" aria-label="Open navigation menu" aria-expanded="false">
+        <span class="hamburger-bar bar-top"></span>
+        <span class="hamburger-bar bar-mid"></span>
+        <span class="hamburger-bar bar-bot"></span>
+      </button>
     </div>
   </header>
+
+  <!-- Mobile Navigation Drawer -->
+  <div class="mobile-drawer" id="mobile-drawer" role="dialog" aria-modal="true" aria-label="Mobile Navigation">
+    <nav class="mobile-drawer-nav">
+      <a href="https://akinmokun.com/" class="mobile-drawer-link"><span>Home</span> <span>→</span></a>
+      <a href="https://akinmokun.com/about" class="mobile-drawer-link"><span>About</span> <span>→</span></a>
+      <a href="https://akinmokun.com/now" class="mobile-drawer-link"><span>Now</span> <span>→</span></a>
+      <a href="https://akinmokun.com/blog/" target="_blank" class="mobile-drawer-link"><span>Blog</span> <span>↗</span></a>
+      <a href="https://reports.akinmokun.com/" target="_blank" class="mobile-drawer-link"><span>Reports</span> <span>↗</span></a>
+      <a href="https://ps0.akinmokun.com" class="mobile-drawer-link" style="color: var(--gold-light);"><span>PS-0 Telemetry</span> <span>✦</span></a>
+      <a href="https://akinmokun.com/credentials" class="mobile-drawer-link"><span>Credentials</span> <span>→</span></a>
+
+      <div class="mobile-drawer-footer">
+        akinmokun.com • Sovereign Polymath Protocol
+      </div>
+    </nav>
+  </div>
 
   <main>
     <!-- Hero Section -->
     <section class="hero" id="overview">
       <div class="container">
-        <div class="hero-meta">
-          <span class="tag">Pipeline Telemetry</span>
-          <span>•</span>
-          <span>Last Updated: <strong class="mono-cell gold">2026-07-28 12:59:01 UTC</strong></span>
+        <!-- Top Action Bar: GitHub Repo + Status Pill + Quick Links -->
+        <div class="hero-center-bar">
+          <a href="https://github.com/islajr/property-scraper" target="_blank" rel="noopener noreferrer" class="repo-badge-link" id="hero-github-link">
+            <span>[ gh: islajr/property-scraper ↗ ]</span>
+          </a>
+
+          <div class="status-badge operational" id="status-indicator">
+            <span class="status-dot"></span>
+            <span>OPERATIONAL</span>
+          </div>
+
+          <div class="hero-quicklinks">
+            <a href="#overview">[ Overview ]</a>
+            <a href="#portals">[ Portal Matrix ]</a>
+            <a href="#schema">[ JSON Schema ]</a>
+            <a href="#hygiene">[ Data Hygiene ]</a>
+          </div>
         </div>
+
         <h1 class="hero-title" id="main-title">PS-0 PropertyScraper</h1>
         <p class="hero-subtitle">
           Autonomous multi-portal data engineering pipeline harvesting, normalizing, geocoding, and deduplicating Nigerian real estate listing telemetry in real-time.
@@ -704,7 +884,7 @@ a:hover {
               <tr>
                 <th>Portal Target</th>
                 <th>Harvest Status</th>
-                <th>Last Run Listings</th>
+                <th>Listing Count</th>
                 <th>HTTP Success %</th>
                 <th>Avg Latency</th>
                 <th>Extractor Type</th>
@@ -767,7 +947,7 @@ a:hover {
               <div class="code-title">
                 <span>Raw Unstructured Ingestion Payload</span>
               </div>
-              <span class="code-badge">RAW HTML/JSON</span>
+              <span class="code-badge">RAW HTML/BS4</span>
             </div>
             <pre class="code-content"><code>{
   <span class="json-key">"raw_title"</span>: <span class="json-str">"Luxury 4 Bed Fully Detached Duplex in Lekki Phase 1!!!"</span>,
@@ -842,19 +1022,64 @@ a:hover {
     </section>
   </main>
 
-  <!-- Footer -->
-  <footer class="site-footer">
+  <!-- Footer Aligned with SiteFooter.tsx on akinmokun.com -->
+  <footer itemScope itemType="http://schema.org/Person" class="site-footer">
+    <meta itemProp="name" content="Isaac Akinmokun" />
+    <meta itemProp="jobTitle" content="Backend Engineer & Quantitative PropTech Builder" />
+    <meta itemProp="url" content="https://akinmokun.com" />
+    <meta itemProp="gender" content="Male" />
+    <meta itemProp="knowsAbout" content="Backend Engineering, Quantitative Finance, PropTech, Real Estate Valuation, Data Infrastructure, Systems Programming" />
+
     <div class="container footer-inner">
-      <div class="footer-brand">
-        PS-0 Telemetry Dashboard • <a href="https://akinmokun.com" target="_blank">akinmokun.com</a>
+      <div class="footer-left">
+        <span>© 2026 Isaac Akinmokun.</span>
+        <span>Sovereign Polymath Protocol.</span>
       </div>
+      
       <ul class="footer-links">
-        <li><a href="https://reports.akinmokun.com">Reports</a></li>
-        <li><a href="https://propertyintel.akinmokun.com">PropertyIntel</a></li>
-        <li><a href="https://ps0.akinmokun.com">PS-0 Subdomain</a></li>
+        <li><a href="https://github.com/islajr/property-scraper" target="_blank" rel="noopener noreferrer" class="repo-highlight">[ gh: property-scraper ↗ ]</a></li>
+        <li><a href="https://github.com/islajr" target="_blank" rel="noopener noreferrer">[ gh: islajr ]</a></li>
+        <li><a href="https://linkedin.com/in/akinmokun" target="_blank" rel="noopener noreferrer">[ li: akinmokun ]</a></li>
+        <li><a href="https://x.com/islajrn" target="_blank" rel="noopener noreferrer">[ tw: islajrn ]</a></li>
+        <li><a href="https://instagram.com/ioakin" target="_blank" rel="noopener noreferrer">[ ig: ioakin ]</a></li>
       </ul>
     </div>
   </footer>
+
+  <!-- Vanilla JS Mobile Navigation Drawer Toggle Script -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const toggle = document.getElementById('mobile-nav-toggle');
+      const drawer = document.getElementById('mobile-drawer');
+      let isOpen = false;
+
+      function setDrawerState(open) {
+        isOpen = open;
+        if (toggle) toggle.classList.toggle('open', isOpen);
+        if (drawer) drawer.classList.toggle('open', isOpen);
+        document.body.style.overflow = isOpen ? 'hidden' : '';
+        if (toggle) toggle.setAttribute('aria-expanded', isOpen);
+      }
+
+      if (toggle) {
+        toggle.addEventListener('click', function(e) {
+          e.stopPropagation();
+          setDrawerState(!isOpen);
+        });
+      }
+
+      // Close on Escape key
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && isOpen) setDrawerState(false);
+      });
+
+      // Close when clicking links in mobile drawer
+      const links = drawer ? drawer.querySelectorAll('a') : [];
+      links.forEach(function(link) {
+        link.addEventListener('click', function() { setDrawerState(false); });
+      });
+    });
+  </script>
 
 </body>
 </html>

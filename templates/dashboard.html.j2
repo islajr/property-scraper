@@ -4,12 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ telemetry.site_title | default('PS-0 PropertyScraper Telemetry Dashboard') }}</title>
-  <meta name="description" content="Public Data Engineering Telemetry & Pipeline Health Dashboard for PS-0 PropertyScraper. Live multi-portal ingestion metrics, data hygiene, and deduplication statistics for Nigerian property listings.">
+  <meta name="description" content="Public Data Engineering Telemetry & Pipeline Health Dashboard for PS-0 PropertyScraper. Live multi-portal extraction metrics, data hygiene, and deduplication statistics.">
   <meta name="keywords" content="PS-0, PropertyScraper, Telemetry Dashboard, Data Engineering, Nigerian Real Estate, Data Pipeline, Property Analytics, Data Hygiene, Deduplication">
-  <meta name="author" content="akinmokun.com">
+  <meta name="author" content="Isaac Akinmokun">
   <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
   <meta name="theme-color" content="#000000">
   
+  <!-- Favicon & Apple Touch Icon -->
+  <link rel="icon" type="image/png" sizes="32x32" href="isaac-akinmokun-apple-touch-icon.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="isaac-akinmokun-apple-touch-icon.png">
+
   <!-- Canonical Link -->
   <link rel="canonical" href="https://ps0.akinmokun.com/">
 
@@ -25,13 +29,13 @@
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:url" content="https://ps0.akinmokun.com/">
   <meta name="twitter:title" content="{{ telemetry.site_title | default('PS-0 PropertyScraper Telemetry Dashboard') }}">
-  <meta name="twitter:description" content="Live multi-portal ingestion metrics, data hygiene, and spatial coverage for PS-0 PropertyScraper.">
+  <meta name="twitter:description" content="Live multi-portal extraction metrics, data hygiene, and spatial coverage for PS-0 PropertyScraper.">
 
-  <!-- Google Fonts Preconnect & Optimization -->
+  <!-- Google Fonts Preconnect -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
-  <!-- Schema.org JSON-LD Multi-Schema (Dataset + WebSite) -->
+  <!-- Schema.org JSON-LD Multi-Schema (Dataset + WebSite + Person) -->
   <script type="application/ld+json">
   [
     {
@@ -72,36 +76,77 @@
 </head>
 <body>
 
-  <!-- Sticky Navbar -->
+  <!-- Sticky Navbar Aligned with akinmokun.com -->
   <header class="site-header" id="header">
     <div class="container navbar">
-      <a href="https://akinmokun.com" class="nav-brand" id="brand-link">
-        akinmokun.com <span>PS-0</span>
+      <!-- Logo + Brand -->
+      <a href="https://akinmokun.com" class="nav-brand" id="brand-link" aria-label="akinmokun.com home">
+        <img src="isaac-akinmokun-apple-touch-icon.png" alt="Isaac Akinmokun" class="brand-logo" width="32" height="32">
+        <span class="brand-badge">PS-0</span>
       </a>
       
-      <div class="status-badge {{ telemetry.system_status_class | default('operational') }}" id="status-indicator">
-        <span class="status-dot"></span>
-        <span>{{ telemetry.system_status | default('OPERATIONAL') }}</span>
-      </div>
+      <!-- Desktop Navigation -->
+      <nav aria-label="Main navigation">
+        <ul class="desktop-nav">
+          <li><a href="https://akinmokun.com/">Home</a></li>
+          <li><a href="https://akinmokun.com/about">About</a></li>
+          <li><a href="https://akinmokun.com/now">Now</a></li>
+          <li><a href="https://akinmokun.com/blog/" target="_blank">Blog <span class="ext-arrow">↗</span></a></li>
+          <li><a href="https://reports.akinmokun.com/" target="_blank">Reports <span class="ext-arrow">↗</span></a></li>
+          <li><a href="https://ps0.akinmokun.com" class="active">PS-0 Telemetry</a></li>
+          <li><a href="https://akinmokun.com/credentials">Credentials</a></li>
+        </ul>
+      </nav>
 
-      <ul class="nav-links" id="nav-links">
-        <li><a href="#overview">Overview</a></li>
-        <li><a href="#portals">Portal Health</a></li>
-        <li><a href="#schema">Schema & Transformation</a></li>
-        <li><a href="#hygiene">Data Hygiene</a></li>
-      </ul>
+      <!-- Mobile Hamburger Toggle Button -->
+      <button class="mobile-nav-toggle" id="mobile-nav-toggle" aria-label="Open navigation menu" aria-expanded="false">
+        <span class="hamburger-bar bar-top"></span>
+        <span class="hamburger-bar bar-mid"></span>
+        <span class="hamburger-bar bar-bot"></span>
+      </button>
     </div>
   </header>
+
+  <!-- Mobile Navigation Drawer -->
+  <div class="mobile-drawer" id="mobile-drawer" role="dialog" aria-modal="true" aria-label="Mobile Navigation">
+    <nav class="mobile-drawer-nav">
+      <a href="https://akinmokun.com/" class="mobile-drawer-link"><span>Home</span> <span>→</span></a>
+      <a href="https://akinmokun.com/about" class="mobile-drawer-link"><span>About</span> <span>→</span></a>
+      <a href="https://akinmokun.com/now" class="mobile-drawer-link"><span>Now</span> <span>→</span></a>
+      <a href="https://akinmokun.com/blog/" target="_blank" class="mobile-drawer-link"><span>Blog</span> <span>↗</span></a>
+      <a href="https://reports.akinmokun.com/" target="_blank" class="mobile-drawer-link"><span>Reports</span> <span>↗</span></a>
+      <a href="https://ps0.akinmokun.com" class="mobile-drawer-link" style="color: var(--gold-light);"><span>PS-0 Telemetry</span> <span>✦</span></a>
+      <a href="https://akinmokun.com/credentials" class="mobile-drawer-link"><span>Credentials</span> <span>→</span></a>
+
+      <div class="mobile-drawer-footer">
+        akinmokun.com • Sovereign Polymath Protocol
+      </div>
+    </nav>
+  </div>
 
   <main>
     <!-- Hero Section -->
     <section class="hero" id="overview">
       <div class="container">
-        <div class="hero-meta">
-          <span class="tag">Pipeline Telemetry</span>
-          <span>•</span>
-          <span>Last Updated: <strong class="mono-cell gold">{{ telemetry.last_updated }}</strong></span>
+        <!-- Top Action Bar: GitHub Repo + Status Pill + Quick Links -->
+        <div class="hero-center-bar">
+          <a href="https://github.com/islajr/property-scraper" target="_blank" rel="noopener noreferrer" class="repo-badge-link" id="hero-github-link">
+            <span>[ gh: islajr/property-scraper ↗ ]</span>
+          </a>
+
+          <div class="status-badge {{ telemetry.system_status_class | default('operational') }}" id="status-indicator">
+            <span class="status-dot"></span>
+            <span>{{ telemetry.system_status | default('OPERATIONAL') }}</span>
+          </div>
+
+          <div class="hero-quicklinks">
+            <a href="#overview">[ Overview ]</a>
+            <a href="#portals">[ Portal Matrix ]</a>
+            <a href="#schema">[ JSON Schema ]</a>
+            <a href="#hygiene">[ Data Hygiene ]</a>
+          </div>
         </div>
+
         <h1 class="hero-title" id="main-title">PS-0 PropertyScraper</h1>
         <p class="hero-subtitle">
           Autonomous multi-portal data engineering pipeline harvesting, normalizing, geocoding, and deduplicating Nigerian real estate listing telemetry in real-time.
@@ -155,7 +200,7 @@
               <tr>
                 <th>Portal Target</th>
                 <th>Harvest Status</th>
-                <th>Last Run Listings</th>
+                <th>Listing Count</th>
                 <th>HTTP Success %</th>
                 <th>Avg Latency</th>
                 <th>Extractor Type</th>
@@ -194,7 +239,7 @@
               <div class="code-title">
                 <span>Raw Unstructured Ingestion Payload</span>
               </div>
-              <span class="code-badge">RAW HTML/JSON</span>
+              <span class="code-badge">RAW HTML/BS4</span>
             </div>
             <pre class="code-content"><code>{
   <span class="json-key">"raw_title"</span>: <span class="json-str">"Luxury 4 Bed Fully Detached Duplex in Lekki Phase 1!!!"</span>,
@@ -269,19 +314,64 @@
     </section>
   </main>
 
-  <!-- Footer -->
-  <footer class="site-footer">
+  <!-- Footer Aligned with SiteFooter.tsx on akinmokun.com -->
+  <footer itemScope itemType="http://schema.org/Person" class="site-footer">
+    <meta itemProp="name" content="Isaac Akinmokun" />
+    <meta itemProp="jobTitle" content="Backend Engineer & Quantitative PropTech Builder" />
+    <meta itemProp="url" content="https://akinmokun.com" />
+    <meta itemProp="gender" content="Male" />
+    <meta itemProp="knowsAbout" content="Backend Engineering, Quantitative Finance, PropTech, Real Estate Valuation, Data Infrastructure, Systems Programming" />
+
     <div class="container footer-inner">
-      <div class="footer-brand">
-        PS-0 Telemetry Dashboard • <a href="https://akinmokun.com" target="_blank">akinmokun.com</a>
+      <div class="footer-left">
+        <span>© 2026 Isaac Akinmokun.</span>
+        <span>Sovereign Polymath Protocol.</span>
       </div>
+      
       <ul class="footer-links">
-        <li><a href="https://reports.akinmokun.com">Reports</a></li>
-        <li><a href="https://propertyintel.akinmokun.com">PropertyIntel</a></li>
-        <li><a href="https://ps0.akinmokun.com">PS-0 Subdomain</a></li>
+        <li><a href="https://github.com/islajr/property-scraper" target="_blank" rel="noopener noreferrer" class="repo-highlight">[ gh: property-scraper ↗ ]</a></li>
+        <li><a href="https://github.com/islajr" target="_blank" rel="noopener noreferrer">[ gh: islajr ]</a></li>
+        <li><a href="https://linkedin.com/in/akinmokun" target="_blank" rel="noopener noreferrer">[ li: akinmokun ]</a></li>
+        <li><a href="https://x.com/islajrn" target="_blank" rel="noopener noreferrer">[ tw: islajrn ]</a></li>
+        <li><a href="https://instagram.com/ioakin" target="_blank" rel="noopener noreferrer">[ ig: ioakin ]</a></li>
       </ul>
     </div>
   </footer>
+
+  <!-- Vanilla JS Mobile Navigation Drawer Toggle Script -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const toggle = document.getElementById('mobile-nav-toggle');
+      const drawer = document.getElementById('mobile-drawer');
+      let isOpen = false;
+
+      function setDrawerState(open) {
+        isOpen = open;
+        if (toggle) toggle.classList.toggle('open', isOpen);
+        if (drawer) drawer.classList.toggle('open', isOpen);
+        document.body.style.overflow = isOpen ? 'hidden' : '';
+        if (toggle) toggle.setAttribute('aria-expanded', isOpen);
+      }
+
+      if (toggle) {
+        toggle.addEventListener('click', function(e) {
+          e.stopPropagation();
+          setDrawerState(!isOpen);
+        });
+      }
+
+      // Close on Escape key
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && isOpen) setDrawerState(false);
+      });
+
+      // Close when clicking links in mobile drawer
+      const links = drawer ? drawer.querySelectorAll('a') : [];
+      links.forEach(function(link) {
+        link.addEventListener('click', function() { setDrawerState(false); });
+      });
+    });
+  </script>
 
 </body>
 </html>
