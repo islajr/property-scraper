@@ -135,6 +135,16 @@ DURATION=$(( $(date +%s) - START_TS ))
 echo ""
 if [[ $SCRAPER_EXIT -eq 0 ]]; then
     info "Done in $(( DURATION/60 ))m $(( DURATION%60 ))s — check Telegram for summary."
+
+    # ── 9. Render & Deploy Telemetry Dashboard ────────────────────────────────
+    echo ""
+    info "Rendering PS-0 Telemetry Dashboard..."
+    python3 scripts/render_dashboard.py || warn "Dashboard rendering issue."
+
+    if [[ "${DEPLOY_DASHBOARD:-false}" == "true" ]] || [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]]; then
+        info "Deploying ps0.akinmokun.com to Cloudflare Pages..."
+        npx --yes wrangler pages deploy web --project-name=ps0-property-scraper || warn "Cloudflare deployment skipped or failed."
+    fi
 else
     error "Scraper exited with code $SCRAPER_EXIT after $(( DURATION/60 ))m $(( DURATION%60 ))s."
     echo "── last 30 lines of log ──────────────────────────────────────────────"
