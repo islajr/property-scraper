@@ -154,6 +154,51 @@
       </div>
     </section>
 
+    <!-- Latest Pipeline Run Telemetry -->
+    <section class="run-section" id="run-telemetry">
+      <div class="container">
+        <div class="section-label">Pipeline Execution Log</div>
+        <h2 class="section-title">Latest Run Telemetry</h2>
+
+        <div class="run-card">
+          <div class="run-header">
+            <div class="run-title-group">
+              <span class="run-mode-tag">{{ telemetry.last_run.mode }} RUN</span>
+              <span class="run-status-badge {{ telemetry.last_run.status | lower }}">{{ telemetry.last_run.status }}</span>
+            </div>
+            <div class="run-timestamp">Executed: <strong class="mono-cell gold">{{ telemetry.last_run.timestamp }}</strong></div>
+          </div>
+
+          <div class="run-stats-grid">
+            <div class="run-stat-item">
+              <div class="run-stat-label">Candidates Checked</div>
+              <div class="run-stat-val">{{ "{:,}".format(telemetry.last_run.checked) }}</div>
+            </div>
+            <div class="run-stat-item">
+              <div class="run-stat-label">Active Verified</div>
+              <div class="run-stat-val green">{{ "{:,}".format(telemetry.last_run.active_confirmed) }}</div>
+            </div>
+            <div class="run-stat-item">
+              <div class="run-stat-label">Listings Removed</div>
+              <div class="run-stat-val amber">{{ "{:,}".format(telemetry.last_run.removed) }}</div>
+            </div>
+            <div class="run-stat-item">
+              <div class="run-stat-label">Price Changes</div>
+              <div class="run-stat-val gold">{{ "{:,}".format(telemetry.last_run.price_changes) }}</div>
+            </div>
+            <div class="run-stat-item">
+              <div class="run-stat-label">Duration</div>
+              <div class="run-stat-val">{{ telemetry.last_run.duration }}</div>
+            </div>
+            <div class="run-stat-item">
+              <div class="run-stat-label">HTTP Errors</div>
+              <div class="run-stat-val">{{ telemetry.last_run.errors }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- Big Monospace Telemetry Counters -->
     <section class="metrics-section">
       <div class="container">

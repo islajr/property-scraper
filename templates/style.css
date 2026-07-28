@@ -293,6 +293,97 @@ a:hover {
   background: radial-gradient(circle at 50% 0%, rgba(201, 168, 76, 0.05) 0%, rgba(0,0,0,0) 75%);
 }
 
+/* Latest Run Telemetry Card */
+.run-section {
+  padding: 2.5rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.run-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1.5rem;
+}
+
+.run-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1.25rem;
+}
+
+.run-title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.run-mode-tag {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  background: var(--gold-tint);
+  border: 1px solid var(--gold-border);
+  color: var(--gold-light);
+  padding: 0.25rem 0.65rem;
+  border-radius: 3px;
+}
+
+.run-status-badge {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+  border-radius: 3px;
+  background: var(--live-tint);
+  color: var(--live);
+  border: 1px solid rgba(74, 222, 128, 0.3);
+}
+
+.run-timestamp {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.run-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1rem;
+}
+
+.run-stat-item {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  padding: 1rem;
+  border-radius: 3px;
+}
+
+.run-stat-label {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 0.35rem;
+}
+
+.run-stat-val {
+  font-family: var(--font-mono);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.run-stat-val.green { color: var(--live); }
+.run-stat-val.amber { color: #eab308; }
+.run-stat-val.gold { color: var(--gold-light); }
+
 .hero-center-bar {
   display: flex;
   align-items: center;

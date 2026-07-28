@@ -366,6 +366,97 @@ a:hover {
   background: radial-gradient(circle at 50% 0%, rgba(201, 168, 76, 0.05) 0%, rgba(0,0,0,0) 75%);
 }
 
+/* Latest Run Telemetry Card */
+.run-section {
+  padding: 2.5rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.run-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1.5rem;
+}
+
+.run-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1.25rem;
+}
+
+.run-title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.run-mode-tag {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  background: var(--gold-tint);
+  border: 1px solid var(--gold-border);
+  color: var(--gold-light);
+  padding: 0.25rem 0.65rem;
+  border-radius: 3px;
+}
+
+.run-status-badge {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+  border-radius: 3px;
+  background: var(--live-tint);
+  color: var(--live);
+  border: 1px solid rgba(74, 222, 128, 0.3);
+}
+
+.run-timestamp {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.run-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1rem;
+}
+
+.run-stat-item {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  padding: 1rem;
+  border-radius: 3px;
+}
+
+.run-stat-label {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 0.35rem;
+}
+
+.run-stat-val {
+  font-family: var(--font-mono);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.run-stat-val.green { color: var(--live); }
+.run-stat-val.amber { color: #eab308; }
+.run-stat-val.gold { color: var(--gold-light); }
+
 .hero-center-bar {
   display: flex;
   align-items: center;
@@ -838,6 +929,51 @@ a:hover {
       </div>
     </section>
 
+    <!-- Latest Pipeline Run Telemetry -->
+    <section class="run-section" id="run-telemetry">
+      <div class="container">
+        <div class="section-label">Pipeline Execution Log</div>
+        <h2 class="section-title">Latest Run Telemetry</h2>
+
+        <div class="run-card">
+          <div class="run-header">
+            <div class="run-title-group">
+              <span class="run-mode-tag">HEALTH CHECK RUN</span>
+              <span class="run-status-badge success">SUCCESS</span>
+            </div>
+            <div class="run-timestamp">Executed: <strong class="mono-cell gold">2026-07-28 06:28:12 UTC</strong></div>
+          </div>
+
+          <div class="run-stats-grid">
+            <div class="run-stat-item">
+              <div class="run-stat-label">Candidates Checked</div>
+              <div class="run-stat-val">1,000</div>
+            </div>
+            <div class="run-stat-item">
+              <div class="run-stat-label">Active Verified</div>
+              <div class="run-stat-val green">961</div>
+            </div>
+            <div class="run-stat-item">
+              <div class="run-stat-label">Listings Removed</div>
+              <div class="run-stat-val amber">39</div>
+            </div>
+            <div class="run-stat-item">
+              <div class="run-stat-label">Price Changes</div>
+              <div class="run-stat-val gold">16</div>
+            </div>
+            <div class="run-stat-item">
+              <div class="run-stat-label">Duration</div>
+              <div class="run-stat-val">7m 32s</div>
+            </div>
+            <div class="run-stat-item">
+              <div class="run-stat-label">HTTP Errors</div>
+              <div class="run-stat-val">0</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- Big Monospace Telemetry Counters -->
     <section class="metrics-section">
       <div class="container">
@@ -848,25 +984,25 @@ a:hover {
           <div class="metric-card" id="card-total-ingested">
             <div class="sparkline-header">
               <div class="metric-label">Total Records Ingested</div>
-              <svg class="sparkline" width="140" height="36" viewBox="0 0 140 36"><polyline fill="none" stroke="var(--gold-light)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="4.0,32.0 26.0,27.1 48.0,21.2 70.0,16.6 92.0,12.0 114.0,7.6 136.0,4.0" /></svg>
+              <svg class="sparkline" width="140" height="36" viewBox="0 0 140 36"><polyline fill="none" stroke="var(--gold-light)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="4.0,32.0 26.0,26.4 48.0,20.9 70.0,14.4 92.0,8.8 114.0,6.0 136.0,4.0" /></svg>
             </div>
-            <div class="metric-value">43,648</div>
+            <div class="metric-value">14,218</div>
             <div class="metric-sub">Multi-portal cumulative scraped raw listings</div>
           </div>
 
           <div class="metric-card" id="card-active-listings">
             <div class="sparkline-header">
               <div class="metric-label">Active Unique Listings</div>
-              <svg class="sparkline" width="140" height="36" viewBox="0 0 140 36"><polyline fill="none" stroke="var(--gold-light)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="4.0,32.0 26.0,26.0 48.0,20.0 70.0,14.8 92.0,10.5 114.0,6.6 136.0,4.0" /></svg>
+              <svg class="sparkline" width="140" height="36" viewBox="0 0 140 36"><polyline fill="none" stroke="var(--gold-light)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="4.0,32.0 26.0,26.5 48.0,19.8 70.0,14.3 92.0,8.8 114.0,6.5 136.0,4.0" /></svg>
             </div>
-            <div class="metric-value">12,131</div>
+            <div class="metric-value">12,330</div>
             <div class="metric-sub">Verified active & deduplicated property listings</div>
           </div>
 
           <div class="metric-card" id="card-spatial-coverage">
             <div class="metric-label">Spatial Coverage</div>
-            <div class="metric-value">8 <span style="font-size: 1.5rem; color: var(--text-dim);">Cities</span></div>
-            <div class="metric-sub">197 distinct geocoded neighbourhoods</div>
+            <div class="metric-value">10 <span style="font-size: 1.5rem; color: var(--text-dim);">Cities</span></div>
+            <div class="metric-sub">468 distinct geocoded neighbourhoods</div>
           </div>
         </div>
       </div>
@@ -895,11 +1031,23 @@ a:hover {
               <tr>
                 <td class="portal-name">
                   <span class="portal-indicator"></span>
+                  NigeriaPropertyCentre.ng
+                </td>
+                <td><span class="rate-badge">OPERATIONAL</span></td>
+                <td class="mono-cell gold">6,484</td>
+                <td class="mono-cell">99.4%</td>
+                <td class="mono-cell">390 ms</td>
+                <td class="mono-cell">HTML / BeautifulSoup</td>
+              </tr>
+              
+              <tr>
+                <td class="portal-name">
+                  <span class="portal-indicator"></span>
                   PropertyPro.ng
                 </td>
                 <td><span class="rate-badge">OPERATIONAL</span></td>
-                <td class="mono-cell gold">18,450</td>
-                <td class="mono-cell">99.4%</td>
+                <td class="mono-cell gold">3,949</td>
+                <td class="mono-cell">99.1%</td>
                 <td class="mono-cell">420 ms</td>
                 <td class="mono-cell">HTML / BeautifulSoup</td>
               </tr>
@@ -910,22 +1058,10 @@ a:hover {
                   PrivateProperty.ng
                 </td>
                 <td><span class="rate-badge">OPERATIONAL</span></td>
-                <td class="mono-cell gold">14,210</td>
+                <td class="mono-cell gold">3,785</td>
                 <td class="mono-cell">98.8%</td>
                 <td class="mono-cell">580 ms</td>
-                <td class="mono-cell">JSON-LD / Scrapy</td>
-              </tr>
-              
-              <tr>
-                <td class="portal-name">
-                  <span class="portal-indicator"></span>
-                  NigeriaPropertyCentre.ng
-                </td>
-                <td><span class="rate-badge">OPERATIONAL</span></td>
-                <td class="mono-cell gold">10,988</td>
-                <td class="mono-cell">99.1%</td>
-                <td class="mono-cell">390 ms</td>
-                <td class="mono-cell">Paginated HTML</td>
+                <td class="mono-cell">HTML / BeautifulSoup</td>
               </tr>
               
             </tbody>

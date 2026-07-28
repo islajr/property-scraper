@@ -1,40 +1,51 @@
 {
   "site_title": "PS-0 PropertyScraper Telemetry Dashboard",
-  "last_updated": "2026-07-28 12:59:01 UTC",
+  "last_updated": "2026-07-28 13:16:42 UTC",
   "system_status": "OPERATIONAL",
   "system_status_class": "operational",
-  "total_ingested": 43648,
-  "active_listings": 12131,
-  "cities_count": 8,
-  "neighbourhoods_count": 197,
+  "total_ingested": 14218,
+  "active_listings": 12330,
+  "cities_count": 10,
+  "neighbourhoods_count": 468,
   "dedup_rate": "14.2",
   "anomalies_filtered": 42,
-  "sparkline_ingested": "<svg class=\"sparkline\" width=\"140\" height=\"36\" viewBox=\"0 0 140 36\"><polyline fill=\"none\" stroke=\"var(--gold-light)\" stroke-width=\"2\" stroke-linejoin=\"round\" stroke-linecap=\"round\" points=\"4.0,32.0 26.0,27.1 48.0,21.2 70.0,16.6 92.0,12.0 114.0,7.6 136.0,4.0\" /></svg>",
-  "sparkline_active": "<svg class=\"sparkline\" width=\"140\" height=\"36\" viewBox=\"0 0 140 36\"><polyline fill=\"none\" stroke=\"var(--gold-light)\" stroke-width=\"2\" stroke-linejoin=\"round\" stroke-linecap=\"round\" points=\"4.0,32.0 26.0,26.0 48.0,20.0 70.0,14.8 92.0,10.5 114.0,6.6 136.0,4.0\" /></svg>",
+  "sparkline_ingested": "<svg class=\"sparkline\" width=\"140\" height=\"36\" viewBox=\"0 0 140 36\"><polyline fill=\"none\" stroke=\"var(--gold-light)\" stroke-width=\"2\" stroke-linejoin=\"round\" stroke-linecap=\"round\" points=\"4.0,32.0 26.0,26.4 48.0,20.9 70.0,14.4 92.0,8.8 114.0,6.0 136.0,4.0\" /></svg>",
+  "sparkline_active": "<svg class=\"sparkline\" width=\"140\" height=\"36\" viewBox=\"0 0 140 36\"><polyline fill=\"none\" stroke=\"var(--gold-light)\" stroke-width=\"2\" stroke-linejoin=\"round\" stroke-linecap=\"round\" points=\"4.0,32.0 26.0,26.5 48.0,19.8 70.0,14.3 92.0,8.8 114.0,6.5 136.0,4.0\" /></svg>",
+  "last_run": {
+    "mode": "HEALTH CHECK",
+    "timestamp": "2026-07-28 06:28:12 UTC",
+    "duration": "7m 32s",
+    "status": "SUCCESS",
+    "checked": 1000,
+    "active_confirmed": 961,
+    "removed": 39,
+    "price_changes": 16,
+    "errors": 0
+  },
   "portals": [
+    {
+      "name": "NigeriaPropertyCentre.ng",
+      "status": "OPERATIONAL",
+      "last_harvest_count": 6484,
+      "http_success_rate": 99.4,
+      "avg_latency_ms": 390,
+      "extractor_type": "HTML / BeautifulSoup"
+    },
     {
       "name": "PropertyPro.ng",
       "status": "OPERATIONAL",
-      "last_harvest_count": 18450,
-      "http_success_rate": 99.4,
+      "last_harvest_count": 3949,
+      "http_success_rate": 99.1,
       "avg_latency_ms": 420,
       "extractor_type": "HTML / BeautifulSoup"
     },
     {
       "name": "PrivateProperty.ng",
       "status": "OPERATIONAL",
-      "last_harvest_count": 14210,
+      "last_harvest_count": 3785,
       "http_success_rate": 98.8,
       "avg_latency_ms": 580,
-      "extractor_type": "JSON-LD / Scrapy"
-    },
-    {
-      "name": "NigeriaPropertyCentre.ng",
-      "status": "OPERATIONAL",
-      "last_harvest_count": 10988,
-      "http_success_rate": 99.1,
-      "avg_latency_ms": 390,
-      "extractor_type": "Paginated HTML"
+      "extractor_type": "HTML / BeautifulSoup"
     }
   ]
 }
