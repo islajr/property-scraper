@@ -104,6 +104,12 @@
         <span class="hamburger-bar bar-mid"></span>
         <span class="hamburger-bar bar-bot"></span>
       </button>
+      <ul class="nav-links" id="nav-links">
+        <li><a href="#overview">Overview</a></li>
+        <li><a href="#run-telemetry">Run Telemetry</a></li>
+        <li><a href="#portals">Portal Health</a></li>
+        <li><a href="#hygiene">Data Hygiene</a></li>
+      </ul>
     </div>
   </header>
 
@@ -141,8 +147,8 @@
 
           <div class="hero-quicklinks">
             <a href="#overview">[ Overview ]</a>
+            <a href="#run-telemetry">[ Run Logs ]</a>
             <a href="#portals">[ Portal Matrix ]</a>
-            <a href="#schema">[ JSON Schema ]</a>
             <a href="#hygiene">[ Data Hygiene ]</a>
           </div>
         </div>
@@ -154,45 +160,70 @@
       </div>
     </section>
 
-    <!-- Latest Pipeline Run Telemetry -->
+    <!-- Pipeline Execution Telemetry: Both Discovery Run & Health Check Run -->
     <section class="run-section" id="run-telemetry">
       <div class="container">
-        <div class="section-label">Pipeline Execution Log</div>
-        <h2 class="section-title">Latest Run Telemetry</h2>
+        <div class="section-label">Pipeline Execution Logs</div>
+        <h2 class="section-title">Latest Run Telemetry by Mode</h2>
 
-        <div class="run-card">
-          <div class="run-header">
-            <div class="run-title-group">
-              <span class="run-mode-tag">{{ telemetry.last_run.mode }} RUN</span>
-              <span class="run-status-badge {{ telemetry.last_run.status | lower }}">{{ telemetry.last_run.status }}</span>
+        <div class="runs-grid">
+          <!-- 1. Discovery Run Card -->
+          <div class="run-card discovery" id="card-discovery-run">
+            <div class="run-header">
+              <div class="run-title-group">
+                <span class="run-mode-tag">DISCOVERY RUN</span>
+                <span class="run-status-badge {{ telemetry.discovery_run.status | lower }}">{{ telemetry.discovery_run.status }}</span>
+              </div>
+              <div class="run-timestamp"><strong class="mono-cell gold">{{ telemetry.discovery_run.timestamp }}</strong></div>
             </div>
-            <div class="run-timestamp">Executed: <strong class="mono-cell gold">{{ telemetry.last_run.timestamp }}</strong></div>
+
+            <div class="run-stats-grid">
+              <div class="run-stat-item">
+                <div class="run-stat-label">Total Ingested</div>
+                <div class="run-stat-val gold">{{ "{:,}".format(telemetry.discovery_run.total_scraped) }}</div>
+              </div>
+              <div class="run-stat-item">
+                <div class="run-stat-label">New Discovered</div>
+                <div class="run-stat-val green">+{{ "{:,}".format(telemetry.discovery_run.new_listings) }}</div>
+              </div>
+              <div class="run-stat-item">
+                <div class="run-stat-label">Updated</div>
+                <div class="run-stat-val">{{ "{:,}".format(telemetry.discovery_run.updated_listings) }}</div>
+              </div>
+              <div class="run-stat-item">
+                <div class="run-stat-label">Duration</div>
+                <div class="run-stat-val">{{ telemetry.discovery_run.duration }}</div>
+              </div>
+            </div>
           </div>
 
-          <div class="run-stats-grid">
-            <div class="run-stat-item">
-              <div class="run-stat-label">Candidates Checked</div>
-              <div class="run-stat-val">{{ "{:,}".format(telemetry.last_run.checked) }}</div>
+          <!-- 2. Health Check Run Card -->
+          <div class="run-card health-check" id="card-health-check-run">
+            <div class="run-header">
+              <div class="run-title-group">
+                <span class="run-mode-tag" style="background: rgba(74, 222, 128, 0.08); border-color: rgba(74, 222, 128, 0.3); color: var(--live);">HEALTH CHECK RUN</span>
+                <span class="run-status-badge {{ telemetry.health_check_run.status | lower }}">{{ telemetry.health_check_run.status }}</span>
+              </div>
+              <div class="run-timestamp"><strong class="mono-cell gold">{{ telemetry.health_check_run.timestamp }}</strong></div>
             </div>
-            <div class="run-stat-item">
-              <div class="run-stat-label">Active Verified</div>
-              <div class="run-stat-val green">{{ "{:,}".format(telemetry.last_run.active_confirmed) }}</div>
-            </div>
-            <div class="run-stat-item">
-              <div class="run-stat-label">Listings Removed</div>
-              <div class="run-stat-val amber">{{ "{:,}".format(telemetry.last_run.removed) }}</div>
-            </div>
-            <div class="run-stat-item">
-              <div class="run-stat-label">Price Changes</div>
-              <div class="run-stat-val gold">{{ "{:,}".format(telemetry.last_run.price_changes) }}</div>
-            </div>
-            <div class="run-stat-item">
-              <div class="run-stat-label">Duration</div>
-              <div class="run-stat-val">{{ telemetry.last_run.duration }}</div>
-            </div>
-            <div class="run-stat-item">
-              <div class="run-stat-label">HTTP Errors</div>
-              <div class="run-stat-val">{{ telemetry.last_run.errors }}</div>
+
+            <div class="run-stats-grid">
+              <div class="run-stat-item">
+                <div class="run-stat-label">Checked</div>
+                <div class="run-stat-val">{{ "{:,}".format(telemetry.health_check_run.checked) }}</div>
+              </div>
+              <div class="run-stat-item">
+                <div class="run-stat-label">Active Verified</div>
+                <div class="run-stat-val green">{{ "{:,}".format(telemetry.health_check_run.active_confirmed) }}</div>
+              </div>
+              <div class="run-stat-item">
+                <div class="run-stat-label">Removed</div>
+                <div class="run-stat-val amber">{{ "{:,}".format(telemetry.health_check_run.removed) }}</div>
+              </div>
+              <div class="run-stat-item">
+                <div class="run-stat-label">Price Changes</div>
+                <div class="run-stat-val gold">{{ "{:,}".format(telemetry.health_check_run.price_changes) }}</div>
+              </div>
             </div>
           </div>
         </div>
@@ -267,56 +298,6 @@
               {% endfor %}
             </tbody>
           </table>
-        </div>
-      </div>
-    </section>
-
-    <!-- Data Transformation & Sanitization Showcase (Raw vs Clean JSON) -->
-    <section class="showcase-section" id="schema">
-      <div class="container">
-        <div class="section-label">Normalization Engine</div>
-        <h2 class="section-title">Raw Extraction vs Clean PS-0 Schema</h2>
-
-        <div class="code-grid">
-          <!-- Raw Unstructured Sample -->
-          <div class="code-box" id="raw-json-box">
-            <div class="code-header">
-              <div class="code-title">
-                <span>Raw Unstructured Ingestion Payload</span>
-              </div>
-              <span class="code-badge">RAW HTML/BS4</span>
-            </div>
-            <pre class="code-content"><code>{
-  <span class="json-key">"raw_title"</span>: <span class="json-str">"Luxury 4 Bed Fully Detached Duplex in Lekki Phase 1!!!"</span>,
-  <span class="json-key">"price_text"</span>: <span class="json-str">"₦250,000,000 / year"</span>,
-  <span class="json-key">"loc_string"</span>: <span class="json-str">"Off Admiralty Way, Lekki Phase 1, Lagos State"</span>,
-  <span class="json-key">"bed_str"</span>: <span class="json-str">"4 Bedrooms / 5 Baths"</span>,
-  <span class="json-key">"portal_url"</span>: <span class="json-str">"https://example-portal.ng/property/view/892019"</span>,
-  <span class="json-key">"scraped_timestamp"</span>: <span class="json-str">"2026-07-28 11:20:41 UTC"</span>
-}</code></pre>
-          </div>
-
-          <!-- Normalized Clean PS-0 Schema Sample -->
-          <div class="code-box" id="clean-json-box">
-            <div class="code-header">
-              <div class="code-title">
-                <span>Sanitized & Geocoded PS-0 Entity</span>
-              </div>
-              <span class="code-badge clean">PS-0 NORMALIZED</span>
-            </div>
-            <pre class="code-content"><code>{
-  <span class="json-key">"dedup_hash"</span>: <span class="json-str">"a8f9c42b10e5d930811e74a8"</span>,
-  <span class="json-key">"title_clean"</span>: <span class="json-str">"4 Bedroom Fully Detached Duplex"</span>,
-  <span class="json-key">"price_ngn"</span>: <span class="json-num">250000000</span>,
-  <span class="json-key">"bedrooms"</span>: <span class="json-num">4</span>,
-  <span class="json-key">"bathrooms"</span>: <span class="json-num">5</span>,
-  <span class="json-key">"normalized_location"</span>: <span class="json-str">"Lekki Phase 1"</span>,
-  <span class="json-key">"city"</span>: <span class="json-str">"Lagos"</span>,
-  <span class="json-key">"latitude"</span>: <span class="json-num">6.4474</span>,
-  <span class="json-key">"longitude"</span>: <span class="json-num">3.4723</span>,
-  <span class="json-key">"is_active"</span>: <span class="json-bool">true</span>
-}</code></pre>
-          </div>
         </div>
       </div>
     </section>

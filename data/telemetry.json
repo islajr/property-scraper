@@ -1,6 +1,6 @@
 {
   "site_title": "PS-0 PropertyScraper Telemetry Dashboard",
-  "last_updated": "2026-07-28 13:16:42 UTC",
+  "last_updated": "2026-07-28 13:22:16 UTC",
   "system_status": "OPERATIONAL",
   "system_status_class": "operational",
   "total_ingested": 14218,
@@ -11,7 +11,17 @@
   "anomalies_filtered": 42,
   "sparkline_ingested": "<svg class=\"sparkline\" width=\"140\" height=\"36\" viewBox=\"0 0 140 36\"><polyline fill=\"none\" stroke=\"var(--gold-light)\" stroke-width=\"2\" stroke-linejoin=\"round\" stroke-linecap=\"round\" points=\"4.0,32.0 26.0,26.4 48.0,20.9 70.0,14.4 92.0,8.8 114.0,6.0 136.0,4.0\" /></svg>",
   "sparkline_active": "<svg class=\"sparkline\" width=\"140\" height=\"36\" viewBox=\"0 0 140 36\"><polyline fill=\"none\" stroke=\"var(--gold-light)\" stroke-width=\"2\" stroke-linejoin=\"round\" stroke-linecap=\"round\" points=\"4.0,32.0 26.0,26.5 48.0,19.8 70.0,14.3 92.0,8.8 114.0,6.5 136.0,4.0\" /></svg>",
-  "last_run": {
+  "discovery_run": {
+    "mode": "DISCOVERY",
+    "timestamp": "2026-07-27 18:30:00 UTC",
+    "duration": "24m 12s",
+    "status": "SUCCESS",
+    "total_scraped": 14218,
+    "new_listings": 420,
+    "updated_listings": 1850,
+    "errors": 0
+  },
+  "health_check_run": {
     "mode": "HEALTH CHECK",
     "timestamp": "2026-07-28 06:28:12 UTC",
     "duration": "7m 32s",

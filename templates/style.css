@@ -293,17 +293,36 @@ a:hover {
   background: radial-gradient(circle at 50% 0%, rgba(201, 168, 76, 0.05) 0%, rgba(0,0,0,0) 75%);
 }
 
-/* Latest Run Telemetry Card */
+/* Latest Run Telemetry Cards (Pure Black Interior with Gold Trim) */
 .run-section {
   padding: 2.5rem 0;
   border-bottom: 1px solid var(--border);
 }
 
+.runs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  gap: 1.5rem;
+}
+
 .run-card {
-  background: var(--surface);
+  background: #000000; /* Pure black interior background per user request */
   border: 1px solid var(--border);
   border-radius: 4px;
   padding: 1.5rem;
+  transition: border-color 0.15s ease;
+}
+
+.run-card:hover {
+  border-color: var(--gold-border);
+}
+
+.run-card.discovery {
+  border-left: 3px solid var(--gold);
+}
+
+.run-card.health-check {
+  border-left: 3px solid var(--live);
 }
 
 .run-header {
@@ -311,8 +330,8 @@ a:hover {
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 1rem;
-  padding-bottom: 1.25rem;
+  gap: 0.75rem;
+  padding-bottom: 1rem;
   border-bottom: 1px solid var(--border);
   margin-bottom: 1.25rem;
 }
@@ -320,23 +339,25 @@ a:hover {
 .run-title-group {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.65rem;
 }
 
 .run-mode-tag {
   font-family: var(--font-mono);
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   font-weight: 700;
   background: var(--gold-tint);
   border: 1px solid var(--gold-border);
   color: var(--gold-light);
   padding: 0.25rem 0.65rem;
   border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .run-status-badge {
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 600;
   padding: 0.2rem 0.55rem;
   border-radius: 3px;
@@ -347,26 +368,26 @@ a:hover {
 
 .run-timestamp {
   font-family: var(--font-mono);
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   color: var(--text-muted);
 }
 
 .run-stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 0.75rem;
 }
 
 .run-stat-item {
-  background: var(--surface-2);
+  background: #090909; /* Deep black sub-container fill */
   border: 1px solid var(--border);
-  padding: 1rem;
+  padding: 0.85rem 0.75rem;
   border-radius: 3px;
 }
 
 .run-stat-label {
   font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-size: 0.6875rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-muted);
@@ -375,7 +396,7 @@ a:hover {
 
 .run-stat-val {
   font-family: var(--font-mono);
-  font-size: 1.5rem;
+  font-size: 1.35rem;
   font-weight: 700;
   color: var(--text);
 }
