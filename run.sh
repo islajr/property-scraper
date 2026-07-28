@@ -160,7 +160,7 @@ if [[ $SCRAPER_EXIT -eq 0 ]]; then
 
     if [[ "${DEPLOY_DASHBOARD:-false}" == "true" ]] || [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]]; then
         info "Deploying ps0.akinmokun.com to Cloudflare Pages..."
-        npx --yes wrangler pages deploy web --project-name=ps0-property-scraper || warn "Cloudflare deployment skipped or failed."
+        npx --yes wrangler pages deploy web --project-name=property-scraper || warn "Cloudflare deployment skipped or failed."
     fi
 else
     error "Scraper exited with code $SCRAPER_EXIT after $(( DURATION/60 ))m $(( DURATION%60 ))s."
