@@ -915,6 +915,39 @@ a:hover {
     flex-direction: column;
     align-items: flex-start;
   }
+
+  /* Enhanced Mobile UX for Pipeline Execution Run Logs */
+  .runs-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  .run-card {
+    padding: 1.15rem;
+  }
+  .run-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding-bottom: 0.75rem;
+    margin-bottom: 1rem;
+  }
+  .run-title-group {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .run-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.65rem;
+  }
+  .run-stat-item {
+    padding: 0.75rem 0.65rem;
+  }
+  .run-stat-val {
+    font-size: 1.25rem;
+  }
+  .run-stat-label {
+    font-size: 0.625rem;
+  }
 }
 
   </style>
@@ -968,12 +1001,6 @@ a:hover {
       <a href="https://reports.akinmokun.com/" target="_blank" class="mobile-drawer-link"><span>Reports</span> <span>↗</span></a>
       <a href="https://ps0.akinmokun.com" class="mobile-drawer-link" style="color: var(--gold-light);"><span>PS-0 Telemetry</span> <span>✦</span></a>
       <a href="https://akinmokun.com/credentials" class="mobile-drawer-link"><span>Credentials</span> <span>→</span></a>
-
-      <div class="mobile-drawer-section-title">In-Page Telemetry Jumps</div>
-      <a href="#overview" class="mobile-drawer-link"><span>[ Overview ]</span> <span>↓</span></a>
-      <a href="#run-telemetry" class="mobile-drawer-link"><span>[ Run Logs ]</span> <span>↓</span></a>
-      <a href="#portals" class="mobile-drawer-link"><span>[ Portal Matrix ]</span> <span>↓</span></a>
-      <a href="#hygiene" class="mobile-drawer-link"><span>[ Data Hygiene ]</span> <span>↓</span></a>
 
       <div class="mobile-drawer-footer">
         akinmokun.com • Sovereign Polymath Protocol
