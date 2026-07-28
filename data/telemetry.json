@@ -1,6 +1,6 @@
 {
   "site_title": "PS-0 PropertyScraper Telemetry Dashboard",
-  "last_updated": "2026-07-28 13:34:47 UTC",
+  "last_updated": "2026-07-28 13:43:40 UTC",
   "system_status": "OPERATIONAL",
   "system_status_class": "operational",
   "total_ingested": 14218,
@@ -13,12 +13,12 @@
   "sparkline_active": "<svg class=\"sparkline\" width=\"140\" height=\"36\" viewBox=\"0 0 140 36\"><polyline fill=\"none\" stroke=\"var(--gold-light)\" stroke-width=\"2\" stroke-linejoin=\"round\" stroke-linecap=\"round\" points=\"4.0,32.0 26.0,26.5 48.0,19.8 70.0,14.3 92.0,8.8 114.0,6.5 136.0,4.0\" /></svg>",
   "discovery_run": {
     "mode": "DISCOVERY",
-    "timestamp": "2026-07-27 18:30:00 UTC",
-    "duration": "24m 12s",
+    "timestamp": "2026-07-26 08:14:52 UTC",
+    "duration": "9m 12s",
     "status": "SUCCESS",
     "total_scraped": 14218,
-    "new_listings": 420,
-    "updated_listings": 1850,
+    "new_listings": 88,
+    "updated_listings": 0,
     "errors": 0
   },
   "health_check_run": {

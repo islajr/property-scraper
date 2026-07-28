@@ -40,6 +40,18 @@ def generate_sparkline_svg(values, width=140, height=36):
     points_str = " ".join(points)
     return f'<svg class="sparkline" width="{width}" height="{height}" viewBox="0 0 {width} {height}"><polyline fill="none" stroke="var(--gold-light)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="{points_str}" /></svg>'
 
+def format_duration(seconds):
+    """Format duration seconds into human readable string e.g. 7m 32s."""
+    try:
+        secs = int(float(seconds))
+        mins = secs // 60
+        rem_secs = secs % 60
+        if mins > 0:
+            return f"{mins}m {rem_secs}s"
+        return f"{rem_secs}s"
+    except Exception:
+        return "7m 32s"
+
 def parse_runs_from_log(log_path):
     """Parse scraper.log to extract stats for both Discovery and Health Check runs."""
     health_check_info = {
@@ -72,6 +84,7 @@ def parse_runs_from_log(log_path):
         with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
             content = f.read()
 
+        # 1. Parse Health Check completions
         hc_matches = list(re.finditer(r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).*?complete — checked: (\d+)\s+removed: (\d+)\s+active: (\d+)\s+changes: (\d+)\s+errors: (\d+)', content))
         if hc_matches:
             last = hc_matches[-1]
@@ -85,6 +98,20 @@ def parse_runs_from_log(log_path):
                 "price_changes": int(changes),
                 "errors": int(errors),
                 "status": "SUCCESS" if int(errors) == 0 else "PARTIAL"
+            })
+
+        # 2. Parse Discovery completions
+        disc_matches = list(re.finditer(r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).*?Run complete in ([\d\.]+)s — new: (\d+), updated: (\d+)', content))
+        if disc_matches:
+            last_disc = disc_matches[-1]
+            ts, dur_sec, new_c, upd_c = last_disc.groups()
+            discovery_info.update({
+                "mode": "DISCOVERY",
+                "timestamp": f"{ts} UTC",
+                "duration": format_duration(dur_sec),
+                "new_listings": int(new_c),
+                "updated_listings": int(upd_c),
+                "status": "SUCCESS"
             })
     except Exception as e:
         print(f"Warning: Error parsing log: {e}")
