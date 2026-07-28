@@ -125,13 +125,36 @@ a:hover {
   color: var(--live);
 }
 
+.status-badge.degraded {
+  background: rgba(234, 179, 8, 0.1);
+  border-color: rgba(234, 179, 8, 0.3);
+  color: #eab308;
+}
+
+.status-badge.maintenance {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+}
+
 .status-dot {
   width: 7px;
   height: 7px;
-  background-color: var(--live);
+  background-color: currentColor;
   border-radius: 50%;
-  box-shadow: 0 0 8px var(--live);
+  box-shadow: 0 0 8px currentColor;
   animation: pulse-dot 2s infinite ease-in-out;
+}
+
+.sparkline-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sparkline {
+  display: inline-block;
+  vertical-align: middle;
 }
 
 @keyframes pulse-dot {

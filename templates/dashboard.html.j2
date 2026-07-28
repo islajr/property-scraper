@@ -7,6 +7,22 @@
   <meta name="description" content="Public Data Engineering Telemetry & Pipeline Health Dashboard for PS-0 PropertyScraper. Live multi-portal ingestion metrics, data hygiene, and deduplication statistics.">
   <meta name="robots" content="index, follow">
   
+  <!-- Schema.org JSON-LD Dataset Markup -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org/",
+    "@type": "Dataset",
+    "name": "PS-0 PropertyScraper Telemetry & Pipeline Health Dataset",
+    "description": "Public Data Engineering Telemetry & Pipeline Health Dashboard showcasing multi-portal harvesting, spatial coverage, and listing deduplication stats.",
+    "url": "https://ps0.akinmokun.com",
+    "provider": {
+      "@type": "Organization",
+      "name": "akinmokun.com",
+      "url": "https://akinmokun.com"
+    }
+  }
+  </script>
+
   <!-- CSS Stylesheet -->
   <style>
     {{ style_css | safe }}
@@ -21,9 +37,9 @@
         akinmokun.com <span>PS-0</span>
       </a>
       
-      <div class="status-badge" id="status-indicator">
+      <div class="status-badge {{ telemetry.system_status_class | default('operational') }}" id="status-indicator">
         <span class="status-dot"></span>
-        <span>OPERATIONAL</span>
+        <span>{{ telemetry.system_status | default('OPERATIONAL') }}</span>
       </div>
 
       <ul class="nav-links" id="nav-links">
@@ -59,13 +75,19 @@
         
         <div class="metrics-grid">
           <div class="metric-card" id="card-total-ingested">
-            <div class="metric-label">Total Records Ingested</div>
+            <div class="sparkline-header">
+              <div class="metric-label">Total Records Ingested</div>
+              {{ telemetry.sparkline_ingested | safe }}
+            </div>
             <div class="metric-value">{{ "{:,}".format(telemetry.total_ingested) }}</div>
             <div class="metric-sub">Multi-portal cumulative scraped raw listings</div>
           </div>
 
           <div class="metric-card" id="card-active-listings">
-            <div class="metric-label">Active Unique Listings</div>
+            <div class="sparkline-header">
+              <div class="metric-label">Active Unique Listings</div>
+              {{ telemetry.sparkline_active | safe }}
+            </div>
             <div class="metric-value">{{ "{:,}".format(telemetry.active_listings) }}</div>
             <div class="metric-sub">Verified active & deduplicated property listings</div>
           </div>
