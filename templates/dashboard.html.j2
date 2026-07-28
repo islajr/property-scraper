@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ telemetry.site_title | default('PS-0 PropertyScraper Telemetry Dashboard') }}</title>
+  <meta name="description" content="Public Data Engineering Telemetry & Pipeline Health Dashboard for PS-0 PropertyScraper. Live multi-portal ingestion metrics, data hygiene, and deduplication statistics.">
+  <meta name="robots" content="index, follow">
+  
+  <!-- CSS Stylesheet -->
+  <style>
+    {{ style_css | safe }}
+  </style>
+</head>
+<body>
+
+  <!-- Sticky Navbar -->
+  <header class="site-header" id="header">
+    <div class="container navbar">
+      <a href="https://akinmokun.com" class="nav-brand" id="brand-link">
+        akinmokun.com <span>PS-0</span>
+      </a>
+      
+      <div class="status-badge" id="status-indicator">
+        <span class="status-dot"></span>
+        <span>OPERATIONAL</span>
+      </div>
+
+      <ul class="nav-links" id="nav-links">
+        <li><a href="#overview">Overview</a></li>
+        <li><a href="#portals">Portal Health</a></li>
+        <li><a href="#schema">Schema & Transformation</a></li>
+        <li><a href="#hygiene">Data Hygiene</a></li>
+      </ul>
+    </div>
+  </header>
+
+  <main>
+    <!-- Hero Section -->
+    <section class="hero" id="overview">
+      <div class="container">
+        <div class="hero-meta">
+          <span class="tag">Pipeline Telemetry</span>
+          <span>•</span>
+          <span>Last Updated: <strong class="mono-cell gold">{{ telemetry.last_updated }}</strong></span>
+        </div>
+        <h1 class="hero-title" id="main-title">PS-0 PropertyScraper</h1>
+        <p class="hero-subtitle">
+          Autonomous multi-portal data engineering pipeline harvesting, normalizing, geocoding, and deduplicating Nigerian real estate listing telemetry in real-time.
+        </p>
+      </div>
+    </section>
+
+    <!-- Big Monospace Telemetry Counters -->
+    <section class="metrics-section">
+      <div class="container">
+        <div class="section-label">Real-Time Ingestion</div>
+        <h2 class="section-title">Pipeline Volumes & Coverage</h2>
+        
+        <div class="metrics-grid">
+          <div class="metric-card" id="card-total-ingested">
+            <div class="metric-label">Total Records Ingested</div>
+            <div class="metric-value">{{ "{:,}".format(telemetry.total_ingested) }}</div>
+            <div class="metric-sub">Multi-portal cumulative scraped raw listings</div>
+          </div>
+
+          <div class="metric-card" id="card-active-listings">
+            <div class="metric-label">Active Unique Listings</div>
+            <div class="metric-value">{{ "{:,}".format(telemetry.active_listings) }}</div>
+            <div class="metric-sub">Verified active & deduplicated property listings</div>
+          </div>
+
+          <div class="metric-card" id="card-spatial-coverage">
+            <div class="metric-label">Spatial Coverage</div>
+            <div class="metric-value">{{ telemetry.cities_count }} <span style="font-size: 1.5rem; color: var(--text-dim);">Cities</span></div>
+            <div class="metric-sub">{{ telemetry.neighbourhoods_count }} distinct geocoded neighbourhoods</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Source Portal Health Matrix -->
+    <section class="matrix-section" id="portals">
+      <div class="container">
+        <div class="section-label">Source System Telemetry</div>
+        <h2 class="section-title">Portal Ingestion Health Matrix</h2>
+
+        <div class="table-wrapper">
+          <table class="health-table" id="portal-health-table">
+            <thead>
+              <tr>
+                <th>Portal Target</th>
+                <th>Harvest Status</th>
+                <th>Last Run Listings</th>
+                <th>HTTP Success %</th>
+                <th>Avg Latency</th>
+                <th>Extractor Type</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for portal in telemetry.portals %}
+              <tr>
+                <td class="portal-name">
+                  <span class="portal-indicator"></span>
+                  {{ portal.name }}
+                </td>
+                <td><span class="rate-badge">{{ portal.status }}</span></td>
+                <td class="mono-cell gold">{{ "{:,}".format(portal.last_harvest_count) }}</td>
+                <td class="mono-cell">{{ portal.http_success_rate }}%</td>
+                <td class="mono-cell">{{ portal.avg_latency_ms }} ms</td>
+                <td class="mono-cell">{{ portal.extractor_type }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Data Transformation & Sanitization Showcase (Raw vs Clean JSON) -->
+    <section class="showcase-section" id="schema">
+      <div class="container">
+        <div class="section-label">Normalization Engine</div>
+        <h2 class="section-title">Raw Extraction vs Clean PS-0 Schema</h2>
+
+        <div class="code-grid">
+          <!-- Raw Unstructured Sample -->
+          <div class="code-box" id="raw-json-box">
+            <div class="code-header">
+              <div class="code-title">
+                <span>Raw Unstructured Ingestion Payload</span>
+              </div>
+              <span class="code-badge">RAW HTML/JSON</span>
+            </div>
+            <pre class="code-content"><code>{
+  <span class="json-key">"raw_title"</span>: <span class="json-str">"Luxury 4 Bed Fully Detached Duplex in Lekki Phase 1!!!"</span>,
+  <span class="json-key">"price_text"</span>: <span class="json-str">"₦250,000,000 / year"</span>,
+  <span class="json-key">"loc_string"</span>: <span class="json-str">"Off Admiralty Way, Lekki Phase 1, Lagos State"</span>,
+  <span class="json-key">"bed_str"</span>: <span class="json-str">"4 Bedrooms / 5 Baths"</span>,
+  <span class="json-key">"portal_url"</span>: <span class="json-str">"https://example-portal.ng/property/view/892019"</span>,
+  <span class="json-key">"scraped_timestamp"</span>: <span class="json-str">"2026-07-28 11:20:41 UTC"</span>
+}</code></pre>
+          </div>
+
+          <!-- Normalized Clean PS-0 Schema Sample -->
+          <div class="code-box" id="clean-json-box">
+            <div class="code-header">
+              <div class="code-title">
+                <span>Sanitized & Geocoded PS-0 Entity</span>
+              </div>
+              <span class="code-badge clean">PS-0 NORMALIZED</span>
+            </div>
+            <pre class="code-content"><code>{
+  <span class="json-key">"dedup_hash"</span>: <span class="json-str">"a8f9c42b10e5d930811e74a8"</span>,
+  <span class="json-key">"title_clean"</span>: <span class="json-str">"4 Bedroom Fully Detached Duplex"</span>,
+  <span class="json-key">"price_ngn"</span>: <span class="json-num">250000000</span>,
+  <span class="json-key">"bedrooms"</span>: <span class="json-num">4</span>,
+  <span class="json-key">"bathrooms"</span>: <span class="json-num">5</span>,
+  <span class="json-key">"normalized_location"</span>: <span class="json-str">"Lekki Phase 1"</span>,
+  <span class="json-key">"city"</span>: <span class="json-str">"Lagos"</span>,
+  <span class="json-key">"latitude"</span>: <span class="json-num">6.4474</span>,
+  <span class="json-key">"longitude"</span>: <span class="json-num">3.4723</span>,
+  <span class="json-key">"is_active"</span>: <span class="json-bool">true</span>
+}</code></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Deduplication & Data Hygiene Guardrails -->
+    <section class="guardrails-section" id="hygiene">
+      <div class="container">
+        <div class="section-label">Pipeline Resilience</div>
+        <h2 class="section-title">Data Hygiene & Quality Guardrails</h2>
+
+        <div class="guardrails-grid">
+          <div class="guardrail-card" id="card-dedup">
+            <h3 class="guardrail-title">
+              <span class="guardrail-icon">✦</span> Cross-Portal Deduplication
+            </h3>
+            <p class="guardrail-desc">
+              Multi-tiered hashing on normalized title, neighbourhood, price cohort, and spatial coordinates. Merges cross-posted listings with <strong style="color: var(--gold-light);">{{ telemetry.dedup_rate }}% duplicate merge rate</strong> across targets.
+            </p>
+          </div>
+
+          <div class="guardrail-card" id="card-anomalies">
+            <h3 class="guardrail-title">
+              <span class="guardrail-icon">✦</span> Outlier & Anomaly Detection
+            </h3>
+            <p class="guardrail-desc">
+              Automatic Z-score price filtering isolates extreme input errors (e.g. typos, zero-price listings). Filtered <strong style="color: var(--gold-light);">{{ telemetry.anomalies_filtered }} price anomalies</strong> this month.
+            </p>
+          </div>
+
+          <div class="guardrail-card" id="card-cooldown">
+            <h3 class="guardrail-title">
+              <span class="guardrail-icon">✦</span> Adaptive Health Check Cooldown
+            </h3>
+            <p class="guardrail-desc">
+              Listing health check frequencies scale dynamically with listing age (2-day, 7-day, and 14-day intervals) driven by partial B-tree index queues and Overdue Ratio prioritization.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <div class="footer-brand">
+        PS-0 Telemetry Dashboard • <a href="https://akinmokun.com" target="_blank">akinmokun.com</a>
+      </div>
+      <ul class="footer-links">
+        <li><a href="https://reports.akinmokun.com">Reports</a></li>
+        <li><a href="https://propertyintel.akinmokun.com">PropertyIntel</a></li>
+        <li><a href="https://ps0.akinmokun.com">PS-0 Subdomain</a></li>
+      </ul>
+    </div>
+  </footer>
+
+</body>
+</html>
