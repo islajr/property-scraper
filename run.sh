@@ -89,6 +89,7 @@ info "Virtualenv active: $(python3 --version)"
 # ── Preview Mode Fast Path ───────────────────────────────────────────────────
 if [[ "$IS_PREVIEW" == "true" ]]; then
     info "Mode: PREVIEW — Compiling static dashboard and starting local HTTP server..."
+    python3 -c "import jinja2" 2>/dev/null || { info "Installing jinja2 in virtualenv..."; pip install --quiet jinja2; }
     python3 scripts/render_dashboard.py --force
     echo ""
     echo -e "${GREEN}===================================================================${NC}"

@@ -11,7 +11,13 @@ import os
 import sys
 import hashlib
 from datetime import datetime, timezone
-import jinja2
+try:
+    import jinja2
+except ImportError:
+    import subprocess
+    print("⚠️ jinja2 package not found. Auto-installing jinja2...")
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "--quiet", "jinja2"])
+    import jinja2
 
 from generate_telemetry import generate_telemetry
 
