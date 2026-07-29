@@ -404,6 +404,16 @@ def run_health_checks(force_all: bool = False):
                 stats.get("errors", 0),
             )
 
+        # Trigger telemetry dashboard compilation & deploy
+        try:
+            log.info("[orchestrator] Re-rendering telemetry dashboard...")
+            root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            render_script = os.path.join(root_dir, "scripts", "render_dashboard.py")
+            if os.path.exists(render_script):
+                subprocess.run([sys.executable, render_script, "--force"], check=False)
+        except Exception as t_err:
+            log.warning("[orchestrator] Could not trigger dashboard update: %s", t_err)
+
     except Exception as exc:
         log.critical("Health check crashed: %s", exc, exc_info=True)
         try:

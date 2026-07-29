@@ -1,16 +1,16 @@
 {
   "site_title": "PS-0 PropertyScraper Telemetry Dashboard",
-  "last_updated": "2026-07-29 00:00:16 UTC",
+  "last_updated": "2026-07-29 15:00:08 UTC",
   "system_status": "OPERATIONAL",
   "system_status_class": "operational",
   "total_ingested": 17223,
-  "active_listings": 14654,
+  "active_listings": 14635,
   "cities_count": 10,
   "neighbourhoods_count": 307,
   "dedup_rate": "14.2",
   "anomalies_filtered": 42,
   "sparkline_ingested": "<svg class=\"sparkline\" width=\"140\" height=\"36\" viewBox=\"0 0 140 36\"><polyline fill=\"none\" stroke=\"var(--gold-light)\" stroke-width=\"2\" stroke-linejoin=\"round\" stroke-linecap=\"round\" points=\"4.0,32.0 26.0,26.7 48.0,20.0 70.0,14.7 92.0,10.2 114.0,6.4 136.0,4.0\" /></svg>",
-  "sparkline_active": "<svg class=\"sparkline\" width=\"140\" height=\"36\" viewBox=\"0 0 140 36\"><polyline fill=\"none\" stroke=\"var(--gold-light)\" stroke-width=\"2\" stroke-linejoin=\"round\" stroke-linecap=\"round\" points=\"4.0,32.0 26.0,26.1 48.0,19.2 70.0,13.4 92.0,9.4 114.0,6.5 136.0,4.0\" /></svg>",
+  "sparkline_active": "<svg class=\"sparkline\" width=\"140\" height=\"36\" viewBox=\"0 0 140 36\"><polyline fill=\"none\" stroke=\"var(--gold-light)\" stroke-width=\"2\" stroke-linejoin=\"round\" stroke-linecap=\"round\" points=\"4.0,32.0 26.0,26.1 48.0,19.2 70.0,13.2 92.0,9.3 114.0,6.3 136.0,4.0\" /></svg>",
   "discovery_run": {
     "mode": "DISCOVERY",
     "timestamp": "2026-07-26 08:14:52 UTC",
@@ -23,13 +23,13 @@
   },
   "health_check_run": {
     "mode": "HEALTH CHECK",
-    "timestamp": "2026-07-28 06:28:12 UTC",
-    "duration": "7m 32s",
+    "timestamp": "2026-07-29 09:56:45 UTC",
+    "duration": "54m 11s",
     "status": "SUCCESS",
     "checked": 1000,
-    "active_confirmed": 961,
-    "removed": 39,
-    "price_changes": 16,
+    "active_confirmed": 981,
+    "removed": 19,
+    "price_changes": 5,
     "errors": 0
   },
   "portals": [
