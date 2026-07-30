@@ -363,14 +363,6 @@ a:hover {
   border-color: var(--gold-border);
 }
 
-.run-card.discovery {
-  border-left: 3px solid var(--gold);
-}
-
-.run-card.health-check {
-  border-left: 3px solid var(--live);
-}
-
 .run-header {
   display: flex;
   align-items: center;
