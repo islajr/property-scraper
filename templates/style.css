@@ -632,6 +632,7 @@ a:hover {
   padding: 1.1rem 1.25rem;
   border-bottom: 1px solid var(--border);
   color: var(--text);
+  vertical-align: middle;
 }
 
 .health-table tr:last-child td {
@@ -645,10 +646,11 @@ a:hover {
 .portal-name {
   font-weight: 600;
   font-family: var(--font-mono);
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 0.5rem;
   font-size: 0.875rem;
+  vertical-align: middle;
 }
 
 .portal-indicator {
@@ -656,6 +658,7 @@ a:hover {
   height: 8px;
   border-radius: 50%;
   background-color: var(--live);
+  flex-shrink: 0;
 }
 
 .mono-cell {

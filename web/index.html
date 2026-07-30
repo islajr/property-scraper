@@ -705,6 +705,7 @@ a:hover {
   padding: 1.1rem 1.25rem;
   border-bottom: 1px solid var(--border);
   color: var(--text);
+  vertical-align: middle;
 }
 
 .health-table tr:last-child td {
@@ -718,10 +719,11 @@ a:hover {
 .portal-name {
   font-weight: 600;
   font-family: var(--font-mono);
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 0.5rem;
   font-size: 0.875rem;
+  vertical-align: middle;
 }
 
 .portal-indicator {
@@ -729,6 +731,7 @@ a:hover {
   height: 8px;
   border-radius: 50%;
   background-color: var(--live);
+  flex-shrink: 0;
 }
 
 .mono-cell {
@@ -1170,9 +1173,11 @@ a:hover {
             <tbody>
               
               <tr>
-                <td class="portal-name">
-                  <span class="portal-indicator"></span>
-                  NigeriaPropertyCentre.ng
+                <td class="portal-cell">
+                  <div class="portal-name">
+                    <span class="portal-indicator"></span>
+                    NigeriaPropertyCentre.ng
+                  </div>
                 </td>
                 <td><span class="rate-badge">OPERATIONAL</span></td>
                 <td class="mono-cell gold">6,484</td>
@@ -1182,9 +1187,11 @@ a:hover {
               </tr>
               
               <tr>
-                <td class="portal-name">
-                  <span class="portal-indicator"></span>
-                  PropertyPro.ng
+                <td class="portal-cell">
+                  <div class="portal-name">
+                    <span class="portal-indicator"></span>
+                    PropertyPro.ng
+                  </div>
                 </td>
                 <td><span class="rate-badge">OPERATIONAL</span></td>
                 <td class="mono-cell gold">3,949</td>
@@ -1194,9 +1201,11 @@ a:hover {
               </tr>
               
               <tr>
-                <td class="portal-name">
-                  <span class="portal-indicator"></span>
-                  PrivateProperty.ng
+                <td class="portal-cell">
+                  <div class="portal-name">
+                    <span class="portal-indicator"></span>
+                    PrivateProperty.ng
+                  </div>
                 </td>
                 <td><span class="rate-badge">OPERATIONAL</span></td>
                 <td class="mono-cell gold">3,785</td>

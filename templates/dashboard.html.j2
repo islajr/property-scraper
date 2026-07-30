@@ -288,9 +288,11 @@
             <tbody>
               {% for portal in telemetry.portals %}
               <tr>
-                <td class="portal-name">
-                  <span class="portal-indicator"></span>
-                  {{ portal.name }}
+                <td class="portal-cell">
+                  <div class="portal-name">
+                    <span class="portal-indicator"></span>
+                    {{ portal.name }}
+                  </div>
                 </td>
                 <td><span class="rate-badge">{{ portal.status }}</span></td>
                 <td class="mono-cell gold">{{ "{:,}".format(portal.last_harvest_count) }}</td>
