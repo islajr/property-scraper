@@ -149,7 +149,7 @@
             <a href="#overview">[ Overview ]</a>
             <a href="#run-telemetry">[ Run Logs ]</a>
             <a href="#portals">[ Portal Matrix ]</a>
-            <a href="#hygiene">[ Data Hygiene ]</a>
+            <!-- <a href="#hygiene">[ Data Hygiene ]</a> -->
           </div>
         </div>
 
@@ -174,7 +174,7 @@
                 <span class="run-mode-tag">DISCOVERY RUN</span>
                 <span class="run-status-badge {{ telemetry.discovery_run.status | lower }}">{{ telemetry.discovery_run.status }}</span>
               </div>
-              <div class="run-timestamp"><strong class="mono-cell gold">{{ telemetry.discovery_run.timestamp }}</strong></div>
+              <div class="run-timestamp"><strong class="mono-cell">{{ telemetry.discovery_run.timestamp }}</strong></div>
             </div>
 
             <div class="run-stats-grid">
@@ -201,10 +201,10 @@
           <div class="run-card health-check" id="card-health-check-run">
             <div class="run-header">
               <div class="run-title-group">
-                <span class="run-mode-tag" style="background: rgba(74, 222, 128, 0.08); border-color: rgba(74, 222, 128, 0.3); color: var(--live);">HEALTH CHECK RUN</span>
+                <span class="run-mode-tag" style="background: rgba(74, 222, 128, 0.08); border-color: rgba(74, 222, 128, 0.3);">HEALTH CHECK RUN</span>
                 <span class="run-status-badge {{ telemetry.health_check_run.status | lower }}">{{ telemetry.health_check_run.status }}</span>
               </div>
-              <div class="run-timestamp"><strong class="mono-cell gold">{{ telemetry.health_check_run.timestamp }}</strong></div>
+              <div class="run-timestamp"><strong class="mono-cell">{{ telemetry.health_check_run.timestamp }}</strong></div>
             </div>
 
             <div class="run-stats-grid">
@@ -256,7 +256,10 @@
           </div>
 
           <div class="metric-card" id="card-spatial-coverage">
-            <div class="metric-label">Spatial Coverage</div>
+            <div class="sparkline-header">
+              <div class="metric-label">Spatial Coverage</div>
+              {{ telemetry.sparkline_active | safe }}
+            </div>
             <div class="metric-value">{{ telemetry.cities_count }} <span style="font-size: 1.5rem; color: var(--text-dim);">Cities</span></div>
             <div class="metric-sub">{{ telemetry.neighbourhoods_count }} distinct geocoded neighbourhoods</div>
           </div>
@@ -303,7 +306,7 @@
     </section>
 
     <!-- Deduplication & Data Hygiene Guardrails -->
-    <section class="guardrails-section" id="hygiene">
+    <!-- <section class="guardrails-section" id="hygiene">
       <div class="container">
         <div class="section-label">Pipeline Resilience</div>
         <h2 class="section-title">Data Hygiene & Quality Guardrails</h2>
@@ -318,14 +321,14 @@
             </p>
           </div>
 
-          <!-- <div class="guardrail-card" id="card-anomalies">
+          <div class="guardrail-card" id="card-anomalies">
             <h3 class="guardrail-title">
               <span class="guardrail-icon">✦</span> Outlier & Anomaly Detection
             </h3>
             <p class="guardrail-desc">
               Automatic Z-score price filtering isolates extreme input errors (e.g. typos, zero-price listings). Filtered <strong style="color: var(--gold-light);">{{ telemetry.anomalies_filtered }} price anomalies</strong> this month.
             </p>
-          </div> -->
+          </div>
 
           <div class="guardrail-card" id="card-cooldown">
             <h3 class="guardrail-title">
@@ -337,7 +340,7 @@
           </div>
         </div>
       </div>
-    </section>
+    </section> -->
   </main>
 
   <!-- Footer Aligned with SiteFooter.tsx on akinmokun.com -->

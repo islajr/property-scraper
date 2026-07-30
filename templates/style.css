@@ -394,7 +394,6 @@ a:hover {
   font-weight: 700;
   background: var(--gold-tint);
   border: 1px solid var(--gold-border);
-  color: var(--gold-light);
   padding: 0.25rem 0.65rem;
   border-radius: 3px;
   text-transform: uppercase;
@@ -409,40 +408,44 @@ a:hover {
   border-radius: 3px;
   background: var(--live-tint);
   color: var(--live);
-  border: 1px solid rgba(74, 222, 128, 0.3);
+  border: 1px solid rgba(74, 222, 128, 0.2);
 }
 
-.run-timestamp {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--text-muted);
+.run-status-badge.partial {
+  background: rgba(234, 179, 8, 0.08);
+  color: #eab308;
+  border-color: rgba(234, 179, 8, 0.2);
+}
+
+.run-status-badge.failed {
+  background: rgba(239, 68, 68, 0.08);
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.2);
 }
 
 .run-stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
-  gap: 0.75rem;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
 }
 
 .run-stat-item {
-  background: #090909; /* Deep black sub-container fill */
-  border: 1px solid var(--border);
-  padding: 0.85rem 0.75rem;
-  border-radius: 3px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
 .run-stat-label {
   font-family: var(--font-mono);
-  font-size: 0.6875rem;
+  font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--text-muted);
-  margin-bottom: 0.35rem;
+  color: var(--text-dim);
 }
 
 .run-stat-val {
   font-family: var(--font-mono);
-  font-size: 1.35rem;
+  font-size: 1.25rem;
   font-weight: 700;
   color: var(--text);
 }
@@ -506,16 +509,17 @@ a:hover {
   font-weight: 700;
   line-height: 1.25;
   margin-bottom: 1rem;
-  background: linear-gradient(135deg, #ffffff 0%, var(--gold-light) 65%, var(--gold) 100%);
+  background-color: #ffffff;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
 .hero-subtitle {
-  font-size: 1.05rem;
+  font-size: 1.10rem;
   color: var(--text-dim);
   max-width: 760px;
   line-height: 1.7;
+  font-family: var(--font-serif);
 }
 
 /* Metric Counter Cards */
@@ -547,7 +551,7 @@ a:hover {
 }
 
 .metric-card {
-  background: var(--surface);
+  background: none;
   border: 1px solid var(--border);
   border-radius: 4px;
   padding: 1.75rem;
@@ -557,7 +561,6 @@ a:hover {
 .metric-card:hover {
   transform: translateY(-2px);
   border-color: var(--gold-border);
-  background: linear-gradient(180deg, var(--surface) 0%, var(--surface-2) 100%);
 }
 
 .sparkline-header {
@@ -584,14 +587,14 @@ a:hover {
   font-family: var(--font-mono);
   font-size: 2.75rem;
   font-weight: 700;
-  color: var(--gold-light);
   line-height: 1.1;
   margin-bottom: 0.5rem;
 }
 
 .metric-sub {
-  font-size: 0.85rem;
+  font-size: smaller;
   color: var(--text-dim);
+  font-family: var(--font-mono);
 }
 
 /* Health Matrix Table */
@@ -601,7 +604,7 @@ a:hover {
 }
 
 .table-wrapper {
-  background: var(--surface);
+  background: none;
   border: 1px solid var(--border);
   border-radius: 4px;
   overflow-x: auto;
@@ -615,7 +618,7 @@ a:hover {
 }
 
 .health-table th {
-  background: var(--surface-2);
+  background: none;
   padding: 0.85rem 1.25rem;
   font-family: var(--font-mono);
   font-size: 0.75rem;
@@ -636,15 +639,16 @@ a:hover {
 }
 
 .health-table tr:hover td {
-  background: var(--surface-2);
+  background: none;
 }
 
 .portal-name {
   font-weight: 600;
-  font-family: var(--font-sans);
+  font-family: var(--font-mono);
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  font-size: 0.875rem;
 }
 
 .portal-indicator {

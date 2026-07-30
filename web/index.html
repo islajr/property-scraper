@@ -467,7 +467,6 @@ a:hover {
   font-weight: 700;
   background: var(--gold-tint);
   border: 1px solid var(--gold-border);
-  color: var(--gold-light);
   padding: 0.25rem 0.65rem;
   border-radius: 3px;
   text-transform: uppercase;
@@ -482,40 +481,44 @@ a:hover {
   border-radius: 3px;
   background: var(--live-tint);
   color: var(--live);
-  border: 1px solid rgba(74, 222, 128, 0.3);
+  border: 1px solid rgba(74, 222, 128, 0.2);
 }
 
-.run-timestamp {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--text-muted);
+.run-status-badge.partial {
+  background: rgba(234, 179, 8, 0.08);
+  color: #eab308;
+  border-color: rgba(234, 179, 8, 0.2);
+}
+
+.run-status-badge.failed {
+  background: rgba(239, 68, 68, 0.08);
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.2);
 }
 
 .run-stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
-  gap: 0.75rem;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
 }
 
 .run-stat-item {
-  background: #090909; /* Deep black sub-container fill */
-  border: 1px solid var(--border);
-  padding: 0.85rem 0.75rem;
-  border-radius: 3px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
 .run-stat-label {
   font-family: var(--font-mono);
-  font-size: 0.6875rem;
+  font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--text-muted);
-  margin-bottom: 0.35rem;
+  color: var(--text-dim);
 }
 
 .run-stat-val {
   font-family: var(--font-mono);
-  font-size: 1.35rem;
+  font-size: 1.25rem;
   font-weight: 700;
   color: var(--text);
 }
@@ -579,16 +582,17 @@ a:hover {
   font-weight: 700;
   line-height: 1.25;
   margin-bottom: 1rem;
-  background: linear-gradient(135deg, #ffffff 0%, var(--gold-light) 65%, var(--gold) 100%);
+  background-color: #ffffff;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
 .hero-subtitle {
-  font-size: 1.05rem;
+  font-size: 1.10rem;
   color: var(--text-dim);
   max-width: 760px;
   line-height: 1.7;
+  font-family: var(--font-serif);
 }
 
 /* Metric Counter Cards */
@@ -620,7 +624,7 @@ a:hover {
 }
 
 .metric-card {
-  background: var(--surface);
+  background: none;
   border: 1px solid var(--border);
   border-radius: 4px;
   padding: 1.75rem;
@@ -630,7 +634,6 @@ a:hover {
 .metric-card:hover {
   transform: translateY(-2px);
   border-color: var(--gold-border);
-  background: linear-gradient(180deg, var(--surface) 0%, var(--surface-2) 100%);
 }
 
 .sparkline-header {
@@ -657,14 +660,14 @@ a:hover {
   font-family: var(--font-mono);
   font-size: 2.75rem;
   font-weight: 700;
-  color: var(--gold-light);
   line-height: 1.1;
   margin-bottom: 0.5rem;
 }
 
 .metric-sub {
-  font-size: 0.85rem;
+  font-size: smaller;
   color: var(--text-dim);
+  font-family: var(--font-mono);
 }
 
 /* Health Matrix Table */
@@ -674,7 +677,7 @@ a:hover {
 }
 
 .table-wrapper {
-  background: var(--surface);
+  background: none;
   border: 1px solid var(--border);
   border-radius: 4px;
   overflow-x: auto;
@@ -688,7 +691,7 @@ a:hover {
 }
 
 .health-table th {
-  background: var(--surface-2);
+  background: none;
   padding: 0.85rem 1.25rem;
   font-family: var(--font-mono);
   font-size: 0.75rem;
@@ -709,15 +712,16 @@ a:hover {
 }
 
 .health-table tr:hover td {
-  background: var(--surface-2);
+  background: none;
 }
 
 .portal-name {
   font-weight: 600;
-  font-family: var(--font-sans);
+  font-family: var(--font-mono);
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  font-size: 0.875rem;
 }
 
 .portal-indicator {
@@ -1027,7 +1031,7 @@ a:hover {
             <a href="#overview">[ Overview ]</a>
             <a href="#run-telemetry">[ Run Logs ]</a>
             <a href="#portals">[ Portal Matrix ]</a>
-            <a href="#hygiene">[ Data Hygiene ]</a>
+            <!-- <a href="#hygiene">[ Data Hygiene ]</a> -->
           </div>
         </div>
 
@@ -1052,13 +1056,13 @@ a:hover {
                 <span class="run-mode-tag">DISCOVERY RUN</span>
                 <span class="run-status-badge success">SUCCESS</span>
               </div>
-              <div class="run-timestamp"><strong class="mono-cell gold">2026-07-26 08:14:52 UTC</strong></div>
+              <div class="run-timestamp"><strong class="mono-cell">2026-07-26 08:14:52 UTC</strong></div>
             </div>
 
             <div class="run-stats-grid">
               <div class="run-stat-item">
                 <div class="run-stat-label">Total Ingested</div>
-                <div class="run-stat-val gold">17,223</div>
+                <div class="run-stat-val gold">14,218</div>
               </div>
               <div class="run-stat-item">
                 <div class="run-stat-label">New Discovered</div>
@@ -1079,10 +1083,10 @@ a:hover {
           <div class="run-card health-check" id="card-health-check-run">
             <div class="run-header">
               <div class="run-title-group">
-                <span class="run-mode-tag" style="background: rgba(74, 222, 128, 0.08); border-color: rgba(74, 222, 128, 0.3); color: var(--live);">HEALTH CHECK RUN</span>
+                <span class="run-mode-tag" style="background: rgba(74, 222, 128, 0.08); border-color: rgba(74, 222, 128, 0.3);">HEALTH CHECK RUN</span>
                 <span class="run-status-badge success">SUCCESS</span>
               </div>
-              <div class="run-timestamp"><strong class="mono-cell gold">2026-07-29 09:56:45 UTC</strong></div>
+              <div class="run-timestamp"><strong class="mono-cell">2026-07-30 09:43:15 UTC</strong></div>
             </div>
 
             <div class="run-stats-grid">
@@ -1092,15 +1096,15 @@ a:hover {
               </div>
               <div class="run-stat-item">
                 <div class="run-stat-label">Active Verified</div>
-                <div class="run-stat-val green">981</div>
+                <div class="run-stat-val green">987</div>
               </div>
               <div class="run-stat-item">
                 <div class="run-stat-label">Removed</div>
-                <div class="run-stat-val amber">19</div>
+                <div class="run-stat-val amber">13</div>
               </div>
               <div class="run-stat-item">
                 <div class="run-stat-label">Price Changes</div>
-                <div class="run-stat-val gold">5</div>
+                <div class="run-stat-val gold">9</div>
               </div>
             </div>
           </div>
@@ -1118,25 +1122,28 @@ a:hover {
           <div class="metric-card" id="card-total-ingested">
             <div class="sparkline-header">
               <div class="metric-label">Total Records Ingested</div>
-              <svg class="sparkline" width="140" height="36" viewBox="0 0 140 36"><polyline fill="none" stroke="var(--gold-light)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="4.0,32.0 26.0,26.7 48.0,20.0 70.0,14.7 92.0,10.2 114.0,6.4 136.0,4.0" /></svg>
+              <svg class="sparkline" width="140" height="36" viewBox="0 0 140 36"><polyline fill="none" stroke="var(--gold-light)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="4.0,32.0 26.0,26.2 48.0,18.8 70.0,13.1 92.0,8.1 114.0,4.0 136.0,26.1" /></svg>
             </div>
-            <div class="metric-value">17,223</div>
+            <div class="metric-value">14,218</div>
             <div class="metric-sub">Multi-portal cumulative scraped raw listings</div>
           </div>
 
           <div class="metric-card" id="card-active-listings">
             <div class="sparkline-header">
               <div class="metric-label">Active Unique Listings</div>
-              <svg class="sparkline" width="140" height="36" viewBox="0 0 140 36"><polyline fill="none" stroke="var(--gold-light)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="4.0,32.0 26.0,26.1 48.0,19.2 70.0,13.2 92.0,9.3 114.0,6.3 136.0,4.0" /></svg>
+              <svg class="sparkline" width="140" height="36" viewBox="0 0 140 36"><polyline fill="none" stroke="var(--gold-light)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="4.0,32.0 26.0,25.5 48.0,18.0 70.0,11.5 92.0,7.2 114.0,4.0 136.0,26.3" /></svg>
             </div>
-            <div class="metric-value">14,635</div>
+            <div class="metric-value">12,330</div>
             <div class="metric-sub">Verified active & deduplicated property listings</div>
           </div>
 
           <div class="metric-card" id="card-spatial-coverage">
-            <div class="metric-label">Spatial Coverage</div>
+            <div class="sparkline-header">
+              <div class="metric-label">Spatial Coverage</div>
+              <svg class="sparkline" width="140" height="36" viewBox="0 0 140 36"><polyline fill="none" stroke="var(--gold-light)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="4.0,32.0 26.0,25.5 48.0,18.0 70.0,11.5 92.0,7.2 114.0,4.0 136.0,26.3" /></svg>
+            </div>
             <div class="metric-value">10 <span style="font-size: 1.5rem; color: var(--text-dim);">Cities</span></div>
-            <div class="metric-sub">307 distinct geocoded neighbourhoods</div>
+            <div class="metric-sub">468 distinct geocoded neighbourhoods</div>
           </div>
         </div>
       </div>
@@ -1168,7 +1175,7 @@ a:hover {
                   NigeriaPropertyCentre.ng
                 </td>
                 <td><span class="rate-badge">OPERATIONAL</span></td>
-                <td class="mono-cell gold">7,449</td>
+                <td class="mono-cell gold">6,484</td>
                 <td class="mono-cell">99.4%</td>
                 <td class="mono-cell">390 ms</td>
                 <td class="mono-cell">HTML / BeautifulSoup</td>
@@ -1180,7 +1187,7 @@ a:hover {
                   PropertyPro.ng
                 </td>
                 <td><span class="rate-badge">OPERATIONAL</span></td>
-                <td class="mono-cell gold">5,062</td>
+                <td class="mono-cell gold">3,949</td>
                 <td class="mono-cell">99.1%</td>
                 <td class="mono-cell">420 ms</td>
                 <td class="mono-cell">HTML / BeautifulSoup</td>
@@ -1192,7 +1199,7 @@ a:hover {
                   PrivateProperty.ng
                 </td>
                 <td><span class="rate-badge">OPERATIONAL</span></td>
-                <td class="mono-cell gold">4,712</td>
+                <td class="mono-cell gold">3,785</td>
                 <td class="mono-cell">98.8%</td>
                 <td class="mono-cell">580 ms</td>
                 <td class="mono-cell">HTML / BeautifulSoup</td>
@@ -1205,7 +1212,7 @@ a:hover {
     </section>
 
     <!-- Deduplication & Data Hygiene Guardrails -->
-    <section class="guardrails-section" id="hygiene">
+    <!-- <section class="guardrails-section" id="hygiene">
       <div class="container">
         <div class="section-label">Pipeline Resilience</div>
         <h2 class="section-title">Data Hygiene & Quality Guardrails</h2>
@@ -1220,14 +1227,14 @@ a:hover {
             </p>
           </div>
 
-          <!-- <div class="guardrail-card" id="card-anomalies">
+          <div class="guardrail-card" id="card-anomalies">
             <h3 class="guardrail-title">
               <span class="guardrail-icon">✦</span> Outlier & Anomaly Detection
             </h3>
             <p class="guardrail-desc">
               Automatic Z-score price filtering isolates extreme input errors (e.g. typos, zero-price listings). Filtered <strong style="color: var(--gold-light);">42 price anomalies</strong> this month.
             </p>
-          </div> -->
+          </div>
 
           <div class="guardrail-card" id="card-cooldown">
             <h3 class="guardrail-title">
@@ -1239,7 +1246,7 @@ a:hover {
           </div>
         </div>
       </div>
-    </section>
+    </section> -->
   </main>
 
   <!-- Footer Aligned with SiteFooter.tsx on akinmokun.com -->
