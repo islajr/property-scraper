@@ -423,29 +423,37 @@ a:hover {
   border-color: rgba(239, 68, 68, 0.2);
 }
 
+.run-timestamp {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
 .run-stats-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 0.75rem;
 }
 
 .run-stat-item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+  background: #090909; /* Deep black sub-container fill */
+  border: 1px solid var(--border);
+  padding: 0.85rem 0.75rem;
+  border-radius: 3px;
 }
 
 .run-stat-label {
   font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-size: 0.6875rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--text-dim);
+  color: var(--text-muted);
+  margin-bottom: 0.35rem;
 }
 
 .run-stat-val {
   font-family: var(--font-mono);
-  font-size: 1.25rem;
+  font-size: 1.35rem;
   font-weight: 700;
   color: var(--text);
 }
