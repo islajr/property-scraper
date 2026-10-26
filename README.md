@@ -362,7 +362,120 @@ Key normalisation rules:
 
 - Normalised prices are stored as **kobo** (integer). ₦45,000,000 = `4_500_000_000`; plain numeric portal prices are interpreted as naira before conversion.
 - All floor areas are stored in **square metres**. Sqft inputs are converted automatically.
-- `price_parse_failed = True` when a price is missing, blank, or cannot be interpreted.
+- `price_parse_failed = True` when a price is missing, blank, invalid, or explicitly non-NGN.
+
+---
+
+## Rental prices and billing periods
+
+`FOR_RENT` and `FOR_SHORT_LET` describe the purpose of a listing, not its price
+cadence. `price_kobo` retains the advertised NGN amount: a monthly quote is never
+silently converted to a yearly amount. Explicit foreign-currency quotes retain
+their raw text and currency marker but are not written as NGN kobo.
+
+| Field | Meaning |
+| --- | --- |
+| `price_period` | `HOUR`, `DAY`, `NIGHT`, `WEEK`, `MONTH`, or `YEAR`; otherwise NULL |
+| `price_period_count` | Number of periods covered by the amount; e.g. 6 for a six-month quote |
+| `price_period_status` | `KNOWN`, `UNKNOWN`, `CONFLICT`, `UNSUPPORTED`, or `NOT_APPLICABLE` |
+| `price_period_source` | Where the evidence came from: primary portal price, URL, title, description, manual, or legacy unknown |
+| `raw_price_text` | Bounded primary price label, including adjacent billing-unit labels |
+| `price_period_evidence` | Exact supporting text; offline recovery does not invent an original price label |
+| `price_currency` / `price_basis` | Currency evidence and property/area/room/person basis; unknown values remain explicit |
+| `pricing_observed_at` | Time a quote was observed; offline recovery leaves historical observation dates unchanged |
+
+For example, NGN 300,000/month is `30000000` kobo with `MONTH`, count `1`.
+NGN 1,800,000 for six months is `180000000` kobo with `MONTH`, count `6` when
+the portal explicitly states the six-month total. Annual rent payable two years
+upfront remains an annual quote. A nightly price with a minimum stay remains
+nightly. `DAY` and `NIGHT` stay distinct.
+
+Missing units remain `UNKNOWN`; short-let prices are not assumed daily, and rent
+prices are not assumed annual. Sale prices are `NOT_APPLICABLE`. Original legacy
+currencies are not certified just because the old amount is stored in `price_kobo`.
+A rejected price observation preserves the previous valid quote and is recorded
+as `PRICING_OBSERVATION_REJECTED`. Activity checks can still confirm the URL active.
+
+History stores `old_pricing`, `new_pricing`, and `price_comparable` alongside the
+legacy integer values. Cadence/type/basis changes or unknown units produce
+`PRICING_CONTEXT_CHANGE`, rather than a comparable `PRICE_CHANGE`. Only comparable
+reductions support new suspected-sale decisions. Existing history and old
+suspected-sale flags are retained; legacy history has no verified unit context.
+Discovery and health-check notifications report observed rental-period quality.
+
+### Migrating and recovering existing listings
+
+Apply **all** SQL files in filename order before running the pricing-aware writer.
+Migration `004_rental_pricing.sql` adds fields, constraints, audit storage, and a
+comparable-price view; `005_rental_price_summaries.sql` adds grouped summaries and
+coverage. Existing rental units start unknown, sale cadence is not applicable,
+and existing amounts, lifecycle dates, and historical events remain unchanged.
+The local wrapper and both scheduled scraper workflows apply all migrations.
+
+The recovery tool defaults to a read-only inventory and never writes without
+`--apply`:
+
+```bash
+.venv/bin/python scripts/backfill_rental_pricing.py --mode inventory
+.venv/bin/python scripts/backfill_rental_pricing.py --mode offline --limit 200 --report /tmp/rental-preview.json
+```
+
+Offline recovery requires an explicit quote matching the saved amount. General
+mentions of annual fees, security, or a minimum stay are not evidence of cadence.
+URL/title evidence can correct a short-let classification without guessing a unit.
+After reviewing a preview, apply a bounded batch explicitly:
+
+```bash
+.venv/bin/python scripts/backfill_rental_pricing.py --mode offline --apply --limit 200 --report /tmp/rental-applied.json
+```
+
+`--source`, `--status`, `--limit` (maximum 1,000), and `--batch-size` bound each run.
+Continue with `--after-id` set to the report's `last_completed_id`. Reports are
+updated atomically as progress completes; writes commit per listing with an audit
+run ID. Concurrently changed rows are skipped and can be revisited separately.
+Reapplying unchanged offline evidence does not create duplicate repairs.
+
+Optional live recovery revisits unresolved **active** listings at the configured
+portal pacing. It is separate from the health-check queue and does not mark rows
+removed or reset lifecycle dates. A successful visit records today's quote and
+its history, rather than claiming to recover the original historical quote.
+A live dry run still makes HTTP requests; omit `--apply` to preview without writes.
+
+```bash
+.venv/bin/python scripts/backfill_rental_pricing.py --mode live --source propertypro --limit 50 --report /tmp/rental-live-preview.json
+```
+
+After reviewing the preview, repeat the bounded live command with `--apply` if
+those new observations should be persisted. Blocks, failed parsing, and redirects
+to another listing remain unresolved. Removed listings are not live-refetched.
+Some historical units will remain unknown permanently.
+
+To review reversal eligibility, use `--rollback-run` with the UUID in the report;
+add `--apply` to reverse eligible repairs. Later-modified listings are skipped.
+The reversal is audited and preserves historical events; reverted live price
+changes lose their comparable-reduction eligibility.
+
+### Comparing rental prices
+
+Use `raw_data.comparable_rental_prices` for explicit NGN whole-property quotes.
+`raw_data.rental_price_summary` groups active comparable quotes by city,
+neighbourhood, listing type, period, and period count. `raw_data.rental_pricing_coverage`
+includes unresolved rentals by source/type/status so missing evidence stays visible.
+These are current-data views, not reconstructed historical series.
+
+```sql
+SELECT * FROM raw_data.rental_price_summary
+WHERE price_type = 'FOR_RENT' AND price_period = 'MONTH'
+  AND price_period_count = 1;
+
+SELECT * FROM raw_data.rental_pricing_coverage;
+```
+
+The old `rebuild_snapshots.py` command now refuses writes because its external
+`market.neighbourhood_snapshots` contract cannot distinguish listing purposes or
+billing periods. Existing snapshots are untouched. Consumers must adopt a
+versioned type/period-aware historical contract before rebuilding that series;
+do not mix its legacy prices with the new comparable rental views.
 
 ---
 
@@ -373,7 +486,7 @@ All tables live in the `raw_data` schema in the database.
 | Table | Purpose |
 |---|---|
 | `raw_data.scraped_listings` | One row per listing — current state. `UNIQUE(source, external_id)`. |
-| `raw_data.listing_history` | One row per event: `LISTED`, `PRICE_CHANGE`, `REMOVED`. |
+| `raw_data.listing_history` | Listing lifecycle and pricing events, including quote context and comparison eligibility. |
 | `raw_data.geocode_cache` | Persistent `(neighbourhood, city)` → `(lat, lng)` cache. |
 | `raw_data.scrape_runs` | Operational log — one row per portal for discovery, or a `health_check` row for a health-check run. |
 
@@ -383,7 +496,7 @@ Listings have a `listing_status` of `ACTIVE` or `REMOVED`. A listing is marked `
 
 ## Testing
 
-Tests use saved listing HTML and mocked database/geocoder dependencies. However, `BaseParser` construction attempts to fetch `robots.txt`, and not every test patches that call, so the suite is not strictly network-isolated. `config.py` also requires `DATABASE_URL` at import time; use the local `.env` or a dummy value for tests that mock the database.
+Parser tests use saved HTML, and the shared test fixture disables network requests during parser construction. Database/geocoder dependencies are mocked in unit tests. Real PostgreSQL pricing integration tests run only when `TEST_DATABASE_URL` explicitly selects a disposable database; they never use `DATABASE_URL`. CI starts an isolated PostgreSQL service for these tests. `config.py` still requires `DATABASE_URL` at import time; use the local `.env` or a dummy value for mocked tests.
 
 ```bash
 pytest                                                     # all tests
@@ -392,6 +505,9 @@ pytest tests/test_parsers.py                               # parser selectors ag
 pytest tests/test_geocoder.py                              # cache and mocked Nominatim
 pytest tests/test_db_writer.py                             # upsert logic and suspected_sold
 pytest tests/test_pipeline.py                              # full parser → normalise → geocode chain
+pytest tests/test_pricing.py tests/test_rental_backfill.py   # quote units, ambiguity, conservative recovery
+# Include real SQL persistence/recovery tests only against an explicitly disposable DB:
+# TEST_DATABASE_URL=postgresql://localhost/property_scraper_test pytest tests/test_pricing_database.py
 
 # Single class
 pytest tests/test_parsers.py::TestPropertyProParser -v
