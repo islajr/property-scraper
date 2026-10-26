@@ -244,6 +244,28 @@ To handle transient network drops when the host machine enters sleep mode or cha
 
 ---
 
+## Dashboard
+
+The public dashboard is generated from `templates/dashboard.html.j2` and
+`templates/style.css` into `web/index.html`. Edit the templates, then rebuild;
+generated HTML is overwritten on the next build. Font assets live in `web/fonts/`.
+
+To preview with the saved telemetry snapshot, without querying the database or
+running the scraper:
+
+```bash
+.venv/bin/python scripts/render_dashboard.py --cached --force
+python3 -m http.server 8086 --directory web
+```
+
+Open `http://localhost:8086`. For a normal build that refreshes telemetry, omit
+`--cached`. Changes to the template or CSS invalidate the build cache.
+
+The navigation and theme control follow akinmokun.com. Dark is the default;
+explicit preferences use the shared `akinmokun-theme` parent-domain cookie and
+local storage. `web/theme.js` runs before the page renders to avoid a theme flash.
+Menlo is the first monospace choice, with system fallbacks where it is unavailable.
+
 ## Configuration
 
 All configuration is in `config.py`. The key constants:

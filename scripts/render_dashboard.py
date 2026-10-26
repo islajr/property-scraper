@@ -28,7 +28,7 @@ def compute_metrics_hash(telemetry_data):
     serialized = json.dumps(data_copy, sort_keys=True)
     return hashlib.sha256(serialized.encode('utf-8')).hexdigest()
 
-def render_dashboard(force=False):
+def render_dashboard(force=False, cached=False):
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     templates_dir = os.path.join(base_dir, "templates")
     data_dir = os.path.join(base_dir, "data")
@@ -42,8 +42,17 @@ def render_dashboard(force=False):
     os.makedirs(web_dir, exist_ok=True)
 
     # 1. Generate/load telemetry data
-    telemetry_data = generate_telemetry()
-    current_hash = compute_metrics_hash(telemetry_data)
+    if cached:
+        with open(telemetry_file, encoding='utf-8') as f:
+            telemetry_data = json.load(f)
+    else:
+        telemetry_data = generate_telemetry()
+    # Design changes must rebuild even when the dataset has not changed.
+    fingerprint = hashlib.sha256(compute_metrics_hash(telemetry_data).encode('utf-8'))
+    for source in (template_file, style_file):
+        with open(source, 'rb') as f:
+            fingerprint.update(f.read())
+    current_hash = fingerprint.hexdigest()
     previous_hash = ""
 
     if os.path.exists(hash_file):
@@ -62,7 +71,7 @@ def render_dashboard(force=False):
     # 3. Setup Jinja2 environment and render dashboard
     env = jinja2.Environment(
         loader=jinja2.FileSystemLoader(templates_dir),
-        autoescape=jinja2.select_autoescape(['html', 'xml'])
+        autoescape=jinja2.select_autoescape(['html', 'xml', 'j2'])
     )
     
     template = env.get_template("dashboard.html.j2")
@@ -74,7 +83,7 @@ def render_dashboard(force=False):
     # 4. Save web/index.html
     index_path = os.path.join(web_dir, "index.html")
     with open(index_path, 'w', encoding='utf-8') as f:
-        f.write(rendered_html)
+        f.write('\n'.join(line.rstrip() for line in rendered_html.splitlines()) + '\n')
     print(f"✅ Generated static dashboard: {index_path}")
 
     # 5. Generate web/sitemap.xml
@@ -114,4 +123,4 @@ Sitemap: https://ps0.akinmokun.com/sitemap.xml
 
 if __name__ == "__main__":
     force_build = "--force" in sys.argv
-    render_dashboard(force=force_build)
+    render_dashboard(force=force_build, cached="--cached" in sys.argv)
