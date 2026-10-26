@@ -6,7 +6,7 @@
 
 ## Introduction
 
-**Property Scraper** is an autonomous lightweight python-based data pipeline that extracts real property listing data from public Nigerian property portals, cleans and geocodes the data, and persists them to a PostgreSQL instance on Supabase on a weekly schedule. A Telegram message is sent at the end of every run with a summary of what happened.
+**Property Scraper** is an autonomous lightweight python-based data pipeline that extracts real property listing data from public Nigerian property portals, cleans and geocodes the data, and persists them to a PostgreSQL instance on Supabase on a weekly schedule. When Telegram credentials are configured, completed runs send a summary. Discovery is scheduled weekly and health checks daily through GitHub Actions.
 
 ---
 
@@ -27,14 +27,14 @@ Each run proceeds through seven stages:
 | Stage | Description |
 |---|---|
 | 1. Snapshot | Loads all `ACTIVE` listings from the DB into memory |
-| 2. Scrape | Fetches listings from all four Nigerian portals |
+| 2. Scrape | Fetches listings from the three enabled Nigerian portals |
 | 3. Normalise | Converts raw strings (`"₦45M"`, `"3 Beds"`) into typed Python values |
 | 4. Geocode | Attaches lat/lng coordinates via neighbourhood name lookup |
-| 5. Upsert | Inserts new listings, update existing ones, emit history events |
+| 5. Upsert | Inserts new listings, updates existing ones, and emits history events |
 | 6. Log | Writes one row per portal to `scrape_runs` |
 | 7. Notify | Sends a Telegram summary with counts and status per portal |
 
-The three portals scraped are: **PropertyPro.ng**, **PrivateProperty.ng**, and **NigeriaPropertyCentre.ng**
+The three enabled portals are **PropertyPro.ng**, **PrivateProperty.ng**, and **NigeriaPropertyCentre.com**. A Jiji parser exists but is disabled in the orchestrator; Playwright is not required for the enabled parsers.
 
 ---
 
@@ -44,17 +44,20 @@ Each health check goes through the following stages:
 
 | Stage | Description |
 |---|---|
-| 1. Snapshot | Loads eligible `ACTIVE` listings from the DB into memory using **Adaptive Cooldown** |
+| 1. Snapshot | Loads `ACTIVE` listings with `missed_run_count > 0` whose next check is due or unset |
 | 2. Check | Checks each loaded listing with its original URL to confirm its continued existence and for any recent price changes |
 | 3. Log | If changes are made or listings are found to be removed, they are stored as `PRICE_CHANGE` or as `REMOVED` events respectively with the appropriate information |
 | 4. Notify | Sends a Telegram summary with the run stats and results for notification |
 
 To optimize performance and database resource usage, the health checker uses **Adaptive Cooldown** intervals based on listing age. The next check date is calculated and persisted at active confirmation time (storing it in `next_health_check_at`), which allows PostgreSQL to query candidates efficiently using a partial B-tree index.
-- `< 14 days old`: Checked every 2 days (1.9 days with buffer)
-- `14-60 days old`: Checked every 7 days (6.8 days with buffer)
-- `> 60 days old`: Checked every 14 days (13.8 days with buffer)
 
-Additionally, it applies a daily queue cap (`HEALTH_CHECK_LIMIT = 1000`) to guarantee a fixed maximum execution time. To prevent queue starvation (where newer, volatile listings dominate the daily limit), candidates are prioritised using a relative **Overdue Ratio** (how late they are relative to their cohort interval) rather than a simple count of missed runs. Checks are executed in micro-batches (default: 50 candidates per batch) so progress is committed incrementally and is resilient to system sleep/power interrupts.
+- `< 14 days old`: Eligible again after 1.9 days
+- `14–59 days old`: Eligible again after 6.8 days
+- `≥ 60 days old`: Eligible again after 13.8 days
+
+The normal queue is capped at `HEALTH_CHECK_LIMIT = 1000` candidates per run; request timeouts and retries still affect runtime. Candidates are ordered by elapsed time since the last check divided by their age-cohort interval. Listings with no `next_health_check_at` receive a ratio of 1.0. Checks run in batches of 50, with results committed incrementally and checkpoints saved after each batch.
+
+Discovery increments `missed_run_count` only for listings absent from a successfully scraped portal that returned data. Feed absence alone does not mark a listing removed. Confirming a listing active resets its missed count, so it must be missed by discovery again before entering the normal health-check queue. `--all` bypasses this eligibility filter, cooldowns, the candidate cap, and the run timing guard.
 
 
 ---
@@ -66,7 +69,7 @@ property-scraper/
 ├── config.py                   # All configuration — env vars, constants
 ├── conftest.py                 # Root pytest path fix
 ├── pytest.ini                  # pytest settings
-├── run.sh                      # Local weekly run script
+├── run.sh                      # Local discovery, health-check, and preview wrapper
 ├── .env                        # Local credentials (never commit)
 │
 ├── scraper/
@@ -76,18 +79,25 @@ property-scraper/
 │   ├── geocoder.py             # Neighbourhood → lat/lng (Nominatim + cache)
 │   ├── db_writer.py            # All database reads and writes
 │   ├── notifier.py             # Telegram notification
-│   ├── health_checker.py       # Health Check logic
+│   ├── health_checker.py       # Async URL checks with incremental DB writes
+│   ├── checkpoint.py           # Local discovery / health-check resume state
 │   └── parsers/
 │       ├── base_parser.py      # Shared HTTP + pagination infrastructure
 │       ├── propertypro.py
 │       ├── privateproperty.py
-│       └── nigeriapropertycentre.py
+│       ├── nigeriapropertycentre.py
+│       └── jiji.py              # Disabled; requires Playwright if re-enabled
 │
 ├── schema/
 │   ├──  001_raw_data_schema.sql # DB tables and indexes — run once
 │   ├──  002_add_health_check_at.sql    # Migration to track health checks
 │   └──  003_add_next_health_check_at.sql    # Migration to add pre-calculated next check column
 │
+├── scripts/                   # Telemetry generation and dashboard rendering
+├── templates/                 # Dashboard HTML and CSS source
+├── web/                       # Generated dashboard, fonts, and theme script
+├── data/                      # Telemetry snapshot and build fingerprint
+├── start_tunnel.py             # Local proxy + ngrok + GitHub secret update
 └── tests/
     ├── conftest.py
     ├── fixtures/               # Saved HTML from each portal
@@ -102,8 +112,9 @@ property-scraper/
 
 ## Requirements
 
-- Python 3.10–3.12 (3.13 is not supported — `psycopg2-binary` has no wheel for it yet)
-- A Database with the schema applied
+- Python 3.12 (used by CI and recommended for the pinned dependencies)
+- PostgreSQL with the migrations in `schema/` applied
+- A Nominatim contact email for geocoding
 - Optional: a Telegram bot token and chat ID for run notifications
 
 ---
@@ -113,7 +124,7 @@ property-scraper/
 **1. Clone and create a virtual environment**
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/islajr/property-scraper.git
 cd property-scraper
 python3.12 -m venv .venv
 source .venv/bin/activate
@@ -126,28 +137,35 @@ pip install -r requirements.txt
 DATABASE_URL=postgresql://postgres.[project-id]:[password]@...
 TELEGRAM_BOT_TOKEN=1234567890:ABCDEF...   # optional
 TELEGRAM_CHAT_ID=123456789                # optional
+NOMINATIM_CONTACT_EMAIL=you@example.com
 ```
 
 **3. Apply the database schema**
 
 ```bash
-psql $DATABASE_URL -f schema/001_raw_data_schema.sql
+# Export DATABASE_URL in this shell first; psql does not load .env.
+(
+    set -e
+    for migration in schema/*.sql; do
+        psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$migration"
+    done
+)
 ```
 
 **4. Update the Nominatim user-agent**
 
-Open `scraper/geocoder.py` and set `NOMINATIM_AGENT` to a real application name and contact email. Nominatim blocks generic or empty user-agents.
+Set `NOMINATIM_CONTACT_EMAIL` in `.env`. `scraper/geocoder.py` builds the application user-agent from that value; no code edit is required. `run.sh` loads `.env` as shell syntax, so quote values that contain shell-special characters.
 
 ---
 
 ## Proxying & Cloud Automation (Bypassing Bot Blocks)
 
-Since real estate portals aggressively block cloud server IP ranges (like GitHub Actions runners), runs in the cloud must be proxied through a clean residential IP connection. 
+The cloud workflows accept an HTTP proxy through the `PROXY_URL` repository secret. A residential connection can help when a portal blocks requests from a cloud runner.
 
 We resolve this by tunneling the GitHub Action runner requests back to a local proxy running on your home machine using **ngrok**.
 
 ### 1. How to run the tunnel locally
-On your home machine, run:
+Install and configure `ngrok`, and authenticate the GitHub CLI with permission to update repository secrets (`gh auth login`). Keep the home machine online while cloud jobs use its proxy. From the repository root, run:
 ```bash
 python3 start_tunnel.py
 ```
@@ -170,7 +188,7 @@ To run this tunnel automatically in the background on your Linux system whenever
    Restart=always
    RestartSec=10
    Environment=PATH=/usr/local/bin:/usr/bin:/bin PYTHONUNBUFFERED=1
-   
+
    [Install]
    WantedBy=default.target
    ```
@@ -197,12 +215,21 @@ To run discovery only for specific portals (bypassing others if they are blocked
 ./run.sh --portals=privateproperty,nigeriapropertycentre
 ```
 
-`run.sh` handles the full lifecycle: checks `.env`, resolves the Python version, creates or rebuilds `.venv` if needed, installs dependencies, applies the schema (idempotent), and runs the pipeline. On failure it prints the last 30 lines of `scraper.log`.
+`run.sh` checks `.env`, selects Python (preferring 3.12), creates or rebuilds `.venv` if needed, installs dependencies, applies all SQL migrations in filename order, and runs the pipeline. On success it renders the dashboard; on failure it prints the last 30 lines of `scraper.log`. The wrapper also attempts a legacy Playwright browser install, but the enabled parsers do not use it.
 
 You can also run the pipeline directly:
 ```bash
-python3 -m scraper.orchestrator [--portals=list]
+python3 -m scraper.orchestrator
+python3 -m scraper.orchestrator --portals=privateproperty,nigeriapropertycentre
 ```
+
+### Scheduling
+
+The checked-in GitHub Actions workflows schedule discovery on Sundays at 20:00 UTC
+(21:00 WAT) and health checks daily at 20:00 UTC (21:00 WAT). Both also support
+manual dispatch. They invoke the orchestrator directly, so they do not render or
+deploy the dashboard. The weekly workflow applies only the base schema; apply all
+migrations during initial setup or upgrades.
 
 ### Health Checks
 
@@ -212,13 +239,16 @@ python3 -m scraper.orchestrator [--portals=list]
 
 With the `--health-check` flag, `run.sh` pulls listings from the database that are due for check (based on the adaptive cooldown logic) and checks them for activity. If it determines that prices have changed or that they are no longer present, a `PRICE_CHANGE` or a `REMOVED` event for each listing is appended to the `listing_history` table respectively.
 
-**Timing Guard**: To support local scheduling (e.g. triggering hourly), health checks are protected by a timing guard. If a successful check completed less than 22 hours ago, the script exits early.
+**Timing Guard**: To support local scheduling (e.g. triggering hourly), health checks are protected by a timing guard. If a successful health-check run was logged less than 22 hours ago, the script exits early.
 
 To bypass the timing guard and the cooldown schedule to check **all active listings** immediately, add the `--all` (or `--force`) flag:
 
 ```bash
 ./run.sh --health-check --all
 ```
+
+If a health-check checkpoint exists, it still supplies the saved candidate list.
+Use `./run.sh --health-check --all --fresh` to start a new sweep of all active listings.
 
 ### State Checkpointing & Resume Failsafe
 
@@ -227,7 +257,7 @@ Both Discovery runs and Health Checks support automatic execution checkpointing 
 *   **How it works**: The pipeline writes its current state to a local `.scraper_checkpoint.json` file.
     *   *Discovery runs* write checkpoints at the end of each scraped page.
     *   *Health check runs* write checkpoints after each committed batch.
-*   **Resume**: If the pipeline is interrupted and run again, it automatically loads the checkpoint (if less than 24 hours old) and resumes exactly where it was.
+*   **Resume**: If the pipeline is interrupted and run again, it loads a checkpoint for the same mode if it is no more than 24 hours old, then resumes from its saved progress. Checkpoints are local files; the GitHub Actions workflows do not persist them between jobs. Discovery checkpoints retain collected listings and completed-portal progress without validating the requested portal scope, so use `--fresh` when changing `--portals`.
 *   **Forcing a Fresh Run**: To ignore any active checkpoints and start completely fresh, add the `--fresh` flag:
     ```bash
     ./run.sh --fresh
@@ -236,11 +266,13 @@ Both Discovery runs and Health Checks support automatic execution checkpointing 
 
 ### Resilient Network Retry Policies
 
-To handle transient network drops when the host machine enters sleep mode or changes network environments:
-*   **Scrapers and Geocoder**: Synchronous HTTP GET requests to portals and OpenStreetMap/Nominatim geocoding automatically retry up to `5` times with exponential backoff + random jitter (cooldown base starts at 5s, waiting up to ~150s total before failing).
-*   **Health Checks**: Asynchronous URL requests retry up to `4` times on connection resets or timeouts using base-2 exponential backoff with a hard upper cap of `30s` per sleep (`HEALTH_CHECK_MAX_BACKOFF_DELAY`).
-*   **Per-Portal Domain Semaphores**: Concurrent HTTP requests are isolated per portal domain (`HEALTH_CHECK_PER_DOMAIN_CONCURRENCY = 3`), ensuring no single real estate website is hit with a thundering herd burst.
-*   **Graduated Logging**: Initial transient retry attempts (attempts 1 and 2) are logged silently at `DEBUG` level. `WARNING` is reserved for persistent failures (attempts 3 and 4), keeping production `journalctl` logs clean and uncluttered.
+The retry settings differ by component:
+
+- **Discovery HTTP requests**: Up to 3 retries (4 attempts total) on HTTP 429, timeouts, connection errors, and interrupted responses. Delays are `2 ** retry_index` plus 0–1 seconds of jitter: roughly 1, 2, and 4 seconds. HTTP 403 stops that request without retrying.
+- **Geocoder**: Up to 3 retries for transient request exceptions, with the same 1, 2, and 4 second backoff plus jitter. Each attempt also waits 1.1 seconds for pacing.
+- **Health checks**: Up to 4 retries (5 attempts total) for `aiohttp.ClientError` or timeout exceptions, including HTTP errors raised by the checker. Delays start at 1 second, double per retry, add jitter, and are capped by `HEALTH_CHECK_MAX_BACKOFF_DELAY = 30`.
+- **Concurrency**: Health checks allow 10 requests globally and 3 per domain, with a random 2–5 second delay before each listing check.
+- **Logging**: Health-check retries log the first two retries at `DEBUG` and later retries at `WARNING`. Discovery and geocoder retries log at `WARNING`.
 
 ---
 
@@ -266,6 +298,13 @@ explicit preferences use the shared `akinmokun-theme` parent-domain cookie and
 local storage. `web/theme.js` runs before the page renders to avoid a theme flash.
 Menlo is the first monospace choice, with system fallbacks where it is unavailable.
 
+After a successful scraper invocation, `run.sh` renders the dashboard and attempts
+Cloudflare Pages deployment when `DEPLOY_DASHBOARD=true` or
+`CLOUDFLARE_API_TOKEN` is set. It invokes `npx wrangler pages deploy web` for the
+`property-scraper` project, which requires Node/npm and Cloudflare authentication.
+`./run.sh --preview` renders and serves the dashboard on port 8080, but still
+requires `.env` and refreshes telemetry; use the cached preview above for design work.
+
 ## Configuration
 
 All configuration is in `config.py`. The key constants:
@@ -274,25 +313,31 @@ All configuration is in `config.py`. The key constants:
 |---|---|---|
 | `REQUEST_DELAY_MIN` / `MAX` | 2 / 3s | Random delay between listing fetches |
 | `MAX_RETRIES` | 3 | Retries per request (exponential backoff) |
-| `RETRY_BACKOFF_BASE` | 2.0 | Backoff base in seconds (2s, 4s, 8s) |
+| `RETRY_BACKOFF_BASE` | 2.0 | Exponential base: 1, 2, 4 seconds plus jitter for discovery retries |
 | `REQUEST_TIMEOUT` | 15 | Timeout in seconds for HTTP requests |
 | `MAX_CONSECUTIVE_FAILURES` | 5 | Max consecutive failures before early-aborting portal scrape |
-| `PAGINATION_STOP_AFTER_KNOWN` | 5 | Stop paginating after N consecutive known listings |
-| `SUSPECTED_SOLD_MIN_DAYS` | 30 | Minimum days active to flag a removal as a suspected sale |
-| `HEALTH_CHECK_INTERVAL_DAYS` | 2 | Cooldown backup interval (in days) |
-| `HEALTH_CHECK_LIMIT` | 1000 | Maximum listings checked per health-check run |
+| `PAGINATION_STOP_AFTER_KNOWN` | 10 | Stop paginating after N consecutive known listings |
+| `SUSPECTED_SOLD_MIN_DAYS` | 30 | Minimum days since first observation for a suspected-sale removal |
+| `MAX_PAGES_PER_FEED` | 5 | Maximum discovery pages per search feed |
+| `HEALTH_CHECK_LIMIT` | 1000 | Normal health-check candidate cap; bypassed by `--all` |
+| `HEALTH_CHECK_CONCURRENCY` | 10 | Maximum concurrent health-check requests |
+| `HEALTH_CHECK_PER_DOMAIN_CONCURRENCY` | 3 | Maximum concurrent health-check requests per domain |
+| `HEALTH_CHECK_DELAY_MIN` / `MAX` | 2 / 5s | Random delay before each listing check |
+| `HEALTH_CHECK_MAX_BACKOFF_DELAY` | 30s | Upper bound on each health-check retry delay |
 | `HEALTH_CHECK_BATCH_SIZE` | 50 | Micro-batch chunk size for HTTP scraping and DB commits |
 | `HEALTH_CHECK_RUN_INTERVAL_HOURS` | 22 | Cooldown limit for the daily timing guard |
 | `UPSERT_BATCH_SIZE` | 200 | DB write batch size |
 
-`CANONICAL_NEIGHBOURHOODS` is a hardcoded list of major neighbourhood names across Lagos, Abuja, and Port Harcourt. The normaliser uses it for fuzzy address matching.
+`CANONICAL_NEIGHBOURHOODS` covers Lagos, Abuja, and areas in several other Nigerian states. The normaliser applies cleaned substring and fuzzy matching, checking longer canonical names first. This vocabulary is shared with P0 (PropertyDataGenerator); coordinate changes there as noted in `config.py`.
+
+Constants are configured in Python; environment variables supply `DATABASE_URL`, optional Telegram credentials, and `NOMINATIM_CONTACT_EMAIL`.
 
 
 ---
 
 ## Data model
 
-There are exactly two data objects. Everything flows through them.
+The discovery pipeline uses two listing dataclasses:
 
 **`RawListing`** — produced by a parser. Every field is a string or `None`. No interpretation, no typing. A direct mirror of what was in the HTML.
 
@@ -300,9 +345,9 @@ There are exactly two data objects. Everything flows through them.
 
 Key normalisation rules:
 
-- All prices are stored as **kobo** (integer). ₦45,000,000 = `4_500_000_000`. Never floats, never naira.
+- Normalised prices are stored as **kobo** (integer). ₦45,000,000 = `4_500_000_000`; plain numeric portal prices are interpreted as naira before conversion.
 - All floor areas are stored in **square metres**. Sqft inputs are converted automatically.
-- `price_parse_failed = True` when a price string exists but cannot be interpreted.
+- `price_parse_failed = True` when a price is missing, blank, or cannot be interpreted.
 
 ---
 
@@ -315,15 +360,15 @@ All tables live in the `raw_data` schema in the database.
 | `raw_data.scraped_listings` | One row per listing — current state. `UNIQUE(source, external_id)`. |
 | `raw_data.listing_history` | One row per event: `LISTED`, `PRICE_CHANGE`, `REMOVED`. |
 | `raw_data.geocode_cache` | Persistent `(neighbourhood, city)` → `(lat, lng)` cache. |
-| `raw_data.scrape_runs` | Operational log — one row per portal per run. |
+| `raw_data.scrape_runs` | Operational log — one row per portal for discovery, or a `health_check` row for a health-check run. |
 
-Listings have a `listing_status` of `ACTIVE` or `REMOVED`. A listing is marked `suspected_sold` when it disappears after 30+ days active with at least one downward price change in its history. This is a proxy signal for transaction history — not a confirmed sale.
+Listings have a `listing_status` of `ACTIVE` or `REMOVED`. A listing is marked `suspected_sold` when a health check confirms removal after at least 30 days since first observation, with at least one downward price change in its history. This is a proxy signal for transaction history — not a confirmed sale.
 
 ---
 
 ## Testing
 
-All tests are fully offline. No live network calls, no real database connections.
+Tests use saved listing HTML and mocked database/geocoder dependencies. However, `BaseParser` construction attempts to fetch `robots.txt`, and not every test patches that call, so the suite is not strictly network-isolated. `config.py` also requires `DATABASE_URL` at import time; use the local `.env` or a dummy value for tests that mock the database.
 
 ```bash
 pytest                                                     # all tests
@@ -354,29 +399,29 @@ This happens regularly. The symptom is 0 listings or ❌ in the Telegram notific
 2. Open a live listing in your browser, open DevTools → Inspector
 3. Find the element wrapping the broken field
 4. Update the relevant selector constant at the top of `scraper/parsers/<portal>.py`
-5. Save the page source to `tests/fixtures/<portal>_listing.html`
+5. Replace the HTML fixture used by that parser’s tests (for PropertyPro, `tests/fixtures/propertypro_listing_page.html`)
 6. Run `pytest tests/test_parsers.py::Test<Portal>Parser -v` to confirm
 
 ### Adding a new portal
 
-1. Create `scraper/parsers/newportal.py` — subclass `BaseParser`, implement `source`, `base_url`, `search_url`, `get_listing_urls()`, `parse_listing()`, `next_page_url()`
+1. Create `scraper/parsers/newportal.py` — subclass `BaseParser`, define `source`, `base_url`, `search_urls`, and implement `get_listing_urls()`, `parse_listing()`, `next_page_url()`
 2. Add `NewPortalParser(active_listings)` to the parsers list in `orchestrator.py`
-3. Save a fixture HTML page to `tests/fixtures/newportal_listing.html`
+3. Import the parser in `orchestrator.py`, then save a fixture HTML page to `tests/fixtures/newportal_listing.html`
 4. Add a `TestNewPortalParser` class to `test_parsers.py`
 
 ### Updating the neighbourhood list
 
-Edit `CANONICAL_NEIGHBOURHOODS` in `config.py`, adding the canonical areas as is necessary.
+Update the shared vocabulary in P0 (PropertyDataGenerator), then keep `CANONICAL_NEIGHBOURHOODS` in `config.py` aligned with it.
 
 ---
 
 ## Troubleshooting & Common Errors
 
 ### 1. Bot Detection & Proxy Failures
-* **403 Forbidden / Cloud Blocking**: Real estate portals (especially `propertypro.ng` and `privateproperty.ng`) aggressively blacklist cloud provider subnets (e.g., GitHub Actions runners) and public VPNs/exit nodes, including Tor and Cloudflare WARP. If you experience persistent 403 blocks in GitHub Actions, confirm that the local `start_tunnel.py` is running and the GHA secret `PROXY_URL` is pointing to the correct active residential tunnel address (`http://*.ngrok-free.app` or similar).
-* **ngrok Tunnel Connection Drops (ProxyError)**: Under environments with restrictive ISP policies or firewalls (which DNS-block or throttle TCP tunneling tools), ngrok connections can suffer from Deep Packet Inspection (DPI) or active TCP resets (RST packets) generated by the censorship gateway.
+* **403 Forbidden / Cloud Blocking**: Real estate portals (especially `propertypro.ng` and `privateproperty.ng`) aggressively blacklist cloud provider subnets (e.g., GitHub Actions runners) and public VPNs/exit nodes, including Tor and Cloudflare WARP. If you experience persistent 403 blocks in GitHub Actions, confirm that the local `start_tunnel.py` is running and the GHA secret `PROXY_URL` is pointing to the correct active residential tunnel address (for example, `http://4.tcp.ngrok.io:12345`, converted from the ngrok TCP URL).
+* **ngrok Tunnel Connection Drops (ProxyError)**: An interrupted tunnel, local proxy failure, or network issue can prevent a cloud runner from reaching the portals through the proxy.
   - **Symptom**: GHA console logs output `ProxyError('Unable to connect to proxy', RemoteDisconnected('Remote end closed connection without response'))`.
-  - **Remedy**: The scraper has an automated retry mechanism (`MAX_RETRIES = 3`) with exponential backoff (`RETRY_BACKOFF_BASE = 2.0`) to transparently recover from these brief sub-second drops. If the drops are extremely frequent, try changing the ngrok server region in the tunnel command (e.g. `ngrok tcp 8118 --region eu`).
+  - **Remedy**: The scraper has an automated retry mechanism (`MAX_RETRIES = 3`) with exponential backoff (`RETRY_BACKOFF_BASE = 2.0`) for transient connection errors. Persistent failures still require checking the local proxy, tunnel process, and network connection.
 
 ### 2. Service & Logging Issues
 * **Frozen or Stalled systemd Logs**: When running the tunnel under systemd, Python defaults to buffering standard output. This makes it look like `start_tunnel.py` is locked or not receiving connections.
@@ -384,10 +429,10 @@ Edit `CANONICAL_NEIGHBOURHOODS` in `config.py`, adding the canonical areas as is
 
 ### 3. Environment & Python Setup
 * **`ModuleNotFoundError: No module named 'scraper'`**: Pytest or Python cannot find the root package. Make sure you run `pytest` or `python3 -m scraper.orchestrator` from the **project root directory**, not from inside the `scraper/` or `tests/` subfolders. Ensure the root `conftest.py` exists to insert the root path into `sys.path`.
-* **`psycopg2-binary` Build Failures on Python 3.13**: Pre-built wheels for `psycopg2-binary` at version `2.9.9` do not support Python 3.13 and will try to compile from source, which requires Postgres header files locally. We recommend using Python 3.12 (e.g., `pyenv install 3.12.9 && pyenv local 3.12.9`), or upgrading to `psycopg2-binary==2.9.10` which contains Python 3.13 wheels.
-* **Geocoder always returns `geocoded=False`**: Ensure `NOMINATIM_AGENT` in `scraper/geocoder.py` contains a valid user-agent string and contact email. Nominatim blocks empty or generic user-agents. Note that on a fresh database, the first enrichment run will take ~90 seconds to geocode 80 unique neighbourhoods due to rate limits. Subsequent runs query the geocode cache instantly.
+* **Dependency installation failures on another Python version**: Use Python 3.12, matching CI, before changing the dependency pins. The wrapper can select other installed interpreters, but CI only checks 3.12.
+* **Geocoder returns `geocoded=False`**: Set `NOMINATIM_CONTACT_EMAIL`, confirm the listing has a neighbourhood, and inspect Nominatim errors or empty results in `scraper.log`. Each uncached lookup waits 1.1 seconds before requesting; successful results are cached in memory and PostgreSQL for later runs.
 
 ### 4. Adaptive Cooldown & Health Check Safeguards
 * **Spike Storms from Transient Outages**: To prevent a single failed discovery run from triggering a massive health check candidate storm, the missed run increment logic only considers portals that successfully ran and returned data. Failed or filtered portal runs do not increment the missed count.
 * **Soft-404 / Redirect Loops**: Deleted listings that redirect to generic portal search pages or different properties (whilst returning `200 OK`) are verified by checking if the listing's unique `external_id` is present in the final redirected URL. If the ID is missing, the listing is correctly flagged as removed, preventing permanent check loops.
-* **Queue Starvation**: Candidates are sorted by a relative Overdue Ratio (overdue time / cohort check interval) rather than `missed_run_count`, guaranteeing that fresh volatile listings are checked promptly alongside aged stable listings.
+* **Queue ordering**: Normal candidates are sorted by elapsed time since the last check divided by the current cohort interval, then by the oldest check time. This balances cohorts but does not guarantee a maximum wait when demand exceeds the 1,000-candidate cap.
