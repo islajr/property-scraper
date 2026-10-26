@@ -48,7 +48,7 @@ class TestUpsertRouting:
         listing = make_normalised()
         active  = {}   # empty — listing is brand new
 
-        writer._insert_new         = MagicMock(return_value=None)
+        writer._insert_new         = MagicMock(return_value=1)
         writer._update_existing    = MagicMock()
         writer._insert_history_events = MagicMock()
 
@@ -83,7 +83,7 @@ class TestUpsertRouting:
 
         inserts = []
         updates = []
-        writer._insert_new         = MagicMock(side_effect=lambda cur, l, now: inserts.append(l))
+        writer._insert_new         = MagicMock(side_effect=lambda cur, l, now: (inserts.append(l), 1)[1])
         writer._update_existing    = MagicMock(side_effect=lambda cur, l, now: updates.append(l))
         writer._insert_history_events = MagicMock()
 
@@ -185,7 +185,7 @@ class TestPriceChangeDetection:
 
         captured_events = []
         writer._insert_new         = MagicMock()
-        writer._update_existing    = MagicMock()
+        writer._update_existing    = MagicMock(return_value={'event_type':'PRICE_CHANGE','old_value':4_500_000_000,'new_value':4_000_000_000})
         writer._insert_history_events = lambda evts: captured_events.extend(evts)
 
         stats = writer.upsert([listing], active)
@@ -203,7 +203,7 @@ class TestPriceChangeDetection:
 
         captured_events = []
         writer._insert_new         = MagicMock()
-        writer._update_existing    = MagicMock()
+        writer._update_existing    = MagicMock(return_value={'event_type':'PRICE_CHANGE','old_value':4_500_000_000,'new_value':5_000_000_000})
         writer._insert_history_events = lambda evts: captured_events.extend(evts)
 
         stats = writer.upsert([listing], active)

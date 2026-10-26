@@ -103,6 +103,7 @@ class _CheckResult:
     is_removed:  bool
     observed_price: Optional[int]  # kobo, or None
     error:       Optional[str] = None
+    observed_quote: object = None
 
 
 # ── Main class ────────────────────────────────────────────────────────────────
@@ -204,9 +205,12 @@ class HealthChecker:
                     log.info("[health_checker] REMOVED confirmed: [%s] %s",
                              result.source, result.external_id)
                 else:
-                    price_changed = self.db.confirm_listing_active(
-                        result.listing_id, result.first_seen, result.observed_price
-                    )
+                    if result.observed_quote is not None:
+                        price_changed = self.db.confirm_listing_active(
+                            result.listing_id, result.first_seen, observed_quote=result.observed_quote)
+                    else:
+                        price_changed = self.db.confirm_listing_active(
+                            result.listing_id, result.first_seen, result.observed_price)
                     stats["confirmed_active"] += 1
 
                     if price_changed:
@@ -327,7 +331,8 @@ class HealthChecker:
                         external_id=external_id,
                         first_seen=first_seen,
                         is_removed=is_removed,
-                        observed_price=observed_price,
+                        observed_price=observed_price.price_kobo if hasattr(observed_price, "price_kobo") else observed_price,
+                        observed_quote=observed_price if hasattr(observed_price, "price_kobo") else None,
                     )
                 except Exception as exc:
                     return _CheckResult(
@@ -348,7 +353,7 @@ class HealthChecker:
         url:         str,
         external_id: str,
         source:      str,
-    ) -> Tuple[bool, Optional[int]]:
+    ) -> Tuple[bool, object]:
         """
         Async equivalent of the old _check_listing. Fetches the URL and returns
         (is_removed, observed_price_kobo).
@@ -387,7 +392,7 @@ class HealthChecker:
                                 return True, None
 
                         # Listing is confirmed active — try to extract current price.
-                        observed_price = self._extract_observed_price(body, url, source)
+                        observed_price = self._extract_observed_quote(body, url, source)
                         return False, observed_price
 
                     # Force retry on other status codes (5xx, etc.) by raising
@@ -411,12 +416,12 @@ class HealthChecker:
 
         return False, None
 
-    def _extract_observed_price(self, html: str, url: str,
+    def _extract_observed_quote(self, html: str, url: str,
                                 source: str) -> Optional[int]:
         """
         Parse current price from listing page HTML using the portal's own parser
-        and the shared normaliser. Returns kobo, or None on any failure.
-        Synchronous — only called in the DB-write phase, not inside the async loop.
+        and the shared normaliser. Returns a typed listing, or None on parser failure.
+        Pure parsing of the primary page quote; retains cadence and currency evidence.
         """
         parser = self._parsers.get(source)
         if parser is None:
@@ -427,9 +432,7 @@ class HealthChecker:
             if raw is None:
                 return None
             normalised = normaliser.normalise(raw)
-            if normalised.price_parse_failed:
-                return None
-            return normalised.price_kobo
+            return normalised
         except Exception as exc:
             log.debug("[health_checker] price extraction failed for %s: %s", url, exc)
             return None

@@ -42,10 +42,12 @@ jobs:
         run: |
           python - <<'EOF'
           import psycopg2, os
+          from pathlib import Path
           conn = psycopg2.connect(os.environ["DATABASE_URL"])
           conn.autocommit = True
-          with conn.cursor() as cur, open("schema/001_raw_data_schema.sql") as f:
-              cur.execute(f.read())
+          with conn.cursor() as cur:
+              for migration in sorted(Path("schema").glob("*.sql")):
+                  cur.execute(migration.read_text())
           conn.close()
           print("Schema applied.")
           EOF

@@ -29,6 +29,7 @@ import psycopg2.extras
 
 from scraper.models import NormalisedListing
 import config
+from scraper.pricing import QUOTE_FIELDS, PERIOD_FIELDS, quote_dict, classify_change, comparable
 
 log = logging.getLogger(__name__)
 
@@ -94,7 +95,14 @@ class DatabaseWriter:
     # Main upsert — new listings inserted, existing updated
     # ═══════════════════════════════════════════════════════════════════════════
 
-    def upsert(self,
+    def upsert(self, listings, active_listings, scraped_sources=None):
+        try:
+            return self._upsert(listings, active_listings, scraped_sources)
+        except Exception:
+            self.conn.rollback()
+            raise
+
+    def _upsert(self,
                listings: List[NormalisedListing],
                active_listings: ActiveListings,
                scraped_sources: Optional[Set[str]] = None) -> Dict:
@@ -172,23 +180,15 @@ class DatabaseWriter:
 
                     if key in active_listings:
                         # ── Existing listing ──────────────────────────────────
-                        self._update_existing(cur, listing, now)
+                        event = self._update_existing(cur, listing, now)
                         stats["updated"] += 1
                         stats["per_source"][source]["updated"] += 1
 
-                        old_price = active_listings[key]
-                        if (listing.price_kobo is not None
-                                and old_price is not None
-                                and listing.price_kobo != old_price):
-                            batch_history_events.append({
-                                "source":     listing.source,
-                                "ext_id":     listing.external_id,
-                                "event_type": "PRICE_CHANGE",
-                                "old_value":  old_price,
-                                "new_value":  listing.price_kobo,
-                            })
-                            stats["price_changes"] += 1
-                            stats["per_source"][source]["price_changes"] += 1
+                        if isinstance(event, dict):
+                            batch_history_events.append(event)
+                            if event['event_type'] == 'PRICE_CHANGE':
+                                stats['price_changes'] += 1
+                                stats['per_source'][source]['price_changes'] += 1
                     else:
                         # ── New listing ────────────────────────────────────────
                         listing_id = self._insert_new(cur, listing, now)
@@ -201,16 +201,23 @@ class DatabaseWriter:
                                 "event_type": "LISTED",
                                 "old_value":  None,
                                 "new_value":  listing.price_kobo,
+                                "new_pricing": quote_dict(listing),
                             })
                             # Register immediately so a second encounter of this
                             # key later in the run routes to _update_existing.
                             active_listings[key] = listing.price_kobo
                         else:
-                            log.warning(
-                                "[db_writer] _insert_new returned None for (%s, %s) "
-                                "— skipping LISTED history event",
-                                listing.source, listing.external_id,
-                            )
+                            # A removed/concurrently discovered listing already exists.
+                            event = self._update_existing(cur, listing, now)
+                            if isinstance(event, dict):
+                                batch_history_events.append(event)
+                            stats['new'] -= 1
+                            stats['per_source'][source]['new'] -= 1
+                            stats['updated'] += 1
+                            stats['per_source'][source]['updated'] += 1
+                            if isinstance(event, dict) and event['event_type'] == 'PRICE_CHANGE':
+                                stats['price_changes'] += 1
+                                stats['per_source'][source]['price_changes'] += 1
 
             # ── Write history events ───────────────────────────────────────────────
             # History events written inside the samae transaction as the batch
@@ -255,25 +262,30 @@ class DatabaseWriter:
             return
         sql = """
             INSERT INTO raw_data.listing_history
-                (listing_id, event_type, old_value, new_value, event_date, notes)
+                (listing_id, event_type, old_value, new_value, event_date, notes, old_pricing, new_pricing, price_comparable)
             SELECT
                 sl.id,
                 %(event_type)s,
                 %(old_value)s,
                 %(new_value)s,
                 CURRENT_DATE,
-                %(notes)s
+                %(notes)s, %(old_pricing)s, %(new_pricing)s, %(price_comparable)s
             FROM raw_data.scraped_listings sl
             WHERE sl.source = %(source)s AND sl.external_id = %(ext_id)s
         """
         direct_sql = """
             INSERT INTO raw_data.listing_history
-                (listing_id, event_type, old_value, new_value, event_date, notes)
-            VALUES (%(listing_id)s, %(event_type)s, %(old_value)s, %(new_value)s, CURRENT_DATE, %(notes)s)
+                (listing_id, event_type, old_value, new_value, event_date, notes, old_pricing, new_pricing, price_comparable)
+            VALUES (%(listing_id)s, %(event_type)s, %(old_value)s, %(new_value)s, CURRENT_DATE, %(notes)s, %(old_pricing)s, %(new_pricing)s, %(price_comparable)s)
         """
         with self.conn.cursor() as cur:
             for event in events:
+                event = dict(event)
                 event.setdefault("notes", None)
+                for field in ('old_pricing', 'new_pricing'):
+                    value = event.get(field)
+                    event[field] = psycopg2.extras.Json(value) if value is not None else None
+                event.setdefault('price_comparable', False)
                 if "listing_id" in event:
                     cur.execute(direct_sql, event)
                 else:
@@ -454,84 +466,67 @@ class DatabaseWriter:
         log.debug("[db_writer] listing %d marked REMOVED (suspected_sold=%s)",
                   listing_id, is_suspected_sold)
 
-    def confirm_listing_active(self, listing_id: int, 
-                               first_seen_at: datetime,
-                               observed_price_kobo: Optional[int] = None) -> bool:
-        """
-        Called by health_checker when an individual URL check confirms the
-        listing is still live.
-        
-        If observed_price_kobo is provided and differs from the stored price,
-        updates price_kobo, emits a PRICE_CHANGE history event, and returns True.
-        Otherwise, resets missed_run_count, stamps the check timestamp, returns False.
-        """
+    def confirm_listing_active(self, listing_id: int, first_seen_at: datetime,
+                               observed_price_kobo: Optional[int] = None,
+                               observed_quote: Optional[NormalisedListing] = None) -> bool:
         now = datetime.now(timezone.utc)
-        # Calculate next check date
-        first_seen = first_seen_at or now
-        age_days = (now - first_seen).days
-        if age_days < 14:
-            interval = timedelta(days=1.9)
-        elif age_days < 60:
-            interval = timedelta(days=6.8)
+        age_days = (now - (first_seen_at or now)).days
+        interval = timedelta(days=1.9 if age_days < 14 else 6.8 if age_days < 60 else 13.8)
+        try:
+            with self.conn.cursor() as cur:
+                old = self._load_pricing(cur, listing_id=listing_id)
+                event = None
+                if old is not None:
+                    if observed_quote is not None:
+                        new = quote_dict(observed_quote)
+                    elif observed_price_kobo is not None:
+                        # Legacy callers provide no unit evidence; do not attach the old unit.
+                        new = {**quote_dict(old), 'price_kobo': observed_price_kobo,
+                               'price_period': None, 'price_period_count': None,
+                               'price_period_status': 'UNKNOWN', 'price_currency': None,
+                               'price_basis': 'UNKNOWN', 'price_period_source': 'LEGACY_UNKNOWN',
+                               'raw_price_text': None, 'price_period_evidence': None}
+                    else:
+                        new = None
+                    if new is not None:
+                        event = self._persist_pricing(cur, old, new, now)
+                cur.execute("""UPDATE raw_data.scraped_listings
+                    SET missed_run_count=0, last_health_check_at=%s, next_health_check_at=%s
+                    WHERE id=%s""", (now, now + interval, listing_id))
+            if event: self._insert_history_events([event])
+            self.conn.commit()
+            return bool(event and event['event_type'] == 'PRICE_CHANGE')
+        except Exception:
+            self.conn.rollback()
+            raise
+
+    def _load_pricing(self, cur, source=None, external_id=None, listing_id=None):
+        if listing_id is not None:
+            cur.execute('SELECT row_to_json(sl) FROM raw_data.scraped_listings sl WHERE id=%s FOR UPDATE', (listing_id,))
         else:
-            interval = timedelta(days=13.8)
-        next_check = now + interval
+            cur.execute('SELECT row_to_json(sl) FROM raw_data.scraped_listings sl WHERE source=%s AND external_id=%s FOR UPDATE', (source, external_id))
+        row = cur.fetchone()
+        return row[0] if row and isinstance(row[0], dict) else None
 
-        price_changed = False
-        stored_price = None
-        
-        with self.conn.cursor() as cur:
-            if observed_price_kobo is not None:
-                cur.execute(
-                    "SELECT price_kobo FROM raw_data.scraped_listings WHERE id = %s",
-                    (listing_id,)
-                )
-                row          = cur.fetchone()
-                stored_price = row[0] if row else None
-
-                if stored_price is not None and observed_price_kobo != stored_price:
-                    cur.execute("""
-                        UPDATE raw_data.scraped_listings
-                        SET missed_run_count     = 0,
-                            last_health_check_at = %s,
-                            next_health_check_at = %s,
-                            price_kobo           = %s,
-                            last_seen_at         = %s
-                        WHERE id = %s
-                    """, (now, next_check, observed_price_kobo, now, listing_id))
-                    price_changed = True
-                else:
-                    cur.execute("""
-                        UPDATE raw_data.scraped_listings
-                        SET missed_run_count     = 0,
-                            last_health_check_at = %s,
-                            next_health_check_at = %s
-                        WHERE id = %s
-                    """, (now, next_check, listing_id))
-            else:
-                cur.execute("""
-                    UPDATE raw_data.scraped_listings
-                    SET missed_run_count     = 0,
-                        last_health_check_at = %s,
-                        next_health_check_at = %s
-                    WHERE id = %s
-                """, (now, next_check, listing_id))
-        
-        if price_changed:
-            self._insert_history_events([{
-                "listing_id": listing_id,
-                "event_type": "PRICE_CHANGE",
-                "old_value":  stored_price,
-                "new_value":  observed_price_kobo,
-                "notes":      "detected by health checker",
-            }])
-            log.debug("[db_writer] PRICE_CHANGE recorded for listing %d: %s → %s kobo",
-                    listing_id, stored_price, observed_price_kobo)
-
-        self.conn.commit()
-        return price_changed
-
-            
+    def _persist_pricing(self, cur, old, new, now):
+        before = quote_dict(old)
+        if new.get('price_kobo') is None:
+            # Keep a valid stored quote intact, but retain the rejected observation for review.
+            return dict(listing_id=old['id'], event_type='PRICING_OBSERVATION_REJECTED',
+                        old_value=before['price_kobo'], new_value=None,
+                        old_pricing=before, new_pricing=new,
+                        notes='Quote could not be parsed as a positive NGN amount; previous quote retained')
+        event_type = classify_change(before, new)
+        fields = (*QUOTE_FIELDS, 'price_parse_failed', 'pricing_observed_at')
+        values = {**new, 'price_parse_failed': False, 'pricing_observed_at': now, 'id': old['id']}
+        cur.execute('UPDATE raw_data.scraped_listings SET ' +
+                    ', '.join(f'{k}=%({k})s' for k in fields) + ' WHERE id=%(id)s', values)
+        if event_type:
+            return dict(listing_id=old['id'], event_type=event_type,
+                        old_value=before['price_kobo'], new_value=new['price_kobo'],
+                        old_pricing=before, new_pricing=new,
+                        price_comparable=comparable(before,new))
+        return None
 
     # ═══════════════════════════════════════════════════════════════════════════
     # Private helpers
@@ -549,7 +544,8 @@ class DatabaseWriter:
                 city, lat, lng, geocoded,
                 agent_name, diaspora_targeted,
                 listing_status, suspected_sold, missed_run_count,
-                first_seen_at, last_seen_at
+                first_seen_at, last_seen_at,
+                price_period, price_period_count, price_period_status, price_period_source, raw_price_text, price_period_evidence, price_currency, price_basis, pricing_observed_at
             ) VALUES (
                 %(external_id)s, %(source)s, %(url)s, %(title)s, %(description)s,
                 %(price_kobo)s, %(price_parse_failed)s, %(price_type)s,
@@ -559,31 +555,30 @@ class DatabaseWriter:
                 %(city)s, %(lat)s, %(lng)s, %(geocoded)s,
                 %(agent_name)s, %(diaspora_targeted)s,
                 'ACTIVE', FALSE, 0,
-                %(now)s, %(now)s
+                %(now)s, %(now)s,
+                %(price_period)s, %(price_period_count)s, %(price_period_status)s, %(price_period_source)s, %(raw_price_text)s, %(price_period_evidence)s, %(price_currency)s, %(price_basis)s, %(now)s
             )
-            ON CONFLICT (source, external_id) DO UPDATE
-                SET last_seen_at = EXCLUDED.last_seen_at
+            ON CONFLICT (source, external_id) DO NOTHING
             RETURNING id
         """, {**listing.__dict__, "now": now})
         row = cur.fetchone()
         return row[0] if row else None
 
-    def _update_existing(self, cur, listing: NormalisedListing, now: datetime) -> None:
-        """Update last_seen_at and mutable fields for a known listing."""
-        cur.execute("""
-            UPDATE raw_data.scraped_listings SET
-                last_seen_at             = %(now)s,
-                price_kobo               = %(price_kobo)s,
-                price_parse_failed       = %(price_parse_failed)s,
-                url                      = %(url)s,
-                title                    = %(title)s,
-                lat                      = COALESCE(%(lat)s, lat),
-                lng                      = COALESCE(%(lng)s, lng),
-                geocoded                 = COALESCE(%(geocoded)s, geocoded),
-                missed_run_count         = 0,
-                listing_status           = 'ACTIVE'
-            WHERE source = %(source)s AND external_id = %(external_id)s
-        """, {**listing.__dict__, "now": now})
+    def _update_existing(self, cur, listing: NormalisedListing, now: datetime):
+        old = self._load_pricing(cur, listing.source, listing.external_id)
+        if old is None: return None
+        event = self._persist_pricing(cur, old, quote_dict(listing), now)
+        cur.execute("""UPDATE raw_data.scraped_listings SET
+            last_seen_at=%(now)s, url=%(url)s, title=%(title)s,
+            lat=COALESCE(%(lat)s,lat), lng=COALESCE(%(lng)s,lng),
+            geocoded=(geocoded OR %(geocoded)s), missed_run_count=0, listing_status='ACTIVE'
+            WHERE source=%(source)s AND external_id=%(external_id)s""",
+            {**listing.__dict__, 'now':now})
+        if old.get('listing_status') == 'REMOVED':
+            self._insert_history_events([dict(listing_id=old['id'],event_type='RELISTED',
+                old_value=old['price_kobo'],new_value=listing.price_kobo,
+                old_pricing=quote_dict(old),new_pricing=quote_dict(listing))])
+        return event
 
     def _evaluate_suspected_sold(self, listing_id: int,
                                   first_seen: datetime,
@@ -601,6 +596,7 @@ class DatabaseWriter:
                 SELECT 1 FROM raw_data.listing_history
                 WHERE listing_id = %s
                   AND event_type = 'PRICE_CHANGE'
+                  AND price_comparable = TRUE
                   AND new_value < old_value
                 LIMIT 1
             """, (listing_id,))
