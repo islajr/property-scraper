@@ -1,14 +1,15 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ telemetry.site_title | default('PS-0 PropertyScraper Telemetry Dashboard') }}</title>
-  <meta name="description" content="Public Data Engineering Telemetry & Pipeline Health Dashboard for PS-0 PropertyScraper. Live multi-portal extraction metrics, data hygiene, and deduplication statistics.">
+  <meta name="description" content="Public Data Engineering Telemetry & Pipeline Health Dashboard for PS-0 PropertyScraper. Scheduled extraction metrics, listing activity, and spatial coverage.">
   <meta name="keywords" content="PS-0, PropertyScraper, Telemetry Dashboard, Data Engineering, Nigerian Real Estate, Data Pipeline, Property Analytics, Data Hygiene, Deduplication">
   <meta name="author" content="Isaac Akinmokun">
   <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
   <meta name="theme-color" content="#000000">
+  <script src="theme.js"></script>
   
   <!-- Favicon & Apple Touch Icon -->
   <link rel="icon" type="image/png" sizes="32x32" href="isaac-akinmokun-apple-touch-icon.png">
@@ -21,7 +22,7 @@
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://ps0.akinmokun.com/">
   <meta property="og:title" content="{{ telemetry.site_title | default('PS-0 PropertyScraper Telemetry Dashboard') }}">
-  <meta property="og:description" content="Live data engineering telemetry, multi-portal extraction health, spatial coverage, and deduplication stats for PS-0 PropertyScraper.">
+  <meta property="og:description" content="Scheduled data engineering telemetry, multi-portal extraction health, spatial coverage, and deduplication stats for PS-0 PropertyScraper.">
   <meta property="og:site_name" content="PS-0 PropertyScraper Telemetry">
   <meta property="og:locale" content="en_US">
 
@@ -29,11 +30,10 @@
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:url" content="https://ps0.akinmokun.com/">
   <meta name="twitter:title" content="{{ telemetry.site_title | default('PS-0 PropertyScraper Telemetry Dashboard') }}">
-  <meta name="twitter:description" content="Live multi-portal extraction metrics, data hygiene, and spatial coverage for PS-0 PropertyScraper.">
+  <meta name="twitter:description" content="Scheduled extraction metrics, listing activity, and spatial coverage for PS-0 PropertyScraper.">
 
-  <!-- Google Fonts Preconnect -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preload" href="fonts/PlayfairDisplay.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/Merriweather-Regular.woff2" as="font" type="font/woff2" crossorigin>
 
   <!-- Schema.org JSON-LD Multi-Schema (Dataset + WebSite + Person) -->
   <script type="application/ld+json">
@@ -74,343 +74,429 @@
     {{ style_css | safe }}
   </style>
 </head>
+
 <body>
-
-  <!-- Sticky Navbar Aligned with akinmokun.com -->
-  <header class="site-header" id="header">
-    <div class="container navbar">
-      <!-- Logo + Brand -->
-      <a href="https://akinmokun.com" class="nav-brand" id="brand-link" aria-label="akinmokun.com home">
-        <img src="isaac-akinmokun-apple-touch-icon.png" alt="Isaac Akinmokun" class="brand-logo" width="32" height="32">
-        <span class="brand-badge">PS-0</span>
-      </a>
-      
-      <!-- Desktop Navigation -->
-      <nav aria-label="Main navigation">
-        <ul class="desktop-nav">
-          <li><a href="https://akinmokun.com/">Home</a></li>
-          <li><a href="https://akinmokun.com/about">About</a></li>
-          <li><a href="https://akinmokun.com/now">Now</a></li>
-          <li><a href="https://akinmokun.com/blog/" target="_blank">Blog <span class="ext-arrow">↗</span></a></li>
-          <li><a href="https://reports.akinmokun.com/" target="_blank">Reports <span class="ext-arrow">↗</span></a></li>
-          <li><a href="https://ps0.akinmokun.com" class="active">PS-0 Telemetry</a></li>
-          <li><a href="https://akinmokun.com/credentials">Credentials</a></li>
-        </ul>
-      </nav>
-
-      <!-- Mobile Hamburger Toggle Button -->
-      <button class="mobile-nav-toggle" id="mobile-nav-toggle" aria-label="Open navigation menu" aria-expanded="false">
-        <span class="hamburger-bar bar-top"></span>
-        <span class="hamburger-bar bar-mid"></span>
-        <span class="hamburger-bar bar-bot"></span>
-      </button>
+<div class="site-shell">
+<header class="site-header">
+ <a class="skip-link" href="#main-content">
+  Skip to content
+ </a>
+ <details class="app-switcher" data-site-disclosure="true">
+  <summary aria-label="Site directory">
+   <span class="wordmark">
+    <img alt="" height="24" src="isaac-akinmokun-apple-touch-icon.png" width="24"/>
+    isaac
+    <span aria-hidden="true" class="switch-chevron">
+     ↕
+    </span>
+   </span>
+  </summary>
+  <nav aria-label="Site directory" class="apps-panel">
+   <div class="apps-group">
+    <p class="menu-label">
+     Personal
+    </p>
+    <a class="app-link" data-tone="blue" href="https://akinmokun.com/">
+     <span aria-hidden="true" class="app-mark">
+      IA
+     </span>
+     <span>
+      <strong>
+       Home
+      </strong>
+      <small>
+       Profile &amp; selected work
+      </small>
+     </span>
+    </a>
+    <a class="app-link" data-tone="purple" href="https://akinmokun.com/blog/">
+     <span aria-hidden="true" class="app-mark">
+      B
+     </span>
+     <span>
+      <strong>
+       Blog
+      </strong>
+      <small>
+       Docs, essays &amp; research
+      </small>
+     </span>
+    </a>
+    <a class="app-link" data-tone="orange" href="https://akinmokun.com/now/">
+     <span aria-hidden="true" class="app-mark">
+      N
+     </span>
+     <span>
+      <strong>
+       Now
+      </strong>
+      <small>
+       Current focus
+      </small>
+     </span>
+    </a>
+    <a class="app-link" data-tone="rose" href="https://akinmokun.com/photos/">
+     <span aria-hidden="true" class="app-mark">
+      PH
+     </span>
+     <span>
+      <strong>
+       Photos
+      </strong>
+      <small>
+       Photography &amp; grading
+      </small>
+     </span>
+    </a>
+    <a class="app-link" data-tone="teal" href="https://akinmokun.com/protocol/">
+     <span aria-hidden="true" class="app-mark">
+      P
+     </span>
+     <span>
+      <strong>
+       Protocol
+      </strong>
+      <small>
+       A personal operating system
+      </small>
+     </span>
+    </a>
+   </div>
+   <div class="apps-group">
+    <p class="menu-label">
+     Systems
+    </p>
+    <a class="app-link" data-tone="blue" href="https://akinmokun.com/projects/">
+     <span aria-hidden="true" class="app-mark">
+      PR
+     </span>
+     <span>
+      <strong>
+       Projects
+      </strong>
+      <small>
+       Tools &amp; experiments
+      </small>
+     </span>
+    </a>
+    <a class="app-link" data-tone="teal" href="https://akinmokun.com/homelab/">
+     <span aria-hidden="true" class="app-mark">
+      HL
+     </span>
+     <span>
+      <strong>
+       Homelab
+      </strong>
+      <small>
+       Setup &amp; infrastructure plans
+      </small>
+     </span>
+    </a>
+    <a aria-current="page" class="app-link" data-tone="green" href="/">
+     <span aria-hidden="true" class="app-mark">
+      PS
+     </span>
+     <span>
+      <strong>
+       PropertyScraper
+       <!-- -->
+       ↗
+      </strong>
+      <small>
+       Property data pipeline
+      </small>
+     </span>
+    </a>
+    <a class="app-link" data-tone="orange" href="https://reports.akinmokun.com/">
+     <span aria-hidden="true" class="app-mark">
+      R
+     </span>
+     <span>
+      <strong>
+       Market reports
+       <!-- -->
+       ↗
+      </strong>
+      <small>
+       Real estate intelligence
+      </small>
+     </span>
+    </a>
+   </div>
+   <div class="apps-group">
+    <p class="menu-label">
+     Connect
+    </p>
+    <a class="app-link" data-tone="purple" href="https://akinmokun.com/about/">
+     <span aria-hidden="true" class="app-mark">
+      A
+     </span>
+     <span>
+      <strong>
+       About
+      </strong>
+      <small>
+       Background &amp; experience
+      </small>
+     </span>
+    </a>
+    <a class="app-link" data-tone="blue" href="https://akinmokun.com/credentials/">
+     <span aria-hidden="true" class="app-mark">
+      CV
+     </span>
+     <span>
+      <strong>
+       Credentials
+      </strong>
+      <small>
+       CVs &amp; documents
+      </small>
+     </span>
+    </a>
+    <a class="app-link" data-tone="neutral" href="https://github.com/islajr" rel="noopener noreferrer" target="_blank">
+     <span aria-hidden="true" class="app-mark">
+      GH
+     </span>
+     <span>
+      <strong>
+       GitHub
+       <!-- -->
+       ↗
+      </strong>
+      <small>
+       Source code &amp; contributions
+      </small>
+     </span>
+    </a>
+    <a class="app-link" data-tone="rose" href="mailto:isaac@akinmokun.com">
+     <span aria-hidden="true" class="app-mark">
+      @
+     </span>
+     <span>
+      <strong>
+       Email
+      </strong>
+      <small>
+       Say hello
+      </small>
+     </span>
+    </a>
+   </div>
+  </nav>
+ </details>
+ <nav aria-label="Main navigation" class="site-nav">
+  <a href="https://akinmokun.com/">
+   Home
+  </a>
+  <a aria-current="page" href="/">
+   PS-0
+  </a>
+  <a href="https://akinmokun.com/projects/">
+   Projects
+  </a>
+  <a href="https://akinmokun.com/about/">
+   About
+  </a>
+  <a href="https://akinmokun.com/blog/">
+   Blog
+  </a>
+  <details class="site-more" data-site-disclosure="true">
+   <summary>
+    Explore
+   </summary>
+   <div class="more-links">
+    <a href="https://akinmokun.com/now/">
+     Now
+    </a>
+    <a href="https://akinmokun.com/homelab/">
+     Homelab
+    </a>
+    <a href="https://akinmokun.com/photos/">
+     Photos
+    </a>
+    <a href="https://akinmokun.com/protocol/">
+     Protocol
+    </a>
+    <a href="https://akinmokun.com/credentials/">
+     Credentials / CV
+    </a>
+    <a href="https://reports.akinmokun.com/">
+     Market reports ↗
+    </a>
+   </div>
+  </details>
+ </nav>
+ <div class="header-actions">
+  <a class="header-cv" href="https://akinmokun.com/credentials/">
+   CV ↗
+  </a>
+  <button aria-checked="true" aria-label="Dark appearance" class="theme-toggle" data-theme-toggle="true" role="switch" type="button">
+   <span aria-hidden="true" class="theme-orb">
+   </span>
+   <span aria-hidden="true" class="theme-light-label">
+    Light
+   </span>
+   <span aria-hidden="true" class="theme-dark-label">
+    Dark
+   </span>
+  </button>
+ </div>
+</header>
+<main id="main-content">
+  <section class="dashboard-intro" aria-labelledby="main-title">
+    <div>
+      <p class="eyebrow breadcrumb"><a href="https://akinmokun.com/projects/">Systems</a><span aria-hidden="true">/</span> PS-0 · Property data</p>
+      <h1 id="main-title">PropertyScraper</h1>
+      <p class="intro-copy">A view into Nigeria’s property listings.<br>Discovery, listing activity, and the pipeline behind the data.</p>
+      <div class="intro-links"><a href="https://github.com/islajr/property-scraper" target="_blank" rel="noopener noreferrer">View source ↗</a><a href="https://reports.akinmokun.com/">Market reports ↗</a></div>
     </div>
-  </header>
+    <aside class="snapshot" aria-label="Dashboard snapshot">
+      <span class="eyebrow">Pipeline status</span>
+      <div class="status {{ telemetry.system_status_class | default('unknown') }}"><span class="status-dot" aria-hidden="true"></span>{{ telemetry.system_status | default('UNKNOWN') | replace('_', ' ') | lower | capitalize }}</div>
+      <dl><div><dt>Last compiled</dt><dd>{{ telemetry.last_updated }}</dd></div><div><dt>Refresh</dt><dd>After scheduled runs</dd></div></dl>
+    </aside>
+  </section>
 
-  <!-- Mobile Navigation Drawer -->
-  <div class="mobile-drawer" id="mobile-drawer" role="dialog" aria-modal="true" aria-label="Mobile Navigation">
-    <div class="mobile-drawer-header">
-      <span class="mobile-drawer-title">akinmokun.com</span>
-      <button class="mobile-drawer-close" id="mobile-drawer-close" aria-label="Close navigation menu">
-        <span>Close ×</span>
-      </button>
+  <nav class="dashboard-nav" aria-label="Dashboard sections"><a href="#overview">Overview</a><a href="#run-telemetry">Recent runs</a><a href="#portals">Sources</a><a href="#pipeline">About the pipeline</a><span>Public telemetry</span></nav>
+
+  <section id="overview" class="dashboard-section" aria-labelledby="overview-title">
+    <div class="section-heading"><h2 id="overview-title">The dataset at a glance</h2><span class="section-note">Cumulative coverage</span></div>
+    <div class="metrics-grid">
+      <article class="metric-card" id="card-total-ingested"><h3 class="metric-label">Total listings</h3><p class="metric-value">{{ "{:,}".format(telemetry.total_ingested) }}</p><p class="metric-sub">Records collected across source portals</p></article>
+      <article class="metric-card" id="card-active-listings"><h3 class="metric-label">Active listings</h3><p class="metric-value">{{ "{:,}".format(telemetry.active_listings) }}</p><p class="metric-sub">Currently marked active in the dataset</p></article>
+      <article class="metric-card" id="card-spatial-coverage"><h3 class="metric-label">Neighbourhoods</h3><p class="metric-value">{{ "{:,}".format(telemetry.neighbourhoods_count) }}</p><p class="metric-sub">Across {{ telemetry.cities_count }} cities</p></article>
+      <article class="metric-card"><h3 class="metric-label">Source portals</h3><p class="metric-value">{{ "%02d" | format(telemetry.portals | length) }}</p><p class="metric-sub">Property listing platforms</p></article>
     </div>
-    <nav class="mobile-drawer-nav">
-      <a href="https://akinmokun.com/" class="mobile-drawer-link"><span>Home</span> <span>→</span></a>
-      <a href="https://akinmokun.com/about" class="mobile-drawer-link"><span>About</span> <span>→</span></a>
-      <a href="https://akinmokun.com/now" class="mobile-drawer-link"><span>Now</span> <span>→</span></a>
-      <a href="https://akinmokun.com/blog/" target="_blank" class="mobile-drawer-link"><span>Blog</span> <span>↗</span></a>
-      <a href="https://reports.akinmokun.com/" target="_blank" class="mobile-drawer-link"><span>Reports</span> <span>↗</span></a>
-      <a href="https://ps0.akinmokun.com" class="mobile-drawer-link" style="color: var(--gold-light);"><span>PS-0 Telemetry</span> <span>✦</span></a>
-      <a href="https://akinmokun.com/credentials" class="mobile-drawer-link"><span>Credentials</span> <span>→</span></a>
+  </section>
 
-      <div class="mobile-drawer-footer">
-        akinmokun.com • Sovereign Polymath Protocol
-      </div>
-    </nav>
+  <section class="dashboard-section" id="run-telemetry" aria-labelledby="runs-title">
+    <div class="section-heading"><h2 id="runs-title">Recent runs</h2><span class="section-note">Latest execution by mode</span></div>
+    <div class="runs-grid">
+      {% for key, title, cadence, description, fields in [
+        ('discovery_run', 'Discovery', 'Weekly', 'Finds new listings and updates the dataset.', [('total_scraped', 'Dataset records'), ('new_listings', 'New listings'), ('updated_listings', 'Updated'), ('errors', 'Errors')]),
+        ('health_check_run', 'Health check', 'Daily', 'Revisits listing URLs to check activity and prices.', [('checked', 'Checked'), ('active_confirmed', 'Active'), ('removed', 'Removed'), ('price_changes', 'Price changes')])
+      ] %}
+      {% set run = telemetry[key] %}
+      <article class="run-card" id="card-{{ key | replace('_', '-') }}">
+        <div class="run-heading"><span class="eyebrow">{{ cadence }} / {{ '%02d' | format(loop.index) }}</span><span class="run-status {{ run.status | lower }}">{{ run.status | replace('_', ' ') | lower | capitalize }}</span></div>
+        <h3>{{ title }}</h3><p class="run-description">{{ description }}</p>
+        <dl class="run-stats">{% for field, label in fields %}<div><dt>{{ label }}</dt><dd>{{ "{:,}".format(run[field]) }}</dd></div>{% endfor %}</dl>
+        <div class="run-footer"><span>{{ run.timestamp }}</span><span>{{ run.duration }}</span></div>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="dashboard-section" id="portals" aria-labelledby="portals-title">
+    <div class="section-heading"><h2 id="portals-title">Source coverage</h2><span class="section-note">{{ telemetry.portals | length }} portals · scheduled discovery</span></div>
+    <div class="table-wrapper" role="region" aria-label="Source portal listing counts" tabindex="0">
+      <table class="health-table" id="portal-health-table">
+        <caption class="sr-only">Listing counts and share of the dataset by source portal</caption>
+        <thead><tr><th scope="col">Source portal</th><th scope="col" class="numeric">Listings</th><th scope="col">Share of source records</th><th scope="col">Extraction</th></tr></thead>
+        <tbody>
+        {% set source_total = telemetry.portals | sum(attribute='last_harvest_count') %}
+        {% for portal in telemetry.portals %}
+        {% set share = (portal.last_harvest_count / source_total * 100) if source_total else 0 %}
+        <tr><th scope="row"><span class="portal-index">{{ '%02d' | format(loop.index) }}</span>{{ portal.name }}</th><td class="numeric">{{ "{:,}".format(portal.last_harvest_count) }}</td><td><div class="share-cell"><span class="share-track" aria-hidden="true"><span style="width: {{ '%.2f' | format(share) }}%"></span></span><span>{{ '%.1f' | format(share) }}%</span></div></td><td class="extractor">{{ portal.extractor_type }}</td></tr>
+        {% else %}<tr><td colspan="4">No source data available.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="data-note">Counts describe records in the dataset, rather than requests made during the latest run.</p>
+  </section>
+
+  <section class="pipeline-section" id="pipeline" aria-labelledby="pipeline-title">
+    <div><p class="eyebrow">Behind the numbers</p><h2 id="pipeline-title">From listing to history.</h2><p>PS-0 collects public property listings, standardises their details, and maps neighbourhoods. Subsequent checks track price changes and confirm when listings are removed.</p><a class="text-link" href="https://github.com/islajr/property-scraper#readme" target="_blank" rel="noopener noreferrer">Read the documentation ↗</a></div>
+    <div class="pipeline-detail"><ol class="pipeline-flow" aria-label="Discovery pipeline"><li>Collect</li><li>Normalise</li><li>Geocode</li><li>Store</li></ol><p>A listing disappearing from a search feed does not confirm removal. Health checks revisit the original URL before changing its status.</p><p class="data-note">This dashboard is a snapshot compiled after runs, not a live stream.</p></div>
+  </section>
+</main>
+<footer class="site-footer" itemscope="" itemtype="https://schema.org/Person">
+ <meta content="Isaac Akinmokun" itemprop="name"/>
+ <meta content="Backend Engineer &amp; Quantitative PropTech Builder" itemprop="jobTitle"/>
+ <meta content="https://akinmokun.com" itemprop="url"/>
+ <div class="footer-top">
+  <div class="footer-identity">
+   <a class="footer-name" href="https://akinmokun.com/">
+    akinmokun.com
+   </a>
+   <p>
+    Backend engineering, property data, and the things I’m learning.
+   </p>
   </div>
-
-  <main>
-    <!-- Hero Section -->
-    <section class="hero" id="overview">
-      <div class="container">
-        <!-- Top Action Bar: GitHub Repo + Status Pill + Quick Links -->
-        <div class="hero-center-bar">
-          <a href="https://github.com/islajr/property-scraper" target="_blank" rel="noopener noreferrer" class="repo-badge-link" id="hero-github-link">
-            <span>[ gh: islajr/property-scraper ↗ ]</span>
-          </a>
-
-          <div class="status-badge {{ telemetry.system_status_class | default('operational') }}" id="status-indicator">
-            <span class="status-dot"></span>
-            <span>{{ telemetry.system_status | default('OPERATIONAL') }}</span>
-          </div>
-
-          <div class="hero-quicklinks">
-            <a href="#overview">[ Overview ]</a>
-            <a href="#run-telemetry">[ Run Logs ]</a>
-            <a href="#portals">[ Portal Matrix ]</a>
-            <!-- <a href="#hygiene">[ Data Hygiene ]</a> -->
-          </div>
-        </div>
-
-        <h1 class="hero-title" id="main-title">PS-0 PropertyScraper</h1>
-        <p class="hero-subtitle">
-          Autonomous multi-portal data engineering pipeline harvesting, normalizing, geocoding, and deduplicating Nigerian real estate listing telemetry in real-time.
-        </p>
-      </div>
-    </section>
-
-    <!-- Pipeline Execution Telemetry: Both Discovery Run & Health Check Run -->
-    <section class="run-section" id="run-telemetry">
-      <div class="container">
-        <div class="section-label">Pipeline Execution Logs</div>
-        <h2 class="section-title">Latest Run Telemetry by Mode</h2>
-
-        <div class="runs-grid">
-          <!-- 1. Discovery Run Card -->
-          <div class="run-card discovery" id="card-discovery-run">
-            <div class="run-header">
-              <div class="run-title-group">
-                <span class="run-mode-tag">DISCOVERY RUN</span>
-                <span class="run-status-badge {{ telemetry.discovery_run.status | lower }}">{{ telemetry.discovery_run.status }}</span>
-              </div>
-              <div class="run-timestamp"><strong class="mono-cell">{{ telemetry.discovery_run.timestamp }}</strong></div>
-            </div>
-
-            <div class="run-stats-grid">
-              <div class="run-stat-item">
-                <div class="run-stat-label">Total Ingested</div>
-                <div class="run-stat-val gold">{{ "{:,}".format(telemetry.discovery_run.total_scraped) }}</div>
-              </div>
-              <div class="run-stat-item">
-                <div class="run-stat-label">New Discovered</div>
-                <div class="run-stat-val green">+{{ "{:,}".format(telemetry.discovery_run.new_listings) }}</div>
-              </div>
-              <div class="run-stat-item">
-                <div class="run-stat-label">Updated</div>
-                <div class="run-stat-val">{{ "{:,}".format(telemetry.discovery_run.updated_listings) }}</div>
-              </div>
-              <div class="run-stat-item">
-                <div class="run-stat-label">Duration</div>
-                <div class="run-stat-val">{{ telemetry.discovery_run.duration }}</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 2. Health Check Run Card -->
-          <div class="run-card health-check" id="card-health-check-run">
-            <div class="run-header">
-              <div class="run-title-group">
-                <span class="run-mode-tag" style="background: rgba(74, 222, 128, 0.08); border-color: rgba(74, 222, 128, 0.3);">HEALTH CHECK RUN</span>
-                <span class="run-status-badge {{ telemetry.health_check_run.status | lower }}">{{ telemetry.health_check_run.status }}</span>
-              </div>
-              <div class="run-timestamp"><strong class="mono-cell">{{ telemetry.health_check_run.timestamp }}</strong></div>
-            </div>
-
-            <div class="run-stats-grid">
-              <div class="run-stat-item">
-                <div class="run-stat-label">Checked</div>
-                <div class="run-stat-val">{{ "{:,}".format(telemetry.health_check_run.checked) }}</div>
-              </div>
-              <div class="run-stat-item">
-                <div class="run-stat-label">Active Verified</div>
-                <div class="run-stat-val green">{{ "{:,}".format(telemetry.health_check_run.active_confirmed) }}</div>
-              </div>
-              <div class="run-stat-item">
-                <div class="run-stat-label">Removed</div>
-                <div class="run-stat-val amber">{{ "{:,}".format(telemetry.health_check_run.removed) }}</div>
-              </div>
-              <div class="run-stat-item">
-                <div class="run-stat-label">Price Changes</div>
-                <div class="run-stat-val gold">{{ "{:,}".format(telemetry.health_check_run.price_changes) }}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Big Monospace Telemetry Counters -->
-    <section class="metrics-section">
-      <div class="container">
-        <div class="section-label">Real-Time Ingestion</div>
-        <h2 class="section-title">Pipeline Volumes & Coverage</h2>
-        
-        <div class="metrics-grid">
-          <div class="metric-card" id="card-total-ingested">
-            <div class="sparkline-header">
-              <div class="metric-label">Total Records Ingested</div>
-              {{ telemetry.sparkline_ingested | safe }}
-            </div>
-            <div class="metric-value">{{ "{:,}".format(telemetry.total_ingested) }}</div>
-            <div class="metric-sub">Multi-portal cumulative scraped raw listings</div>
-          </div>
-
-          <div class="metric-card" id="card-active-listings">
-            <div class="sparkline-header">
-              <div class="metric-label">Active Unique Listings</div>
-              {{ telemetry.sparkline_active | safe }}
-            </div>
-            <div class="metric-value">{{ "{:,}".format(telemetry.active_listings) }}</div>
-            <div class="metric-sub">Verified active & deduplicated property listings</div>
-          </div>
-
-          <div class="metric-card" id="card-spatial-coverage">
-            <div class="sparkline-header">
-              <div class="metric-label">Spatial Coverage</div>
-              {{ telemetry.sparkline_active | safe }}
-            </div>
-            <div class="metric-value">{{ telemetry.cities_count }} <span style="font-size: 1.5rem; color: var(--text-dim);">Cities</span></div>
-            <div class="metric-sub">{{ telemetry.neighbourhoods_count }} distinct geocoded neighbourhoods</div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Source Portal Health Matrix -->
-    <section class="matrix-section" id="portals">
-      <div class="container">
-        <div class="section-label">Source System Telemetry</div>
-        <h2 class="section-title">Portal Ingestion Health Matrix</h2>
-
-        <div class="table-wrapper">
-          <table class="health-table" id="portal-health-table">
-            <thead>
-              <tr>
-                <th>Portal Target</th>
-                <th>Harvest Status</th>
-                <th>Listing Count</th>
-                <th>HTTP Success %</th>
-                <th>Avg Latency</th>
-                <th>Extractor Type</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for portal in telemetry.portals %}
-              <tr>
-                <td class="portal-cell">
-                  <div class="portal-name">
-                    <span class="portal-indicator"></span>
-                    {{ portal.name }}
-                  </div>
-                </td>
-                <td><span class="rate-badge">{{ portal.status }}</span></td>
-                <td class="mono-cell gold">{{ "{:,}".format(portal.last_harvest_count) }}</td>
-                <td class="mono-cell">{{ portal.http_success_rate }}%</td>
-                <td class="mono-cell">{{ portal.avg_latency_ms }} ms</td>
-                <td class="mono-cell">{{ portal.extractor_type }}</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-
-    <!-- Deduplication & Data Hygiene Guardrails -->
-    <!-- <section class="guardrails-section" id="hygiene">
-      <div class="container">
-        <div class="section-label">Pipeline Resilience</div>
-        <h2 class="section-title">Data Hygiene & Quality Guardrails</h2>
-
-        <div class="guardrails-grid">
-          <div class="guardrail-card" id="card-dedup">
-            <h3 class="guardrail-title">
-              <span class="guardrail-icon">✦</span> Cross-Portal Deduplication
-            </h3>
-            <p class="guardrail-desc">
-              Multi-tiered hashing on normalized title, neighbourhood, price cohort, and spatial coordinates. Merges cross-posted listings with <strong style="color: var(--gold-light);">{{ telemetry.dedup_rate }}% duplicate merge rate</strong> across targets.
-            </p>
-          </div>
-
-          <div class="guardrail-card" id="card-anomalies">
-            <h3 class="guardrail-title">
-              <span class="guardrail-icon">✦</span> Outlier & Anomaly Detection
-            </h3>
-            <p class="guardrail-desc">
-              Automatic Z-score price filtering isolates extreme input errors (e.g. typos, zero-price listings). Filtered <strong style="color: var(--gold-light);">{{ telemetry.anomalies_filtered }} price anomalies</strong> this month.
-            </p>
-          </div>
-
-          <div class="guardrail-card" id="card-cooldown">
-            <h3 class="guardrail-title">
-              <span class="guardrail-icon">✦</span> Adaptive Health Check Cooldown
-            </h3>
-            <p class="guardrail-desc">
-              Listing health check frequencies scale dynamically with listing age driven by partial B-tree index queues and Overdue Ratio prioritization.
-            </p>
-          </div>
-        </div>
-      </div>
-    </section> -->
-  </main>
-
-  <!-- Footer Aligned with SiteFooter.tsx on akinmokun.com -->
-  <footer itemScope itemType="http://schema.org/Person" class="site-footer">
-    <meta itemProp="name" content="Isaac Akinmokun" />
-    <meta itemProp="jobTitle" content="Backend Engineer & Quantitative PropTech Builder" />
-    <meta itemProp="url" content="https://akinmokun.com" />
-    <meta itemProp="gender" content="Male" />
-    <meta itemProp="knowsAbout" content="Backend Engineering, Quantitative Finance, PropTech, Real Estate Valuation, Data Infrastructure, Systems Programming" />
-
-    <div class="container footer-inner">
-      <div class="footer-left">
-        <span>© 2026 Isaac Akinmokun.</span>
-        <span>Sovereign Polymath Protocol.</span>
-      </div>
-      
-      <ul class="footer-links">
-        <li><a href="https://github.com/islajr/property-scraper" target="_blank" rel="noopener noreferrer" class="repo-highlight">[ gh: property-scraper ↗ ]</a></li>
-        <li><a href="https://github.com/islajr" target="_blank" rel="noopener noreferrer">[ gh: islajr ]</a></li>
-        <li><a href="https://linkedin.com/in/akinmokun" target="_blank" rel="noopener noreferrer">[ li: akinmokun ]</a></li>
-        <li><a href="https://x.com/islajrn" target="_blank" rel="noopener noreferrer">[ tw: islajrn ]</a></li>
-        <li><a href="https://instagram.com/ioakin" target="_blank" rel="noopener noreferrer">[ ig: ioakin ]</a></li>
-      </ul>
-    </div>
-  </footer>
-
-  <!-- Vanilla JS Mobile Navigation Drawer Toggle Script -->
-  <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      const toggle = document.getElementById('mobile-nav-toggle');
-      const drawer = document.getElementById('mobile-drawer');
-      const closeBtn = document.getElementById('mobile-drawer-close');
-      let isOpen = false;
-
-      function setDrawerState(open) {
-        isOpen = open;
-        if (toggle) toggle.classList.toggle('open', isOpen);
-        if (drawer) drawer.classList.toggle('open', isOpen);
-        document.body.style.overflow = isOpen ? 'hidden' : '';
-        if (toggle) toggle.setAttribute('aria-expanded', isOpen);
-      }
-
-      if (toggle) {
-        toggle.addEventListener('click', function(e) {
-          e.stopPropagation();
-          setDrawerState(!isOpen);
-        });
-      }
-
-      if (closeBtn) {
-        closeBtn.addEventListener('click', function(e) {
-          e.stopPropagation();
-          setDrawerState(false);
-        });
-      }
-
-      // Close on Escape key
-      document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape' && isOpen) setDrawerState(false);
-      });
-
-      // Close when clicking links in mobile drawer
-      const links = drawer ? drawer.querySelectorAll('a') : [];
-      links.forEach(function(link) {
-        link.addEventListener('click', function() { setDrawerState(false); });
-      });
-    });
-  </script>
-
+  <nav aria-label="Explore" class="footer-group">
+   <h2>
+    Explore
+   </h2>
+   <a href="https://akinmokun.com/">
+    Home
+   </a>
+   <a href="https://akinmokun.com/blog/">
+    Blog
+   </a>
+   <a href="https://akinmokun.com/homelab/">
+    Homelab
+   </a>
+   <a href="https://akinmokun.com/photos/">
+    Photos
+   </a>
+   <a href="https://akinmokun.com/now/">
+    Now
+   </a>
+  </nav>
+  <nav aria-label="Systems" class="footer-group">
+   <h2>
+    Systems
+   </h2>
+   <a aria-current="page" href="/">
+    PropertyScraper ↗
+   </a>
+   <a href="https://reports.akinmokun.com/">
+    Market reports ↗
+   </a>
+   <a href="https://akinmokun.com/projects/">
+    All projects
+   </a>
+   <a href="https://akinmokun.com/protocol/">
+    The protocol
+   </a>
+  </nav>
+  <nav aria-label="Elsewhere" class="footer-group">
+   <h2>
+    Elsewhere
+   </h2>
+   <a href="https://github.com/islajr" rel="noopener noreferrer" target="_blank">
+    GitHub ↗
+   </a>
+   <a href="https://linkedin.com/in/akinmokun" rel="noopener noreferrer" target="_blank">
+    LinkedIn ↗
+   </a>
+   <a href="https://instagram.com/ioakin" rel="noopener noreferrer" target="_blank">
+    Instagram ↗
+   </a>
+   <a href="https://x.com/islajrn" rel="noopener noreferrer" target="_blank">
+    X ↗
+   </a>
+   <a href="https://akinmokun.com/credentials/">
+    Credentials / CV
+   </a>
+   <a href="mailto:isaac@akinmokun.com">
+    Email
+   </a>
+  </nav>
+ </div>
+ <div class="footer-bottom">
+  <span>
+   ©
+   <!-- -->
+   2026
+   <!-- -->
+   Isaac Akinmokun
+  </span>
+  <span>
+   Sovereign Polymath Protocol · Nigeria
+  </span>
+ </div>
+</footer>
+</div>
 </body>
 </html>
