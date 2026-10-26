@@ -166,7 +166,7 @@ if [[ $SCRAPER_EXIT -eq 0 ]]; then
     if [[ "${DEPLOY_DASHBOARD:-false}" == "true" ]] || [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]]; then
         if [[ "$DASHBOARD_READY" == "true" ]]; then
             info "Deploying ps0.akinmokun.com to Cloudflare Pages production (master)..."
-            npx --yes wrangler pages deploy web --project-name=property-scraper --branch=master || warn "Cloudflare deployment skipped or failed."
+            npx --yes wrangler pages deploy web --commit-dirty=true --project-name=property-scraper --branch=master || warn "Cloudflare deployment skipped or failed."
         fi
     fi
 else
