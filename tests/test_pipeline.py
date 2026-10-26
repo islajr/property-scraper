@@ -53,7 +53,8 @@ class TestParserToNormaliser:
         result = self._parse_and_normalise(PrivatePropertyParser, "privateproperty_listing.html", url)
 
         assert result.external_id == "6PBUWY"
-        assert result.price_parse_failed is False
+        assert result.price_parse_failed is True
+        assert result.price_currency == "USD"
         assert result.price_type == "FOR_SALE"
         assert result.city == "LAGOS"
 

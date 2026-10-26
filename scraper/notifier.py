@@ -120,6 +120,10 @@ def send_summary(aggregate_stats: Dict,
     if non_success:
         lines.append(f"⚠️  {len(non_success)} portal(s) non-SUCCESS — review GitHub Actions log")
 
+    periods = aggregate_stats.get('rental_periods', {})
+    if periods:
+        lines.append("\n*Rental billing periods (observed):* " + ", ".join(
+            f"{status.lower()}: {periods.get(status, 0)}" for status in ('KNOWN','UNKNOWN','CONFLICT','UNSUPPORTED')))
     _send("\n".join(lines))
 
 
@@ -175,4 +179,8 @@ def send_health_check_summary(stats: Dict) -> None:
     if err:
         lines.append(f"❗ *Errors:* {err}")
 
+    periods = stats.get('rental_periods', {})
+    if periods:
+        lines.append("\n*Rental billing periods (observed):* " + ", ".join(
+            f"{status.lower()}: {periods.get(status, 0)}" for status in ('KNOWN','UNKNOWN','CONFLICT','UNSUPPORTED')))
     _send("\n".join(lines))

@@ -73,35 +73,14 @@ class PropertyProParser(BaseParser):
             if h1:
                 title = h1.get_text(strip=True)
 
-        price_currency  = second_text(soup, PRICE_CURRENCY_SELECTOR)
-        raw_price       = _text(soup, PRICE_SELECTOR)
-        if raw_price is None or price_currency is None:
-            price_span = None
-            for el in soup.find_all(["span", "h2", "h3", "div"]):
-                txt = el.get_text(strip=True)
-                if txt and (txt.startswith("₦") or txt.startswith("$") or txt.startswith("USD")):
-                    if any(c.isdigit() for c in txt):
-                        price_span = el
-                        break
-            if price_span:
-                combined_price = price_span.get_text(strip=True)
-                if combined_price.startswith("₦"):
-                    price_currency = "₦"
-                    raw_price = combined_price[1:]
-                elif combined_price.startswith("$"):
-                    price_currency = "$"
-                    raw_price = combined_price[1:]
-                elif combined_price.startswith("USD"):
-                    price_currency = "USD"
-                    raw_price = combined_price[3:]
-                else:
-                    price_currency = ""
-                    raw_price = combined_price
-
-        # Pre-check for possible null page through marked signs like null prices and currencies
-        if raw_price == None or price_currency == None:
-            log.warning("[%s] Null Listing: %s. Skipping", self.source, url)    # null listing
+        # Capture only the primary quote, including sibling time-unit labels.
+        quote_element = soup.select_one('.property-pricing > .pricing > h2')
+        if quote_element is None:
+            log.warning("[%s] Primary price element missing: %s", self.source, url)
             return None
+        raw_price_text = quote_element.get_text(" ", strip=True)[:1000]
+        raw_price = raw_price_text
+        price_currency = ""
 
         raw_bedrooms    = _text(soup, BEDROOMS_SELECTOR)
         if raw_bedrooms is None:
@@ -154,7 +133,9 @@ class PropertyProParser(BaseParser):
                             break
 
         # Price type — PropertyPro encodes in the search URL / breadcrumb
-        if "for-sale" in url:
+        if re.search(r"short[-_]?let", url, re.I):
+            raw_price_type = "FOR_SHORT_LET"
+        elif "for-sale" in url:
             raw_price_type = "FOR_SALE"
         elif "for-rent" in url:
             raw_price_type = "FOR_RENT"
@@ -170,6 +151,7 @@ class PropertyProParser(BaseParser):
             title             = title or "",
             raw_price         = price_currency + raw_price,
             raw_price_type    = raw_price_type,
+            raw_price_text    = raw_price_text,
             raw_bedrooms      = raw_bedrooms,
             raw_bathrooms     = raw_bathrooms,
             raw_address       = raw_address,

@@ -282,6 +282,7 @@ def run():
             "geocode_total":      len(normalised),
             "prices_parsed":      prices_parsed,
             "prices_total":       len(normalised),
+            "rental_periods":     db_stats.get("rental_periods", {}),
         }
 
         # ── Telegram notification ─────────────────────────────────────────────

@@ -63,12 +63,8 @@ class TestParsePrice:
         assert failed is False
         assert kobo == 240_000_000
 
-    def test_dollar_price_parses_numerically(self):
-        # USD prices from PrivateProperty — $ is not stripped, numeric regex finds 12_000_000
-        # treated as naira (below 10B threshold) → 12_000_000 × 100 = 1_200_000_000 kobo
-        kobo, failed = parse_price("$12,000,000")
-        assert failed is False
-        assert kobo == 1_200_000_000  # 12M naira × 100 kobo
+    def test_dollar_price_is_not_mislabeled_as_kobo(self):
+        assert parse_price("$12,000,000") == (None, True)
 
 
 # =============================================================================
@@ -345,7 +341,9 @@ class TestNormaliseEndToEnd:
         )
         result = normalise(raw)
 
-        assert result.price_parse_failed is False
+        assert result.price_parse_failed is True
+        assert result.price_currency == "USD"
+        assert result.price_kobo is None
         assert result.price_type == "FOR_SALE"
         assert result.property_type == "COMMERCIAL_OTHER"
         assert result.city == "LAGOS"

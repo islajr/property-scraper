@@ -86,7 +86,7 @@ class TestHealthCheckerUrlChecking:
         mock_session = MagicMock()
         mock_session.get.return_value.__aenter__.return_value = mock_resp
 
-        checker._extract_observed_price = MagicMock(return_value=500000)
+        checker._extract_observed_quote = MagicMock(return_value=500000)
 
         async def run():
             return await checker._check_listing_async(
@@ -156,7 +156,7 @@ class TestHealthCheckerUrlChecking:
         mock_session = MagicMock()
         mock_session.get.return_value.__aenter__.return_value = mock_resp
 
-        checker._extract_observed_price = MagicMock(return_value=None)
+        checker._extract_observed_quote = MagicMock(return_value=None)
 
         async def run():
             return await checker._check_listing_async(
@@ -224,3 +224,20 @@ class TestHealthCheckerUrlChecking:
                 assert delay <= 31.0  # max cap 30 + jitter < 1
 
 
+
+
+def test_typed_quote_survives_async_check_and_database_handoff():
+    import asyncio
+    from scraper.normaliser import normalise
+    from tests.conftest import make_raw
+    quote=normalise(make_raw(raw_price='₦50,000/night',raw_price_type='FOR_SHORT_LET'))
+    checker=HealthChecker(MagicMock())
+    row=dict(id=1,source='propertypro',external_id='TEST001',url='https://test/TEST001',first_seen_at=None)
+    with patch.object(checker,'_check_listing_async',new=AsyncMock(return_value=(False,quote))), patch('scraper.health_checker.asyncio.sleep',new=AsyncMock()):
+        result=asyncio.run(checker._check_with_semaphore(MagicMock(),asyncio.Semaphore(1),asyncio.Semaphore(1),row))
+    assert result.observed_quote.price_period=='NIGHT'
+    assert result.observed_price==5000000
+    checker.db.fetch_listings_for_health_check.return_value=[row]
+    with patch.object(checker,'_run_async',new=AsyncMock(return_value=[result])):
+        checker.run()
+    checker.db.confirm_listing_active.assert_called_once_with(1,None,observed_quote=quote)

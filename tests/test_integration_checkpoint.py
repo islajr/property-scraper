@@ -64,7 +64,8 @@ def test_discovery_orchestrator_resume_from_checkpoint(mock_notifier, mock_geoco
 @patch("scraper.parsers.base_parser.BaseParser._load_robots_txt")
 @patch("scraper.orchestrator.DatabaseWriter")
 @patch("scraper.orchestrator.notifier")
-def test_health_check_orchestrator_resume_from_checkpoint(mock_notifier, mock_db_writer, mock_robots):
+def test_health_check_orchestrator_resume_from_checkpoint(mock_notifier, mock_db_writer, mock_robots, monkeypatch):
+    monkeypatch.setattr("scraper.orchestrator.check_database_dns", lambda _: True)
     mock_robots.return_value = None
     # Set up mocks
     mock_db = MagicMock()

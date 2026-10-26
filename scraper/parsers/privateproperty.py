@@ -67,22 +67,13 @@ class PrivatePropertyParser(BaseParser):
             if h1:
                 title = h1.get_text(strip=True)
 
-        raw_price       = second_text(soup, PRICE_SELECTOR)
-        if raw_price is None:
-            price_span = None
-            for el in soup.find_all(["span", "strong", "h2", "h3", "div"]):
-                txt = el.get_text(strip=True)
-                if txt and (txt.startswith("₦") or txt.startswith("$") or txt.startswith("USD")):
-                    if any(c.isdigit() for c in txt):
-                        price_span = el
-                        break
-            if price_span:
-                raw_price = price_span.get_text(strip=True)
-
-        # Pre-check for possible null page through marked signs like null prices
-        if raw_price == None:
-            log.warning("[%s] Null Listing: %s. Skipping", self.source, url)    # null listing
+        # Capture only the primary quote, including sibling time-unit labels.
+        quote_element = soup.select_one('.property-info .price')
+        if quote_element is None:
+            log.warning("[%s] Primary price element missing: %s", self.source, url)
             return None
+        raw_price_text = quote_element.get_text(" ", strip=True)[:1000]
+        raw_price = raw_price_text
 
         raw_bedrooms    = _text(soup, BEDROOMS_SELECTOR)
         if raw_bedrooms is None:
@@ -112,7 +103,9 @@ class PrivatePropertyParser(BaseParser):
                     break
         
         # Price type — PrivateProperty encodes in the search URL / breadcrumb
-        if "for-sale" in url:
+        if re.search(r"short[-_]?let", url, re.I):
+            raw_price_type = "FOR_SHORT_LET"
+        elif "for-sale" in url:
             raw_price_type = "FOR_SALE"
         elif "for-rent" in url:
             raw_price_type = "FOR_RENT"
@@ -128,6 +121,7 @@ class PrivatePropertyParser(BaseParser):
             title             = title or "",
             raw_price         = raw_price,
             raw_price_type    = raw_price_type,
+            raw_price_text    = raw_price_text,
             raw_bedrooms      = raw_bedrooms,
             raw_bathrooms     = raw_bathrooms,
             raw_address       = raw_address,

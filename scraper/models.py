@@ -32,6 +32,7 @@ class RawListing:
     description:       Optional[str]  # full listing description text
     property_type_raw: Optional[str]  # e.g. "Detached Duplex" / "Flat / Apartment"
     agent_name:        Optional[str]  # listed agent or developer name
+    raw_price_text:    Optional[str] = None  # primary quote including sibling unit labels
 
 
 @dataclass
@@ -48,8 +49,8 @@ class NormalisedListing:
 
     # Price
     price_kobo:               Optional[int]   # ALWAYS kobo — ₦45M = 4_500_000_000
-    price_parse_failed:       bool            # True when raw price present but unparseable
-    price_type:               Optional[str]   # 'FOR_SALE' | 'FOR_RENT'
+    price_parse_failed:       bool            # True for missing, invalid, or explicitly non-NGN amounts
+    price_type:               Optional[str]   # 'FOR_SALE' | 'FOR_RENT' | 'FOR_SHORT_LET'
 
     # Property attributes
     property_type:            Optional[str]
@@ -77,3 +78,14 @@ class NormalisedListing:
     listing_status:           str = 'ACTIVE'   # 'ACTIVE' | 'REMOVED'
     suspected_sold:           bool = False
     missed_run_count:         int = 0
+
+    # Advertised pricing context; defaults keep old checkpoints/factories readable.
+    price_period: Optional[str] = None
+    price_period_count: Optional[int] = None
+    price_period_status: str = 'UNKNOWN'
+    price_period_source: str = 'LEGACY_UNKNOWN'
+    raw_price_text: Optional[str] = None
+    price_period_evidence: Optional[str] = None
+    price_currency: Optional[str] = None
+    price_basis: str = 'UNKNOWN'
+    pricing_observed_at: Optional[datetime] = None
