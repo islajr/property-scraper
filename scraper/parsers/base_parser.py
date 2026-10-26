@@ -243,6 +243,7 @@ class BaseParser(ABC):
                 return None
 
             resp.raise_for_status()
+            self.last_response_url = resp.url
             return resp.text
 
         except (requests.Timeout, requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError) as exc:

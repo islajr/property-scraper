@@ -112,3 +112,59 @@ def test_only_comparable_whole_property_ngn_rentals_enter_view(pricing_writer):
     with db.conn.cursor() as cur:
         cur.execute('SELECT external_id FROM raw_data.comparable_rental_prices WHERE external_id=ANY(%s)',([r.external_id for r in records],))
         assert cur.fetchall()==[(records[0].external_id,)]
+
+
+def recovery_row(db,external_id):
+    with db.conn.cursor() as cur:
+        cur.execute('SELECT row_to_json(s),xmin::text FROM raw_data.scraped_listings s WHERE external_id=%s',(external_id,))
+        row,version=cur.fetchone()
+    db.conn.commit()
+    return {**row,'_row_version':version}
+
+
+def test_backfill_audit_idempotence_and_safe_reversal(pricing_writer):
+    from scripts.backfill_rental_pricing import offline_proposal,apply_proposal,rollback_run
+    db=pricing_writer
+    old=listing('₦300,000');old.description='Rent: ₦300,000 per month'
+    db.upsert([old],{})
+    before=recovery_row(db,old.external_id)
+    proposal=offline_proposal(before);assert proposal
+    run_id=str(uuid4())
+    assert apply_proposal(db.conn,before,proposal,run_id,'offline')
+    after=recovery_row(db,old.external_id)
+    assert offline_proposal(after) is None
+    assert after['last_seen_at']==before['last_seen_at']
+    assert after['last_health_check_at']==before['last_health_check_at']
+    assert rollback_run(db.conn,run_id,False)['eligible']==1
+    assert get_row(db,old.external_id)['price_period']=='MONTH'
+    db.conn.commit()
+    assert rollback_run(db.conn,run_id,True)['reversed']==1
+    assert get_row(db,old.external_id)['price_period_status']=='UNKNOWN'
+    assert rollback_run(db.conn,run_id,True)['reversed']==0
+
+
+def test_backfill_and_reversal_skip_concurrent_changes(pricing_writer):
+    from scripts.backfill_rental_pricing import offline_proposal,apply_proposal,rollback_run
+    db=pricing_writer
+    old=listing('₦300,000');old.description='₦300,000 per month'
+    db.upsert([old],{})
+    before=recovery_row(db,old.external_id)
+    # Another transaction changed the row after the report was collected.
+    with db.conn.cursor() as cur:cur.execute('UPDATE raw_data.scraped_listings SET title=%s WHERE id=%s',('new title',before['id']))
+    db.conn.commit()
+    run_id=str(uuid4())
+    assert not apply_proposal(db.conn,before,offline_proposal(before),run_id,'offline')
+    current=recovery_row(db,old.external_id)
+    assert apply_proposal(db.conn,current,offline_proposal(current),run_id,'offline')
+    new=listing('₦250,000/year');new.external_id=old.external_id
+    db.upsert([new],{(old.source,old.external_id):old.price_kobo})
+    assert rollback_run(db.conn,run_id,True)['changed_since_backfill']==1
+    assert get_row(db,old.external_id)['price_period']=='YEAR'
+
+
+def test_recovery_transaction_rolls_back_if_audit_insert_fails(pricing_writer):
+    from scripts.backfill_rental_pricing import offline_proposal,apply_proposal
+    db=pricing_writer;old=listing('₦300,000');old.description='₦300,000/month'
+    db.upsert([old],{});before=recovery_row(db,old.external_id)
+    with pytest.raises(Exception):apply_proposal(db.conn,before,offline_proposal(before),'not-a-uuid','offline')
+    assert get_row(db,old.external_id)['price_period_status']=='UNKNOWN'

@@ -21,7 +21,7 @@ DO $$ BEGIN
                    AND conrelid = 'raw_data.scraped_listings'::regclass) THEN
         ALTER TABLE raw_data.scraped_listings ADD CONSTRAINT sl_rental_period_contract CHECK (
             price_period_status IN ('KNOWN', 'UNKNOWN', 'CONFLICT', 'UNSUPPORTED', 'NOT_APPLICABLE')
-            AND price_period_source IN ('PORTAL_PRICE', 'TITLE', 'DESCRIPTION', 'MANUAL', 'LEGACY_UNKNOWN')
+            AND price_period_source IN ('PORTAL_PRICE', 'TITLE', 'DESCRIPTION', 'MANUAL', 'URL', 'LEGACY_UNKNOWN')
             AND price_basis IN ('PROPERTY', 'AREA', 'ROOM', 'PERSON', 'UNKNOWN')
             AND (price_currency IS NULL OR price_currency IN ('NGN', 'USD', 'GBP', 'EUR'))
             AND CASE WHEN price_period_status = 'KNOWN' THEN
