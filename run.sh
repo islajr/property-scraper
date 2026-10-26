@@ -156,11 +156,18 @@ if [[ $SCRAPER_EXIT -eq 0 ]]; then
     # ── 9. Render & Deploy Telemetry Dashboard ────────────────────────────────
     echo ""
     info "Rendering PS-0 Telemetry Dashboard..."
-    python3 scripts/render_dashboard.py || warn "Dashboard rendering issue."
+    DASHBOARD_READY=false
+    if python3 scripts/render_dashboard.py; then
+        DASHBOARD_READY=true
+    else
+        warn "Dashboard rendering failed; skipping deployment to avoid publishing stale files."
+    fi
 
     if [[ "${DEPLOY_DASHBOARD:-false}" == "true" ]] || [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]]; then
-        info "Deploying ps0.akinmokun.com to Cloudflare Pages..."
-        npx --yes wrangler pages deploy web --project-name=property-scraper || warn "Cloudflare deployment skipped or failed."
+        if [[ "$DASHBOARD_READY" == "true" ]]; then
+            info "Deploying ps0.akinmokun.com to Cloudflare Pages production (master)..."
+            npx --yes wrangler pages deploy web --project-name=property-scraper --branch=master || warn "Cloudflare deployment skipped or failed."
+        fi
     fi
 else
     error "Scraper exited with code $SCRAPER_EXIT after $(( DURATION/60 ))m $(( DURATION%60 ))s."

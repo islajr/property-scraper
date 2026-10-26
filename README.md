@@ -300,10 +300,25 @@ Menlo is the first monospace choice, with system fallbacks where it is unavailab
 
 After a successful scraper invocation, `run.sh` renders the dashboard and attempts
 Cloudflare Pages deployment when `DEPLOY_DASHBOARD=true` or
-`CLOUDFLARE_API_TOKEN` is set. It invokes `npx wrangler pages deploy web` for the
-`property-scraper` project, which requires Node/npm and Cloudflare authentication.
+`CLOUDFLARE_API_TOKEN` is set. It explicitly deploys to the `master` production
+branch of the `property-scraper` Pages project, which requires Node/npm and
+Cloudflare authentication. A failed render skips deployment to avoid uploading
+stale HTML.
 `./run.sh --preview` renders and serves the dashboard on port 8080, but still
 requires `.env` and refreshes telemetry; use the cached preview above for design work.
+
+To publish a design update without running the scraper or querying the database:
+
+```bash
+.venv/bin/python scripts/render_dashboard.py --cached --force && \
+    npx --yes wrangler pages deploy web --project-name=property-scraper --branch=master --commit-dirty=true
+```
+
+Wrangler normally infers the deployment branch from the current Git checkout.
+An upload from `dev` or `dev-ui` creates a preview deployment; it does not update
+`ps0.akinmokun.com`. Use `--branch=master` for production, or an explicit development
+branch for a preview. This Pages project uses Direct Upload, so merging a GitHub
+PR alone does not publish the dashboard.
 
 ## Configuration
 
