@@ -47,6 +47,7 @@ from scraper import normaliser
 
 import config
 from scraper.db_writer import DatabaseWriter
+from scraper.models import NormalisedListing
 
 log = logging.getLogger(__name__)
 
@@ -103,7 +104,7 @@ class _CheckResult:
     is_removed:  bool
     observed_price: Optional[int]  # kobo, or None
     error:       Optional[str] = None
-    observed_quote: object = None
+    observed_quote: Optional[NormalisedListing] = None
 
 
 # ── Main class ────────────────────────────────────────────────────────────────
@@ -206,6 +207,10 @@ class HealthChecker:
                              result.source, result.external_id)
                 else:
                     if result.observed_quote is not None:
+                        quote = result.observed_quote
+                        if quote.price_type in ('FOR_RENT', 'FOR_SHORT_LET'):
+                            counts = stats.setdefault('rental_periods', {})
+                            counts[quote.price_period_status] = counts.get(quote.price_period_status, 0) + 1
                         price_changed = self.db.confirm_listing_active(
                             result.listing_id, result.first_seen, observed_quote=result.observed_quote)
                     else:
@@ -353,7 +358,7 @@ class HealthChecker:
         url:         str,
         external_id: str,
         source:      str,
-    ) -> Tuple[bool, object]:
+    ) -> Tuple[bool, Optional[NormalisedListing]]:
         """
         Async equivalent of the old _check_listing. Fetches the URL and returns
         (is_removed, observed_price_kobo).
@@ -417,7 +422,7 @@ class HealthChecker:
         return False, None
 
     def _extract_observed_quote(self, html: str, url: str,
-                                source: str) -> Optional[int]:
+                                source: str) -> Optional[NormalisedListing]:
         """
         Parse current price from listing page HTML using the portal's own parser
         and the shared normaliser. Returns a typed listing, or None on parser failure.

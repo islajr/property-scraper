@@ -156,6 +156,9 @@ class DatabaseWriter:
             "suspected_sold":     0,
             "duplicates_dropped": duplicates_dropped,
             "per_source":         {},
+            "rental_periods": {status: sum(1 for item in deduped
+                if item.price_type in ('FOR_RENT','FOR_SHORT_LET') and item.price_period_status == status)
+                for status in ('KNOWN','UNKNOWN','CONFLICT','UNSUPPORTED')},
         }
         now            = datetime.now(timezone.utc)
         seen_this_run: Set[Tuple[str, str]] = set()

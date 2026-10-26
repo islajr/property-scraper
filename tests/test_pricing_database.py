@@ -168,3 +168,15 @@ def test_recovery_transaction_rolls_back_if_audit_insert_fails(pricing_writer):
     db.upsert([old],{});before=recovery_row(db,old.external_id)
     with pytest.raises(Exception):apply_proposal(db.conn,before,offline_proposal(before),'not-a-uuid','offline')
     assert get_row(db,old.external_id)['price_period_status']=='UNKNOWN'
+
+
+def test_rental_summary_separates_cadence_and_count(pricing_writer):
+    db=pricing_writer
+    records=[listing('₦300,000/month'),listing('₦3,000,000/year'),listing('₦300,000 per 2 months'),listing('₦300,000')]
+    for item in records:item.neighbourhood=uuid4().hex
+    shared_area=records[0].neighbourhood
+    for item in records:item.neighbourhood=shared_area
+    db.upsert(records,{})
+    with db.conn.cursor() as cur:
+        cur.execute('SELECT price_period,price_period_count,listing_count FROM raw_data.rental_price_summary WHERE neighbourhood=%s ORDER BY price_period,price_period_count',(shared_area,))
+        assert cur.fetchall()==[('MONTH',1,1),('MONTH',2,1),('YEAR',1,1)]
