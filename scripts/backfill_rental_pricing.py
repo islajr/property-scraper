@@ -34,6 +34,7 @@ def offline_proposal(row):
                     price_period_source='LEGACY_UNKNOWN', price_basis='UNKNOWN')
     for key,val in defaults.items():
         if new.get(key) is None: new[key]=val
+    original = {**metadata(row), **{k: row.get(k) if row.get(k) is not None else v for k,v in defaults.items()}}
     kind = row.get('price_type')
     signal = next((row.get(field) for field in ('url','title') if SHORT_LET.search(row.get(field) or '')),None)
     if signal and kind != 'FOR_SHORT_LET':
@@ -42,7 +43,7 @@ def offline_proposal(row):
                    price_period_source='URL' if signal==row.get('url') else 'TITLE',price_period_evidence=signal[:1000])
     if kind=='FOR_SALE':
         new.update(price_period=None,price_period_count=None,price_period_status='NOT_APPLICABLE')
-        return new if new!=metadata(row) else None
+        return new if new!=original else None
     if kind not in ('FOR_RENT','FOR_SHORT_LET'):return None
     if row.get('price_period_status')=='KNOWN' and row.get('price_type')==kind:return None
     evidence=[]
@@ -66,7 +67,7 @@ def offline_proposal(row):
         if len(known)>1 or any(e.price_period_status=='CONFLICT' for e in evidence):
             fields.update(price_period=None,price_period_count=None,price_period_status='CONFLICT')
         new.update(fields)
-    return new if new!=metadata(row) else None
+    return new if new!=original else None
 
 
 def apply_proposal(conn, row, new, run_id, mode):
@@ -112,6 +113,9 @@ def rollback_run(conn,run_id,apply=False):
             if apply:
                 cur.execute('UPDATE raw_data.scraped_listings SET '+', '.join(f'{k}=%({k})s' for k in AUDIT_FIELDS)+' WHERE id=%(id)s',{**old,'id':listing_id})
                 cur.execute('UPDATE raw_data.rental_pricing_backfills SET reversed_at=NOW() WHERE id=%s',(audit_id,))
+                # Keep original events, but a reversed observation cannot support a sale proxy.
+                cur.execute('UPDATE raw_data.listing_history SET price_comparable=FALSE WHERE listing_id=%s AND notes=%s',
+                            (listing_id,f'live recovery run {run_id}'))
                 from scraper.db_writer import DatabaseWriter
                 writer=DatabaseWriter.__new__(DatabaseWriter);writer.conn=conn
                 writer._insert_history_events([dict(listing_id=listing_id,event_type='PRICING_BACKFILL_REVERSED',old_value=new['price_kobo'],new_value=old['price_kobo'],old_pricing=new,new_pricing=old,notes=f'Reversed recovery run {run_id}')])
@@ -137,6 +141,7 @@ def live_proposal(row,parsers):
     listing=normalise(raw)
     if listing.price_parse_failed:return None,'unparseable'
     new={**quote_dict(listing),'price_parse_failed':False,'pricing_observed_at':datetime.now(timezone.utc).isoformat()}
+    if quote_dict(new)==quote_dict(row):return None,'unchanged'
     return new,'observed'
 
 
@@ -152,6 +157,7 @@ def main(argv=None):
     parser.add_argument('--report',type=Path)
     parser.add_argument('--rollback-run',type=UUID)
     args=parser.parse_args(argv)
+    if args.mode=='live' and args.status=='REMOVED':parser.error('Live recovery only revisits ACTIVE listings')
     if not 1<=args.limit<=1000 or not 1<=args.batch_size<=200:parser.error('limit must be 1–1000; batch-size must be 1–200')
     if args.apply and args.mode=='inventory' and not args.rollback_run:parser.error('Inventory is read-only; choose offline or live before --apply')
     import config,psycopg2
@@ -182,7 +188,8 @@ def main(argv=None):
                 params=[last_id]
                 if args.source:conditions.append('source=%s');params.append(args.source)
                 if args.status:conditions.append('listing_status=%s');params.append(args.status)
-                if args.mode=='live':conditions.append("listing_status='ACTIVE'")
+                if args.mode=='live':
+                    conditions.extend(["listing_status='ACTIVE'", "COALESCE(to_jsonb(sl)->>'price_period_status','UNKNOWN') <> 'KNOWN'"])
                 params.append(min(args.batch_size,args.limit-processed))
                 with conn.cursor() as cur:
                     cur.execute('SELECT row_to_json(sl),xmin::text FROM raw_data.scraped_listings sl WHERE '+' AND '.join(conditions)+' ORDER BY id LIMIT %s',params)

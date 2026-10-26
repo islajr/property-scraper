@@ -34,6 +34,10 @@ DO $$ BEGIN
     END IF;
 END $$;
 ALTER TABLE raw_data.scraped_listings VALIDATE CONSTRAINT sl_rental_period_contract;
+-- A sale has no rental cadence. Do not change any legacy amount or quote date.
+UPDATE raw_data.scraped_listings SET price_period_status='NOT_APPLICABLE'
+WHERE price_type='FOR_SALE' AND price_period_status='UNKNOWN'
+  AND price_period_source='LEGACY_UNKNOWN';
 
 -- Each applied metadata-only repair has an independent, reversible audit record.
 CREATE TABLE IF NOT EXISTS raw_data.rental_pricing_backfills (

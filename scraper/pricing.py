@@ -50,10 +50,15 @@ def parse_amount(text):
         return None, True
     if re.search(r'\b(?:USD|GBP|EUR|JPY|CAD|AUD|CHF)\b|[$£€]', text, re.I):
         return None, True
-    match = re.search(r'(?<![\d.,])([\d,]+(?:\.\d+)?)(?![\d.,])\s*(?:(billion|million|[kmb])\b)?', text, re.I)
+    if currency(text) != 'NGN' and not re.match(r'^\s*\d', text):
+        return None, True
+    # Prefer the amount immediately following NGN evidence over a leading duration.
+    marker = re.search(r'₦|\bNGN\b|\bN(?=\s*\d)', text, re.I)
+    amount_text = text[marker.end():] if marker else text
+    match = re.search(r'(?<![\d.,])([\d,]+(?:\.\d+)?)(?![\d.,])\s*(?:(billion|million|[kmb])\b)?', amount_text, re.I)
     if not match: return None, True
     # A range or multiple advertised amounts cannot be collapsed to the first number.
-    remainder = text[match.end():]
+    remainder = amount_text[match.end():]
     if re.search(r'^\s*[-–]\s*(?:₦\s*)?\d|\b(?:or|to)\s*(?:₦\s*)?\d', remainder, re.I):
         return None, True
     try:
@@ -83,7 +88,10 @@ def parse_terms(text, price_type, source='PORTAL_PRICE'):
     if price_type not in ('FOR_RENT', 'FOR_SHORT_LET'):
         return PricingTerms(**fields)
     # Separate minimum stay, deposits, charges, and advance-payment clauses from cadence.
-    main = re.split(r'[;\n]|\b(?:minimum\s+(?:stay|lease)|min\.?\s+stay|service\s+charge|deposit|payable|upfront)\b', text, maxsplit=1, flags=re.I)[0]
+    words = {'one':1,'two':2,'three':3,'four':4,'five':5,'six':6,'seven':7,'eight':8,'nine':9,'ten':10,'eleven':11,'twelve':12}
+    text_for_period = re.sub(r'\b('+'|'.join(words)+r')(?=\s+(?:hours?|days?|nights?|weeks?|months?|years?)\b)', lambda m:str(words[m[1].lower()]), text, flags=re.I)
+    text_for_period = re.sub(r'\b(?:for\s+)?\d+\s+(?:years?|months?|weeks?)\s+(?:in\s+advance|upfront)\b', '', text_for_period, flags=re.I)
+    main = re.split(r'[;\n]|\b(?:minimum\s+(?:stay|lease)|min\.?\s+stay|service\s+charge|deposit|payable|upfront)\b', text_for_period, maxsplit=1, flags=re.I)[0]
     periods = set()
     for pattern in (PERIOD, MULTIPERIOD):
         for match in pattern.finditer(main):

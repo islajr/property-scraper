@@ -180,3 +180,42 @@ def test_rental_summary_separates_cadence_and_count(pricing_writer):
     with db.conn.cursor() as cur:
         cur.execute('SELECT price_period,price_period_count,listing_count FROM raw_data.rental_price_summary WHERE neighbourhood=%s ORDER BY price_period,price_period_count',(shared_area,))
         assert cur.fetchall()==[('MONTH',1,1),('MONTH',2,1),('YEAR',1,1)]
+
+
+def test_sale_legacy_migration_does_not_invent_rental_units_or_change_price(pricing_writer):
+    db=pricing_writer;key=uuid4().hex
+    with db.conn.cursor() as cur:
+        cur.execute("INSERT INTO raw_data.scraped_listings(source,external_id,url,price_type,price_kobo) VALUES ('test',%s,'https://test','FOR_SALE',4500000000)",(key,))
+    db.conn.commit()
+    before=get_row(db,key)
+    with db.conn.cursor() as cur:cur.execute(Path('schema/004_rental_pricing.sql').read_text())
+    after=get_row(db,key)
+    assert after['price_period_status']=='NOT_APPLICABLE'
+    assert after['price_kobo']==before['price_kobo']
+    assert after['pricing_observed_at'] is None
+    assert after['first_seen_at']==before['first_seen_at']
+
+
+def test_url_backfill_type_correction_has_no_assumed_cadence(pricing_writer):
+    from scripts.backfill_rental_pricing import offline_proposal,apply_proposal
+    db=pricing_writer;old=listing('₦300,000')
+    old.url='https://test/for-rent/short-let/'+old.external_id
+    db.upsert([old],{});before=recovery_row(db,old.external_id)
+    assert apply_proposal(db.conn,before,offline_proposal(before),str(uuid4()),'offline')
+    after=get_row(db,old.external_id)
+    assert after['price_type']=='FOR_SHORT_LET' and after['price_period_source']=='URL'
+    assert after['price_period_status']=='UNKNOWN'
+
+
+def test_reversing_live_recovery_invalidates_its_reduction_comparability(pricing_writer):
+    from scripts.backfill_rental_pricing import apply_proposal,rollback_run,metadata
+    db=pricing_writer;old=listing();db.upsert([old],{})
+    before=recovery_row(db,old.external_id)
+    new={**metadata(before),'price_kobo':20000000}
+    run_id=str(uuid4())
+    assert apply_proposal(db.conn,before,new,run_id,'live')
+    assert history(db,old.external_id)[-1][0:2]==('PRICE_CHANGE',True)
+    assert rollback_run(db.conn,run_id,True)['reversed']==1
+    events=history(db,old.external_id)
+    assert next(e for e in events if e[0]=='PRICE_CHANGE')[1] is False
+    assert get_row(db,old.external_id)['price_kobo']==old.price_kobo

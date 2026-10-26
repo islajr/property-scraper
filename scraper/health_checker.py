@@ -361,7 +361,7 @@ class HealthChecker:
     ) -> Tuple[bool, Optional[NormalisedListing]]:
         """
         Async equivalent of the old _check_listing. Fetches the URL and returns
-        (is_removed, observed_price_kobo).
+        (is_removed, observed_quote).
         Retries on timeout or connection errors with backoff to survive PC sleep.
         """
         max_retries = 4

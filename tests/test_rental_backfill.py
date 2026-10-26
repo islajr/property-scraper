@@ -59,3 +59,26 @@ def test_live_revisit_ignores_redirects_without_changing_listing_lifecycle():
     new,outcome=live_proposal(record,{'propertypro':parser})
     assert new is None and outcome=='redirected'
     parser.parse_listing.assert_not_called()
+
+
+def test_pre_migration_preview_does_not_count_unknown_defaults_as_recovery():
+    original=row()
+    for field in ('price_period','price_period_count','price_period_status','price_period_source',
+                  'raw_price_text','price_period_evidence','price_currency','price_basis','pricing_observed_at'):
+        original.pop(field,None)
+    assert offline_proposal(original) is None
+
+
+def test_live_recovery_is_idempotent_for_identical_quotes():
+    from unittest.mock import MagicMock
+    from scripts.backfill_rental_pricing import live_proposal
+    raw=make_raw(raw_price='₦300,000',raw_price_type='FOR_RENT')
+    record=asdict(normalise(raw))
+    record['listing_status']='ACTIVE'
+    parser=MagicMock()
+    parser.last_response_url=raw.url
+    parser._extract_external_id.return_value=raw.external_id
+    parser._get.return_value='<html>unchanged</html>'
+    parser.parse_listing.return_value=raw
+    new,outcome=live_proposal(record,{'propertypro':parser})
+    assert new is None and outcome=='unchanged'

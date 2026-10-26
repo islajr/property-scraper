@@ -95,7 +95,7 @@ CITY_PATTERNS = {
 
 def normalise(raw: RawListing) -> NormalisedListing:
     """Convert a RawListing to a fully typed NormalisedListing."""
-    price_kobo, price_parse_failed = parse_price(raw.raw_price)
+    price_kobo, price_parse_failed = parse_price(raw.raw_price_text or raw.raw_price)
     price_type                     = parse_price_type(raw.raw_price_type, raw.title, raw.description)
     terms = parse_terms(raw.raw_price_text or raw.raw_price, price_type)
     property_type                  = normalise_property_type(raw.property_type_raw)
@@ -143,19 +143,9 @@ def normalise(raw: RawListing) -> NormalisedListing:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def parse_price(raw: Optional[str]) -> Tuple[Optional[int], bool]:
-    """
-    Convert any common Nigerian price string to kobo (int).
-    Returns (price_kobo, parse_failed).
+    """Parse the advertised positive NGN amount exactly; do not convert cadence or FX.
 
-    Handles:
-      "₦45,000,000"       → 4_500_000_000
-      "45M"               → 4_500_000_000
-      "45.5M"             → 4_550_000_000
-      "45 million"        → 4_500_000_000
-      "45 million naira"  → 4_500_000_000
-      "4500000000"        → 4_500_000_000 (already-kobo heuristic: > ₦10B naira)
-      None / ""           → (None, True)
-      "Price on Request"  → (None, True)
+    Missing, non-NGN, ranged, fractional-kobo, and BIGINT-overflow amounts fail.
     """
     return parse_amount(raw)
 
@@ -205,7 +195,7 @@ def parse_price_type(raw_type: Optional[str],
                      title: Optional[str],
                      description: Optional[str]) -> Optional[str]:
     """
-    Classify as FOR_SALE or FOR_RENT.
+    Classify as FOR_SALE, FOR_RENT, or FOR_SHORT_LET.
     Checks raw_type first as a direct value, then falls back to keyword
     scanning across raw_type, title, and description.
     """

@@ -87,3 +87,21 @@ def test_portal_primary_quote_siblings_and_shortlet_precedence(module,cls,fixtur
     assert result.price_kobo==7500000
     assert result.price_period=='NIGHT'
     assert 'Recommended' not in result.raw_price_text
+
+
+def test_advance_payment_is_not_the_billing_period_count():
+    assert parse_terms('₦3M for 2 years upfront','FOR_RENT').price_period_status=='UNKNOWN'
+    terms=parse_terms('₦3M per year for 2 years upfront','FOR_RENT')
+    assert (terms.price_period,terms.price_period_count)==('YEAR',1)
+
+
+def test_primary_quote_currency_overrides_incomplete_numeric_fragment():
+    result=normalise(make_raw(raw_price='300',raw_price_text='USD 300/month',raw_price_type='FOR_RENT'))
+    assert result.price_kobo is None and result.price_currency=='USD'
+
+
+def test_explicit_word_counts_and_currency_anchored_amount():
+    terms=parse_terms('₦1,800,000 for six months','FOR_RENT')
+    assert (terms.price_period,terms.price_period_count)==('MONTH',6)
+    assert parse_amount('for 2 years: ₦3M')==(300000000,False)
+    assert parse_terms('₦3M for two years upfront','FOR_RENT').price_period_status=='UNKNOWN'

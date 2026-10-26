@@ -49,7 +49,7 @@ class NormalisedListing:
 
     # Price
     price_kobo:               Optional[int]   # ALWAYS kobo — ₦45M = 4_500_000_000
-    price_parse_failed:       bool            # True when raw price present but unparseable
+    price_parse_failed:       bool            # True for missing, invalid, or explicitly non-NGN amounts
     price_type:               Optional[str]   # 'FOR_SALE' | 'FOR_RENT' | 'FOR_SHORT_LET'
 
     # Property attributes
