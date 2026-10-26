@@ -77,35 +77,18 @@ class NigeriaPropertyCentreParser(BaseParser):
             if h1:
                 title = h1.get_text(strip=True)
 
-        raw_price_currency  = _text(soup, PRICE_CURRENCY_SELECTOR)
-        raw_price           = _text(soup, PRICE_SELECTOR)
-        if raw_price is None or raw_price_currency is None:
-            price_span = None
-            for span in soup.find_all("span"):
-                txt = span.get_text(strip=True)
-                if txt and (txt.startswith("₦") or txt.startswith("$") or txt.startswith("USD")):
-                    if any(c.isdigit() for c in txt):
-                        price_span = span
-                        break
-            if price_span:
-                combined_price = price_span.get_text(strip=True)
-                if combined_price.startswith("₦"):
-                    raw_price_currency = "₦"
-                    raw_price = combined_price[1:]
-                elif combined_price.startswith("$"):
-                    raw_price_currency = "$"
-                    raw_price = combined_price[1:]
-                elif combined_price.startswith("USD"):
-                    raw_price_currency = "USD"
-                    raw_price = combined_price[3:]
-                else:
-                    raw_price_currency = ""
-                    raw_price = combined_price
-
-         # Pre-check for possible null page through marked signs like null prices and currencies
-        if raw_price == None or raw_price_currency == None:
-            log.warning("[%s] Null/Unwanted Listing: %s. Skipping", self.source, url)    # null listing
+        # Capture only the primary quote, including sibling time-unit labels.
+        quote_element = soup.select_one('.property-details-price')
+        if quote_element is None:
+            # Current NPC layout: primary desktop quote, not the recommendation cards.
+            amount = soup.select_one('main [class*="text-[1.625rem]"]')
+            quote_element = amount.parent if amount else None
+        if quote_element is None:
+            log.warning("[%s] Primary price element missing: %s", self.source, url)
             return None
+        raw_price_text = quote_element.get_text(" ", strip=True)[:1000]
+        raw_price = raw_price_text
+        raw_price_currency = ""
 
         raw_bedrooms_val    = _text(soup, BEDROOMS_SELECTOR_VAL)
         raw_bedrooms_name   = next_sibling_text(soup, BEDROOMS_SELECTOR_VAL) if raw_bedrooms_val is not None else None
@@ -154,7 +137,9 @@ class NigeriaPropertyCentreParser(BaseParser):
             agent = self._find_agent(soup)
 
         # Price type — NigeriaPropertyCentre encodes in the search URL / breadcrumb
-        if "for-sale" in url:
+        if re.search(r"short[-_]?let", url, re.I):
+            raw_price_type = "FOR_SHORT_LET"
+        elif "for-sale" in url:
             raw_price_type = "FOR_SALE"
         elif "short-let" in url:
             raw_price_type = "FOR_SHORT_LET"
@@ -170,6 +155,7 @@ class NigeriaPropertyCentreParser(BaseParser):
             title             = title or "",
             raw_price         = raw_price_currency + raw_price,
             raw_price_type    = raw_price_type,
+            raw_price_text    = raw_price_text,
             raw_bedrooms      = raw_bedrooms_val + raw_bedrooms_name if raw_bedrooms_name is not None else None,
             raw_bathrooms     = raw_bathrooms_val + raw_bathrooms_name if raw_bathrooms_name is not None else None,
             raw_address       = raw_address,

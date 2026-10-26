@@ -15,6 +15,8 @@ Key rules (enforced platform-wide):
 from __future__ import annotations
 
 import re
+from dataclasses import asdict
+from scraper.pricing import parse_terms, parse_amount, SHORT_LET
 import difflib
 import logging
 from typing import Optional, Tuple
@@ -95,6 +97,7 @@ def normalise(raw: RawListing) -> NormalisedListing:
     """Convert a RawListing to a fully typed NormalisedListing."""
     price_kobo, price_parse_failed = parse_price(raw.raw_price)
     price_type                     = parse_price_type(raw.raw_price_type, raw.title, raw.description)
+    terms = parse_terms(raw.raw_price_text or raw.raw_price, price_type)
     property_type                  = normalise_property_type(raw.property_type_raw)
     bedrooms                       = parse_integer(raw.raw_bedrooms)
     bathrooms                      = parse_integer(raw.raw_bathrooms)
@@ -131,6 +134,7 @@ def normalise(raw: RawListing) -> NormalisedListing:
         geocoded                 = False,
         agent_name               = raw.agent_name,
         diaspora_targeted        = diaspora,
+        **asdict(terms),
     )
 
 
@@ -153,57 +157,7 @@ def parse_price(raw: Optional[str]) -> Tuple[Optional[int], bool]:
       None / ""           → (None, True)
       "Price on Request"  → (None, True)
     """
-    if not raw or not raw.strip():
-        return None, True
-
-    cleaned = (
-        raw
-        .replace(",", "")
-        .replace("₦", "")
-        .replace("N", "")
-        .replace("NGN", "")
-        .replace("naira", "")
-        .replace("Naira", "")
-        .strip()
-    )
-
-    # "45M" / "45.5M" — only trigger when M is immediately after a digit
-    # Guards against "per annum" whose cleaned form ends with 'm'
-    upper = cleaned.upper()
-    if upper.endswith("M") and len(upper) >= 2 and upper[-2].isdigit():
-        try:
-            naira = float(cleaned[:-1]) * 1_000_000
-            return int(naira * 100), False
-        except ValueError:
-            return None, True
-
-    # "45B" / "1.5B" (billions — rare but occurs for commercial)
-    if cleaned.upper().endswith("B"):
-        try:
-            naira = float(cleaned[:-1]) * 1_000_000_000
-            return int(naira * 100), False
-        except ValueError:
-            return None, True
-
-    # "45 million" / "45.5 million"
-    million_match = re.search(r'([\d.]+)\s*million', cleaned, re.IGNORECASE)
-    if million_match:
-        try:
-            return int(float(million_match.group(1)) * 1_000_000 * 100), False
-        except ValueError:
-            return None, True
-
-    # Plain numeric — treat as naira unconditionally
-    numeric_match = re.search(r'[\d.]+', cleaned)
-    if numeric_match:
-        try:
-            value = float(numeric_match.group())
-            return int(value * 100), False   # naira → kobo
-        except ValueError:
-            return None, True
-
-    log.debug("Price parse failed for: %r", raw)
-    return None, True
+    return parse_amount(raw)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -260,6 +214,8 @@ def parse_price_type(raw_type: Optional[str],
         return raw_type
 
     combined = " ".join(filter(None, [raw_type, title, description]))
+    if SHORT_LET.search(combined):
+        return "FOR_SHORT_LET"
     if RENT_KEYWORDS.search(combined):
         return "FOR_RENT"
     if SALE_KEYWORDS.search(combined):
