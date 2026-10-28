@@ -9,6 +9,7 @@ Environment=RENTAL_RECOVERY_MODE=preview
 Environment="RENTAL_RECOVERY_STATE=@STATE_DIR@"
 EnvironmentFile=-@CONFIG_FILE_RAW@
 ExecStart=/usr/bin/bash "@PROJECT_DIR@/scripts/run_rental_recovery.sh"
+ExecStopPost="@PROJECT_DIR@/.venv/bin/python" "@PROJECT_DIR@/.local/scripts/export_recovery_reviews.py" --state-dir "@STATE_DIR@"
 TimeoutStartSec=35min
 TimeoutStopSec=90s
 Nice=10

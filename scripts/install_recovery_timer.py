@@ -1,5 +1,7 @@
 """Install user systemd units without enabling them or starting recovery."""
 import argparse
+import shlex
+import shutil
 from pathlib import Path
 
 
@@ -16,13 +18,19 @@ def systemd_path(path, quoted=True):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--project-dir', type=Path, default=Path(__file__).resolve().parents[1])
-    parser.add_argument('--unit-dir', type=Path, default=Path.home()/'.config/systemd/user')
-    parser.add_argument('--config-dir', type=Path, default=Path.home()/'.config/property-scraper')
-    parser.add_argument('--state-dir', type=Path, default=Path.home()/'.local/state/property-scraper/rental-recovery')
+    parser.add_argument('--unit-dir', type=Path, default=None)
+    parser.add_argument('--config-dir', type=Path, default=None)
+    parser.add_argument('--state-dir', type=Path, default=None)
     args = parser.parse_args()
     project = args.project_dir.resolve()
     if not (project/'scripts/run_rental_recovery.sh').is_file():
         parser.error('Project directory does not contain the recovery entry point')
+    args.unit_dir = args.unit_dir or project/'.local/systemd'
+    args.config_dir = args.config_dir or project/'.local/config'
+    args.state_dir = args.state_dir or project/'.local/rental-recovery'
+    local_scripts = project/'.local/scripts'
+    local_scripts.mkdir(parents=True, exist_ok=True, mode=0o700)
+    shutil.copyfile(Path(__file__).resolve().parent/'export_recovery_reviews.py', local_scripts/'export_recovery_reviews.py')
     args.unit_dir.mkdir(parents=True, exist_ok=True)
     args.config_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     config = args.config_dir/'rental-recovery.env'
@@ -46,6 +54,7 @@ def main():
     print(f'Installed units in {args.unit_dir.resolve()}')
     print(f'Mode and limits: {config.resolve()}')
     print('Nothing started or enabled. To enable:')
+    print('systemctl --user link '+shlex.quote(str((args.unit_dir/'scraper-rental-recovery.service').resolve()))+' '+shlex.quote(str((args.unit_dir/'scraper-rental-recovery.timer').resolve())))
     print('systemctl --user daemon-reload')
     print('systemctl --user enable --now scraper-rental-recovery.timer')
 

@@ -11,7 +11,7 @@ class TrafficBusy(Exception):
 
 def lock_directory():
     configured = os.environ.get('PROPERTY_SCRAPER_LOCK_DIR')
-    base = Path(configured) if configured else Path(os.environ.get('XDG_STATE_HOME', Path.home()/'.local/state'))/'property-scraper/locks'
+    base = Path(configured) if configured else Path(__file__).resolve().parents[1]/'.local/locks'
     base.mkdir(parents=True, exist_ok=True, mode=0o700)
     return base
 
