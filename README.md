@@ -502,8 +502,7 @@ To reconsider selected IDs explicitly:
 .venv/bin/python scripts/backfill_rental_pricing.py retry 123 456
 ```
 
-All commands use `~/.local/state/property-scraper/rental-recovery` by default
-(or `$XDG_STATE_HOME/property-scraper/rental-recovery`). `--state-dir /absolute/path`
+All commands use `.local/rental-recovery` inside the project by default. `--state-dir /absolute/path`
 selects a different queue; use the same path for import, run, status, and retry.
 The directory contains `queue.sqlite3`, `run-<UUID>.json` progress summaries, and
 `run-<UUID>.jsonl` event journals. Status reads local state without contacting
@@ -539,12 +538,16 @@ After pulling the merged code into your production checkout, install the units:
 
 ```bash
 .venv/bin/python scripts/install_recovery_timer.py
+systemctl --user link "$PWD/.local/systemd/scraper-rental-recovery.service" "$PWD/.local/systemd/scraper-rental-recovery.timer"
 systemctl --user daemon-reload
 ```
 
 Installation does not start or enable recovery. It creates
-`~/.config/systemd/user/scraper-rental-recovery.service` and `.timer`, plus
-`~/.config/property-scraper/rental-recovery.env`. The environment file defaults to
+`.local/systemd/scraper-rental-recovery.service` and `.timer`, plus
+`.local/config/rental-recovery.env`. It also builds a local report exporter in
+`.local/scripts`. Register the generated units using the `systemctl --user link`
+command printed by the installer; systemd keeps only registration links in
+`~/.config/systemd/user`. The environment file defaults to
 `RENTAL_RECOVERY_MODE=preview`: portals are visited, but property records are not
 updated. To permit automatic updates for clear price and billing-period evidence,
 change that setting to `RENTAL_RECOVERY_MODE=apply` after reviewing the first batch.
@@ -570,7 +573,7 @@ systemctl --user stop scraper-rental-recovery.service  # stop an active run too
 ```
 
 Disabling the timer does not stop an active service. Runs continue writing the
-same queue and reports under `~/.local/state/property-scraper/rental-recovery`.
+same queue and reports under `.local/rental-recovery` in the project.
 The lightweight entry point uses the existing `.venv` and `.env`; it does not run
 discovery, install dependencies, or rebuild/deploy the dashboard. New database
 prices are visible to subsequent consumers; a previously rendered static dashboard
@@ -585,6 +588,46 @@ lingering is a separate host administration choice. No health or discovery timer
 is modified by this installer. Existing holds are not reset when Sunday discovery
 runs: new unresolved listing IDs enter the queue, while known periods need no
 recovery and existing uncertain cases still require review.
+
+### Local files and manual review
+
+Runtime files belong inside the project's ignored `.local/` directory:
+
+```text
+.local/
+  rental-recovery/  # queue.sqlite3, run reports, and manual-review reports
+  backups/          # local PostgreSQL dumps and recovery backups
+  config/           # rental-recovery.env: mode and limits
+  locks/            # shared health/recovery traffic locks
+  systemd/          # rendered local service and timer units
+  scripts/          # built local report exporter used by the service
+```
+
+The service refreshes `.local/rental-recovery/manual-review.html`, `.csv`, and
+`.json` when each invocation stops, including a failed or interrupted invocation
+when the queue is readable. Open the HTML report for listing links, displayed
+price text, hold reasons, and suggested actions. Its timestamp tells you how
+current it is. Reports contain the current holds, replacing the previous list.
+They do not change property records or automatically approve anything. While a
+run is active, the report still reflects the last export. To refresh immediately:
+
+```bash
+.venv/bin/python scripts/export_recovery_reviews.py --state-dir .local/rental-recovery
+```
+
+If the page still has no explicit period, leave it unknown. If it now states a
+period clearly, note the listing ID and exact wording before requesting a retry.
+Changed categories, foreign currencies, and links to different properties need
+separate investigation. You do not need to resolve every hold to let recovery
+continue. There is no manual override that bypasses the evidence policy.
+
+`.local/`, local CSV exports, the internal rental build plan, generated telemetry
+(`data/telemetry.json` and its hash), and rendered dashboard files (`web/index.html`,
+`web/sitemap.xml`, `web/robots.txt`) are ignored by Git. Templates, source code,
+fonts, icons, and `web/theme.js` remain tracked. Build the dashboard before
+publishing a fresh checkout; `run.sh` already renders before deployment. Ignored
+files are still included by a direct `wrangler pages deploy web` invocation.
+A fresh checkout does not include the local database queue, reports, or backups.
 
 ### Comparing rental prices
 
