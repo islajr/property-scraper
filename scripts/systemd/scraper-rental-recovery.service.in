@@ -4,10 +4,10 @@ After=network-online.target
 
 [Service]
 Type=oneshot
-WorkingDirectory="@PROJECT_DIR@"
+WorkingDirectory=@PROJECT_DIR_RAW@
 Environment=RENTAL_RECOVERY_MODE=preview
 Environment="RENTAL_RECOVERY_STATE=@STATE_DIR@"
-EnvironmentFile=-"@CONFIG_FILE@"
+EnvironmentFile=-@CONFIG_FILE_RAW@
 ExecStart=/usr/bin/bash "@PROJECT_DIR@/scripts/run_rental_recovery.sh"
 TimeoutStartSec=35min
 TimeoutStopSec=90s
