@@ -526,6 +526,66 @@ shared `PROPERTY_SCRAPER_LOCK_DIR`. This does not coordinate jobs on other hosts
 or GitHub Actions. A second local recovery runner is rejected even when it uses
 a different queue directory. These commands do not install or enable a timer.
 
+### Local rental recovery schedule
+
+The optional user-systemd timer runs at 15 minutes past each hour, with up to two
+minutes of jitter. Each invocation resumes the same queue and adds newly ingested
+active rentals with unresolved billing periods. Defaults are 300 queue items,
+1,000 HTTP attempts, and 30 minutes per invocation. Health checks retain priority.
+The timer provides repeated invocations; individual recovery runs do not wait
+indefinitely for future retries. Held listings remain a separate review task.
+
+After pulling the merged code into your production checkout, install the units:
+
+```bash
+.venv/bin/python scripts/install_recovery_timer.py
+systemctl --user daemon-reload
+```
+
+Installation does not start or enable recovery. It creates
+`~/.config/systemd/user/scraper-rental-recovery.service` and `.timer`, plus
+`~/.config/property-scraper/rental-recovery.env`. The environment file defaults to
+`RENTAL_RECOVERY_MODE=preview`: portals are visited, but property records are not
+updated. To permit automatic updates for clear price and billing-period evidence,
+change that setting to `RENTAL_RECOVERY_MODE=apply` after reviewing the first batch.
+Existing mode/limit settings are preserved when reinstalling. Each invocation
+reads the file again; mode changes affect the next run, not an active one.
+
+Import earlier pilot attempts before enabling the timer, as described above.
+Then enable the schedule:
+
+```bash
+systemctl --user enable --now scraper-rental-recovery.timer
+systemctl --user list-timers scraper-rental-recovery.timer
+```
+
+Monitor and control it with:
+
+```bash
+systemctl --user status scraper-rental-recovery.service
+journalctl --user -u scraper-rental-recovery.service -n 50 --no-pager
+systemctl --user start scraper-rental-recovery.service  # optional immediate run
+systemctl --user disable --now scraper-rental-recovery.timer  # stop future triggers
+systemctl --user stop scraper-rental-recovery.service  # stop an active run too
+```
+
+Disabling the timer does not stop an active service. Runs continue writing the
+same queue and reports under `~/.local/state/property-scraper/rental-recovery`.
+The lightweight entry point uses the existing `.venv` and `.env`; it does not run
+discovery, install dependencies, or rebuild/deploy the dashboard. New database
+prices are visible to subsequent consumers; a previously rendered static dashboard
+still needs its normal rebuild. An already running manual recovery prevents a
+second runner; a later timer invocation tries again.
+
+This schedule runs while the machine and user service manager are running.
+`Persistent=true` triggers one catch-up invocation after a missed schedule; it
+does not wake a powered-off machine or replay every missed hour. Check
+`loginctl show-user "$USER" -p Linger` if it must run while logged out; enabling
+lingering is a separate host administration choice. No health or discovery timer
+is modified by this installer. Existing holds are not reset when Sunday discovery
+runs: new unresolved listing IDs enter the queue, while known periods need no
+recovery and existing uncertain cases still require review.
+
 ### Comparing rental prices
 
 Use `raw_data.comparable_rental_prices` for explicit NGN whole-property quotes.
