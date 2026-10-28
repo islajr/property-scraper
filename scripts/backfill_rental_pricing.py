@@ -146,6 +146,10 @@ def live_proposal(row,parsers):
 
 
 def main(argv=None):
+    arguments = sys.argv[1:] if argv is None else list(argv)
+    if arguments and arguments[0] in ('run','status','import-report','retry'):
+        from scraper.recovery_runner import main as automated_main
+        return automated_main(arguments)
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--mode',choices=('inventory','offline','live'),default='inventory')
     parser.add_argument('--apply',action='store_true',help='Write explicitly reviewed proposals; otherwise dry run')
@@ -156,7 +160,7 @@ def main(argv=None):
     parser.add_argument('--batch-size',type=int,default=50)
     parser.add_argument('--report',type=Path)
     parser.add_argument('--rollback-run',type=UUID)
-    args=parser.parse_args(argv)
+    args=parser.parse_args(arguments)
     if args.mode=='live' and args.status=='REMOVED':parser.error('Live recovery only revisits ACTIVE listings')
     if not 1<=args.limit<=1000 or not 1<=args.batch_size<=200:parser.error('limit must be 1–1000; batch-size must be 1–200')
     if args.apply and args.mode=='inventory' and not args.rollback_run:parser.error('Inventory is read-only; choose offline or live before --apply')

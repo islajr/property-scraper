@@ -31,7 +31,6 @@ class RecoveryState:
                     config_json TEXT NOT NULL, http_attempts INTEGER NOT NULL DEFAULT 0,
                     status TEXT NOT NULL DEFAULT 'running'
                 );
-                CREATE INDEX IF NOT EXISTS events_run ON events(run_id);
                 CREATE TABLE IF NOT EXISTS portals (
                     source TEXT PRIMARY KEY, failures INTEGER NOT NULL DEFAULT 0,
                     cooldown_until REAL NOT NULL DEFAULT 0, reason TEXT
@@ -41,6 +40,7 @@ class RecoveryState:
                     source TEXT, outcome TEXT NOT NULL, reason TEXT, created_at REAL NOT NULL
                 );
             ''')
+            db.execute('CREATE INDEX IF NOT EXISTS events_run ON events(run_id)')
             previous = db.execute("SELECT value FROM metadata WHERE key='target'").fetchone()
             if previous and previous['value'] != target:
                 raise ValueError('State directory belongs to a different database target')
@@ -88,6 +88,7 @@ class RecoveryState:
     def recover_interrupted(self, now=None):
         now = time.time() if now is None else now
         with self.connect() as db:
+            db.execute("UPDATE runs SET status='interrupted',finished_at=? WHERE status='running'", (now,))
             db.execute("UPDATE jobs SET status='ready',reason='resuming_saved_quote' WHERE status='working' AND quote_json IS NOT NULL")
             db.execute("UPDATE jobs SET status='retryable',retry_at=?,reason='interrupted_visit' WHERE status='working' AND network_started=1", (now+300,))
             db.execute("UPDATE jobs SET status='pending',reason='interrupted_before_request' WHERE status='working'")
@@ -131,9 +132,15 @@ class RecoveryState:
             db.execute("UPDATE jobs SET status='ready',row_json=?,quote_json=?,visible_purpose=?,run_id=?,updated_at=? WHERE listing_id=?",
                        (json.dumps(row,default=str),json.dumps(quote,default=str),purpose,audit_run,time.time(),lid))
 
-    def finish(self, job, run_id, status, reason, retry_at=0):
+    def finish(self, job, run_id, status, reason, retry_at=0, observation=None, clear_quote=False):
         lid = job['listing_id']
         with self.connect() as db:
+            if clear_quote:
+                db.execute('UPDATE jobs SET row_json=NULL,quote_json=NULL,visible_purpose=NULL,run_id=NULL WHERE listing_id=?',(lid,))
+            if observation is not None:
+                row, quote, purpose = observation
+                db.execute('UPDATE jobs SET row_json=?,quote_json=?,visible_purpose=? WHERE listing_id=?',
+                           (json.dumps(row,default=str),json.dumps(quote,default=str) if quote else None,purpose,lid))
             db.execute('UPDATE jobs SET status=?,reason=?,retry_at=?,updated_at=? WHERE listing_id=?',
                        (status,reason,retry_at,time.time(),lid))
             db.execute('INSERT INTO events(run_id,listing_id,source,outcome,reason,created_at) VALUES (?,?,?,?,?,?)',
