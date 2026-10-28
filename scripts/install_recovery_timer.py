@@ -3,11 +3,13 @@ import argparse
 from pathlib import Path
 
 
-def systemd_path(path):
-    # Values are used inside quoted systemd directives, not shell commands.
+def systemd_path(path, quoted=True):
+    # Path directives consume literal paths; ExecStart/Environment use quotes.
     value = str(path.resolve())
     if '\n' in value or '\r' in value:
         raise ValueError('Paths cannot contain newlines')
+    if not quoted:
+        return value.replace('%', '%%')
     return value.replace('\\', '\\\\').replace('"', '\\"').replace('%', '%%')
 
 
@@ -36,6 +38,8 @@ def main():
     for key, path in {'PROJECT_DIR': project, 'STATE_DIR': args.state_dir,
                       'CONFIG_FILE': config}.items():
         service = service.replace('@'+key+'@', systemd_path(path))
+    service = service.replace('@PROJECT_DIR_RAW@', systemd_path(project, quoted=False))
+    service = service.replace('@CONFIG_FILE_RAW@', systemd_path(config, quoted=False))
     (args.unit_dir/'scraper-rental-recovery.service').write_text(service)
     (args.unit_dir/'scraper-rental-recovery.timer').write_text(
         (template_dir/'scraper-rental-recovery.timer').read_text())
