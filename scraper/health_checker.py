@@ -127,14 +127,19 @@ class HealthChecker:
         from scraper.parsers.privateproperty import PrivatePropertyParser
         from scraper.parsers.nigeriapropertycentre import NigeriaPropertyCentreParser
         return {
-            "propertypro":           PropertyProParser({}),
-            "privateproperty":       PrivatePropertyParser({}),
-            "nigeriapropertycentre": NigeriaPropertyCentreParser({}),
+            "propertypro":           PropertyProParser({}, load_robots=False),
+            "privateproperty":       PrivatePropertyParser({}, load_robots=False),
+            "nigeriapropertycentre": NigeriaPropertyCentreParser({}, load_robots=False),
         }
 
     # ── Public entry point ────────────────────────────────────────────────────
 
-    def run(
+    def run(self, force_all=False, checkpoint_state=None, on_batch_complete=None):
+        from scraper.traffic_guard import health_traffic
+        with health_traffic():
+            return self._run(force_all, checkpoint_state, on_batch_complete)
+
+    def _run(
         self,
         force_all: bool = False,
         checkpoint_state: Optional[Dict[str, Any]] = None,

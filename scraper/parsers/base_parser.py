@@ -49,7 +49,7 @@ class BaseParser(ABC):
         "DNT":             "1",
     }
 
-    def __init__(self, active_listings: Dict[Tuple[str, str], Optional[int]]):
+    def __init__(self, active_listings: Dict[Tuple[str, str], Optional[int]], load_robots: bool = True):
         """
         Args:
             active_listings: Pre-fetched {(source, ext_id): price_kobo} dict.
@@ -58,7 +58,7 @@ class BaseParser(ABC):
         """
         self.active_listings = active_listings
         self.session         = self._build_session()
-        self.robot_parser    = self._load_robots_txt()
+        self.robot_parser    = self._load_robots_txt() if load_robots else None
 
     # ── Abstract interface ─────────────────────────────────────────────────────
 
