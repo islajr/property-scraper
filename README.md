@@ -455,6 +455,77 @@ add `--apply` to reverse eligible repairs. Later-modified listings are skipped.
 The reversal is audited and preserves historical events; reverted live price
 changes lose their comparable-reduction eligibility.
 
+### Resumable live rental recovery
+
+Use the `run` command for recovery across multiple batches. It remembers each
+listing in a local SQLite queue, runs at most one worker per portal, and previews
+by default. It does not run the saved-description offline heuristics. Candidates
+are active `FOR_RENT`/`FOR_SHORT_LET` listings whose billing period is unresolved.
+
+From the project directory, first import any **detailed live preview** reports
+from an earlier pilot. This records the exact attempted IDs so they are not
+visited again automatically. Aggregate reports cannot identify those IDs safely
+and are rejected. Importing does not apply the old proposals.
+
+```bash
+.venv/bin/python scripts/backfill_rental_pricing.py import-report /absolute/path/to/pilot-reports
+.venv/bin/python scripts/backfill_rental_pricing.py run --max-listings 300 --max-http-requests 1000 --max-seconds 3600
+.venv/bin/python scripts/backfill_rental_pricing.py status --review-report /tmp/rental-review.json
+```
+
+Inspect the preview before allowing database updates:
+
+```bash
+.venv/bin/python scripts/backfill_rental_pricing.py run --apply --max-listings 300 --max-http-requests 1000 --max-seconds 3600
+```
+
+`run --apply` consumes saved, approved previews first, then may visit additional
+pending listings within its budgets. It reuses previews without another portal
+request when they are less than 24 hours old and the database row has not changed.
+Changed rows are skipped; expired previews are deferred for a fresh visit.
+Only explicit primary NGN quotes with supported billing periods and matching
+rental purpose qualify. Ambiguous terms, foreign currencies, missing units, and
+changed purposes are held for review. The worker never guesses a billing period.
+Current quote amounts can change during live recovery; each applied quote uses
+the existing transactional audit and history mechanism and leaves lifecycle dates
+alone. An interrupted database commit is reconciled against that audit on restart.
+
+Repeat the same command to resume. `--until-exhausted` removes only the listing
+count cap; HTTP and time limits still apply. A successful exit can mean the budget
+was reached or remaining jobs are deferred/held, rather than complete coverage.
+Transient failures have a retry delay (30 minutes by default) and a maximum of
+two visits per listing. Five consecutive systemic failures pause that portal for
+30 minutes while other portals continue. Holds are not automatically revisited.
+To reconsider selected IDs explicitly:
+
+```bash
+.venv/bin/python scripts/backfill_rental_pricing.py retry 123 456
+```
+
+All commands use `~/.local/state/property-scraper/rental-recovery` by default
+(or `$XDG_STATE_HOME/property-scraper/rental-recovery`). `--state-dir /absolute/path`
+selects a different queue; use the same path for import, run, status, and retry.
+The directory contains `queue.sqlite3`, `run-<UUID>.json` progress summaries, and
+`run-<UUID>.jsonl` event journals. Status reads local state without contacting
+PostgreSQL or the portals, including while a runner is active. Keep this state
+between runs; deleting it loses attempt history. Back it up while the worker is
+stopped, including SQLite sidecar files if present. The queue is tied to its
+PostgreSQL target and rejects accidental reuse against another database.
+
+Ctrl-C or SIGTERM stops new work and preserves progress. Time limits also stop
+new requests; an in-flight request can finish after the deadline. Redirects and
+failed sends consume the HTTP budget; reservations are saved before sending, so a
+crash can conservatively count a request that was never sent. Each request has a
+15-second timeout and redirects are bounded. Recovery uses queued retries rather
+than the discovery parser's long blocking backoff.
+
+Updated health checks take priority over recovery **on the same host**. A current
+visit finishes before health traffic begins; recovery waits before starting the
+next visit. Both processes must use the updated code and the same OS user or a
+shared `PROPERTY_SCRAPER_LOCK_DIR`. This does not coordinate jobs on other hosts
+or GitHub Actions. A second local recovery runner is rejected even when it uses
+a different queue directory. These commands do not install or enable a timer.
+
 ### Comparing rental prices
 
 Use `raw_data.comparable_rental_prices` for explicit NGN whole-property quotes.
