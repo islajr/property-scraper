@@ -118,6 +118,7 @@ def mock_nominatim(lat: float = 6.4698, lng: float = 3.5852) -> MagicMock:
     return session
 
 @pytest.fixture(autouse=True)
-def offline_parser_construction(monkeypatch):
+def offline_parser_construction(monkeypatch, tmp_path):
     """Saved-fixture tests must not fetch robots.txt from live property portals."""
     monkeypatch.setattr('scraper.parsers.base_parser.BaseParser._load_robots_txt', lambda self: None)
+    monkeypatch.setenv("PROPERTY_SCRAPER_LOCK_DIR", str(tmp_path/"traffic-locks"))
