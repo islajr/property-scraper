@@ -105,3 +105,17 @@ def test_explicit_word_counts_and_currency_anchored_amount():
     assert (terms.price_period,terms.price_period_count)==('MONTH',6)
     assert parse_amount('for 2 years: ₦3M')==(300000000,False)
     assert parse_terms('₦3M for two years upfront','FOR_RENT').price_period_status=='UNKNOWN'
+
+
+@pytest.mark.parametrize('raw,period', [
+    ('₦260,000 per calendar month', 'MONTH'),
+    ('₦3,499,000 per calendar month', 'MONTH'),
+    ('₦3,000,000 per calendar year', 'YEAR'),
+])
+def test_calendar_period_label_is_retained_without_manual_recovery(raw, period):
+    listing=normalise(make_raw(raw_price=raw,raw_price_text=raw,raw_price_type='FOR_RENT'))
+    assert listing.price_period_status=='KNOWN'
+    assert listing.price_period==period
+    assert listing.price_period_count==1
+    assert listing.price_period_source=='PORTAL_PRICE'
+    assert listing.raw_price_text==raw

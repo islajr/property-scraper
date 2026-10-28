@@ -15,7 +15,7 @@ UNITS = {
     'annum': ('YEAR', 1),
 }
 UNIT_PATTERN = '|'.join(sorted(UNITS, key=len, reverse=True))
-PERIOD = re.compile(r'(?:/|(?<![a-z])per\s*|\ba\s+)(?:(\d+)\s*)?(' + UNIT_PATTERN + r')s?\b', re.I)
+PERIOD = re.compile(r'(?:/|(?<![a-z])per\s*(?:calendar\s+)?|\ba\s+)(?:(\d+)\s*)?(' + UNIT_PATTERN + r')s?\b', re.I)
 MULTIPERIOD = re.compile(r'\b(?:for|every)\s+(\d+)\s+(' + UNIT_PATTERN + r')s?\b', re.I)
 ADJECTIVES = re.compile(r'\b(hourly|daily|nightly|weekly|fortnightly|monthly|quarterly|yearly|annually|annual)\b', re.I)
 ADJECTIVE_UNITS = dict(zip(('hourly','daily','nightly','weekly','fortnightly','monthly','quarterly','yearly','annually','annual'),
