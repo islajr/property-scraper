@@ -217,3 +217,15 @@ debug_html/
 TODO
 architecture.md
 
+
+# Project-local runtime, reports, backups, and rendered outputs
+/.local/
+/.antigravitycli/
+/data/telemetry.json
+/data/.telemetry_hash
+/web/index.html
+/web/sitemap.xml
+/web/robots.txt
+/neighbourhood_snapshots_rows.csv
+/scraped_listings_rows.csv
+/docs/rental-pricing-plan.md
