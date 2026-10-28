@@ -1,0 +1,11 @@
+[Unit]
+Description=Resume Rental Billing Period Recovery Hourly
+
+[Timer]
+OnCalendar=*-*-* *:15:00
+RandomizedDelaySec=2min
+Persistent=true
+Unit=scraper-rental-recovery.service
+
+[Install]
+WantedBy=timers.target
