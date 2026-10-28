@@ -219,3 +219,37 @@ def test_reversing_live_recovery_invalidates_its_reduction_comparability(pricing
     events=history(db,old.external_id)
     assert next(e for e in events if e[0]=='PRICE_CHANGE')[1] is False
     assert get_row(db,old.external_id)['price_kobo']==old.price_kobo
+
+
+def test_automated_recovery_preview_and_apply_use_real_audited_transaction(pricing_writer,tmp_path,monkeypatch):
+    import config
+    from scraper.recovery_runner import Runner,Postgres
+    from scraper.recovery_state import RecoveryState
+    from tests.test_recovery_runner import args,Fetchers
+    monkeypatch.setattr(config,'DATABASE_URL',os.environ['TEST_DATABASE_URL'])
+    db=pricing_writer;old=listing('₦3M');db.upsert([old],{})
+    before=recovery_row(db,old.external_id)
+    provider=Postgres(False)
+    try:
+        with provider.read().cursor() as cur:
+            cur.execute('SHOW transaction_read_only');assert cur.fetchone()[0]=='on'
+        with pytest.raises(RuntimeError,match='--apply'):provider.apply(before,{},str(uuid4()))
+        state=RecoveryState(tmp_path,provider.target())
+        state.seed([(before['id'],before['source'],before['price_type'])])
+    finally:provider.close()
+    fetchers=Fetchers()
+    assert Runner(state,args(),fetcher_factory=fetchers.factory).run()==0
+    assert get_row(db,old.external_id)['price_period_status']=='UNKNOWN'
+    db.conn.commit()
+    assert Runner(state,args(apply=True),fetcher_factory=fetchers.factory).run()==0
+    after=recovery_row(db,old.external_id)
+    assert after['price_period']=='YEAR'
+    assert after['last_seen_at']==before['last_seen_at']
+    assert after['last_health_check_at']==before['last_health_check_at']
+    assert fetchers.calls==[before['id']]
+    with db.conn.cursor() as cur:
+        cur.execute('SELECT count(*) FROM raw_data.rental_pricing_backfills WHERE listing_id=%s',(before['id'],))
+        assert cur.fetchone()[0]==1
+    db.conn.commit()
+    assert Runner(state,args(apply=True),fetcher_factory=fetchers.factory).run()==0
+    assert fetchers.calls==[before['id']]

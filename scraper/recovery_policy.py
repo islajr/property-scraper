@@ -17,9 +17,7 @@ def quote_decision(row, quote, visible_purpose=None):
         return False, 'quote_unavailable'
     if quote.get('price_type') != row.get('price_type'):
         return False, 'purpose_changed'
-    if visible_purpose == 'FOR_SALE' or (
-        visible_purpose == 'FOR_SHORT_LET' and quote.get('price_type') != 'FOR_SHORT_LET'
-    ):
+    if visible_purpose and visible_purpose != quote.get('price_type'):
         return False, 'page_purpose_conflict'
     if quote.get('price_currency') != 'NGN':
         return False, 'currency_not_ngn'
