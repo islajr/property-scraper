@@ -14,7 +14,7 @@ esac
 export PYTHONUNBUFFERED=1
 exec "$PROJECT_DIR/.venv/bin/python" scripts/backfill_rental_pricing.py run \
     "${MODE_ARGS[@]}" \
-    --state-dir "${RENTAL_RECOVERY_STATE:-$HOME/.local/state/property-scraper/rental-recovery}" \
+    --state-dir "${RENTAL_RECOVERY_STATE:-$PROJECT_DIR/.local/rental-recovery}" \
     --max-listings "${RENTAL_RECOVERY_MAX_LISTINGS:-300}" \
     --max-http-requests "${RENTAL_RECOVERY_MAX_HTTP_REQUESTS:-1000}" \
     --max-seconds "${RENTAL_RECOVERY_MAX_SECONDS:-1800}"

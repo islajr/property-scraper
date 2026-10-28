@@ -321,7 +321,7 @@ class Runner:
 
 
 def default_directory():
-    return Path(os.environ.get('XDG_STATE_HOME',Path.home()/'.local/state'))/'property-scraper/rental-recovery'
+    return Path(__file__).resolve().parents[1]/'.local/rental-recovery'
 
 
 def import_report(state,path,source=None):
