@@ -375,6 +375,11 @@ old labels as `LEGACY_UNREVIEWED`. Preview existing listings without applying ch
 python -m scripts.preview_property_classification --output .local/property-types/preview-v1.jsonl
 ```
 
+The [backfill runbook](docs/property-classification-backfill.md) provides bounded
+apply/reversal commands, durable resume receipts, and a reviewed four-listing
+canary. Both commands default to read-only; writes require migration 007 and
+the explicit `--apply` flag.
+
 To repeat the original vocabulary inventory, export `DATABASE_URL` and run:
 
 ```bash
