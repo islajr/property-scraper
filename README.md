@@ -364,6 +364,19 @@ Key normalisation rules:
 - All floor areas are stored in **square metres**. Sqft inputs are converted automatically.
 - `price_parse_failed = True` when a price is missing, blank, invalid, or explicitly non-NGN.
 
+Property-type standardisation is proposed in [the taxonomy contract](docs/property-type-taxonomy.md),
+with [database findings and representative mappings](docs/property-type-audit-2026-11-13.md).
+The proposal preserves supported existing types, adds explicit unresolved states,
+and separates property form from attachment, land use, and asset scope. It has
+not yet changed the classifier or stored data. To repeat the legacy vocabulary
+inventory, export `DATABASE_URL` and run:
+
+```bash
+psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -f scripts/audit_property_types.sql
+```
+
+The audit runs in a read-only transaction and rolls back when finished.
+
 ---
 
 ## Rental prices and billing periods
