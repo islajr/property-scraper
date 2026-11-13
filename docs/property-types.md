@@ -149,7 +149,10 @@ row's text to the repository.
    known active URLs; do not expect the normal runs to repair the full inventory.
 4. Review dry-run transitions and unresolved examples, then implement a separate
    bounded, auditable apply/reversal command with concurrency guards and resume.
-   This release deliberately provides no production backfill apply command.
+   The [backfill runbook](property-classification-backfill.md) documents migration
+   007, exact selections, durable receipts, and the prepared four-listing canary.
+   Both subcommands default to read-only; no production backfill has been run as
+   part of implementation.
 5. Inventory callers of `market.classify_property` and external enum/API/report
    consumers. Move them to the shared contract or a documented versioned adapter.
    This release does not replace that external function or rebuild market
