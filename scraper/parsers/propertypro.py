@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import re
 import logging
+from urllib.parse import urlparse
 import config
 from typing import List, Optional
 
@@ -144,6 +145,14 @@ class PropertyProParser(BaseParser):
         else:
             raw_price_type = None
 
+        # Use only the primary listing breadcrumb, never the site's type menu.
+        prop_type = None
+        links = soup.select('.page-title .breadcrumb a[href]')
+        if links:
+            path = urlparse(links[-1]['href']).path.split('/in/')[0]
+            if re.fullmatch(r'/property-for-(?:sale|rent|short-let)/[^/]+', path):
+                prop_type = links[-1].get_text(' ', strip=True)[:1000]
+
         return RawListing(
             external_id       = ext_id,
             source            = self.source,
@@ -157,7 +166,8 @@ class PropertyProParser(BaseParser):
             raw_address       = raw_address,
             raw_floor_area    = raw_floor,
             description       = description,
-            property_type_raw = None,
+            property_type_raw = prop_type,
+            property_type_raw_source = 'BREADCRUMB',
             agent_name        = agent,
         )
 

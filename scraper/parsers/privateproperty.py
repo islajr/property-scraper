@@ -114,6 +114,15 @@ class PrivatePropertyParser(BaseParser):
         else:
             raw_price_type = None
 
+        prop_type = None
+        for item in soup.select('.property-details li'):
+            label = item.find('span', recursive=False)
+            if label and label.get_text(' ', strip=True).lower() == 'property type':
+                value = item.find('a', recursive=False)
+                if value:
+                    prop_type = value.get_text(' ', strip=True)[:1000]
+                break
+
         return RawListing(
             external_id       = ext_id,
             source            = self.source,
@@ -127,7 +136,7 @@ class PrivatePropertyParser(BaseParser):
             raw_address       = raw_address,
             raw_floor_area    = None,
             description       = description,
-            property_type_raw = None,
+            property_type_raw = prop_type,
             agent_name        = None,
         )
 

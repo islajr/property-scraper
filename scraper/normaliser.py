@@ -23,6 +23,7 @@ from typing import Optional, Tuple
 
 import config
 from scraper.models import RawListing, NormalisedListing
+from scraper.property_types import classify
 
 log = logging.getLogger(__name__)
 
@@ -34,40 +35,6 @@ DIASPORA_PATTERNS = re.compile(
     r'payment\s+in\s+foreign\s+currency|usd\s+payment)\b',
     re.IGNORECASE
 )
-
-# ── Property type normalisation map ───────────────────────────────────────────
-PROPERTY_TYPE_MAP = {
-    # Residential
-    "detached duplex":       "DETACHED_DUPLEX",
-    "semi-detached duplex":  "SEMI_DETACHED_DUPLEX",
-    "semi detached duplex":  "SEMI_DETACHED_DUPLEX",
-    "terraced duplex":       "TERRACED_DUPLEX",
-    "terraced bungalow":     "TERRACED_BUNGALOW",
-    "duplex":                "DETACHED_DUPLEX",
-    "detached bungalow":     "DETACHED_BUNGALOW",
-    "semi-detached bungalow":"SEMI_DETACHED_BUNGALOW",
-    "flat / apartment":      "FLAT_APARTMENT",
-    "flat/apartment":        "FLAT_APARTMENT",
-    "apartment":             "FLAT_APARTMENT",
-    "flat":                  "FLAT_APARTMENT",
-    "studio":                "STUDIO",
-    "studio apartment":      "STUDIO",
-    "mini flat":             "MINI_FLAT",
-    "miniflat":              "MINI_FLAT",
-    "penthouse":             "PENTHOUSE",
-    "mansion":               "MANSION",
-    "villa":                 "VILLA",
-    # Commercial
-    "office space":          "OFFICE",
-    "warehouse":             "WAREHOUSE",
-    "shop":                  "COMMERCIAL_SHOP",
-    "showroom":              "SHOWROOM",
-    "commercial property":   "COMMERCIAL_OTHER",
-    # Land
-    "land":                  "LAND",
-    "plot of land":          "LAND",
-    "serviced land":         "LAND_SERVICED",
-}
 
 # ── Price type normalisation ───────────────────────────────────────────────────
 RENT_KEYWORDS = re.compile(r'\b(rent|per\s+year|\/year|per\s+annum|p\.?a\.?|lease|to\s+let)\b', re.IGNORECASE)
@@ -98,7 +65,8 @@ def normalise(raw: RawListing) -> NormalisedListing:
     price_kobo, price_parse_failed = parse_price(raw.raw_price_text or raw.raw_price)
     price_type                     = parse_price_type(raw.raw_price_type, raw.title, raw.description)
     terms = parse_terms(raw.raw_price_text or raw.raw_price, price_type)
-    property_type                  = normalise_property_type(raw.property_type_raw)
+    property_classification        = classify(raw.property_type_raw, raw.title, raw.description,
+                                             raw.property_type_raw_source)
     bedrooms                       = parse_integer(raw.raw_bedrooms)
     bathrooms                      = parse_integer(raw.raw_bathrooms)
     floor_area_sqm                 = parse_floor_area_sqm(raw.raw_floor_area)
@@ -106,10 +74,6 @@ def normalise(raw: RawListing) -> NormalisedListing:
     neighbourhood, nb_normalised   = normalise_neighbourhood(raw.raw_address)
     city                           = infer_city(raw.raw_address, raw.title)
     diaspora                       = is_diaspora_targeted(raw.description)
-
-    # property_type fallback: infer from title, and the description
-    if property_type is None:
-        property_type = normalise_property_type(raw.title) or normalise_property_type(raw.description)
 
     return NormalisedListing(
         external_id              = raw.external_id,
@@ -120,7 +84,6 @@ def normalise(raw: RawListing) -> NormalisedListing:
         price_kobo               = price_kobo,
         price_parse_failed       = price_parse_failed,
         price_type               = price_type,
-        property_type            = property_type,
         bedrooms                 = bedrooms,
         bathrooms                = bathrooms,
         floor_area_sqm           = floor_area_sqm,
@@ -134,6 +97,7 @@ def normalise(raw: RawListing) -> NormalisedListing:
         geocoded                 = False,
         agent_name               = raw.agent_name,
         diaspora_targeted        = diaspora,
+        **asdict(property_classification),
         **asdict(terms),
     )
 
@@ -218,17 +182,8 @@ def parse_price_type(raw_type: Optional[str],
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def normalise_property_type(raw: Optional[str]) -> Optional[str]:
-    """Map raw portal property type string to canonical enum value."""
-    if not raw:
-        return None
-    key = raw.lower().strip()
-    if key in PROPERTY_TYPE_MAP:
-        return PROPERTY_TYPE_MAP[key]
-    # Attempt partial match
-    for portal_type, canonical in PROPERTY_TYPE_MAP.items():
-        if portal_type in key:
-            return canonical
-    return raw.upper().replace(" ", "_")[:40]  # store unknown types in a consistent form
+    """Compatibility helper; full decisions and unresolved markers use classify()."""
+    return classify(raw).property_type
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

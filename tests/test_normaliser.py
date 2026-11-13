@@ -158,7 +158,7 @@ class TestNormalisePropertyType:
         ("Studio Apartment",      "STUDIO"),
         ("Plot of Land",          "LAND"),
         ("Commercial Property",   "COMMERCIAL_OTHER"),
-        ("Duplex",                "DETACHED_DUPLEX"),   # partial match
+        ("Duplex",                "DUPLEX"),   # attachment is unspecified
     ])
     def test_known_types(self, raw, expected):
         assert normalise_property_type(raw) == expected
@@ -166,10 +166,9 @@ class TestNormalisePropertyType:
     def test_none_returns_none(self):
         assert normalise_property_type(None) is None
 
-    def test_unknown_type_stored_uppercase(self):
+    def test_unknown_type_does_not_become_a_canonical_value(self):
         result = normalise_property_type("Converted Church Property")
-        assert result is not None
-        assert result == result.upper().replace(" ", "_")[:40] or result  # any non-None consistent form
+        assert result is None
 
 
 # =============================================================================
@@ -338,6 +337,7 @@ class TestNormaliseEndToEnd:
             raw_address       = "10 bedroom Hotel For Sale Oniru Victoria Island Lagos",
             raw_floor_area    = "2.6K",
             property_type_raw = "Commercial Property",
+            title             = "Commercial Property for sale",
         )
         result = normalise(raw)
 
@@ -382,6 +382,7 @@ class TestNormaliseEndToEnd:
             raw_bathrooms     = "5 bathrooms",
             raw_address       = "Abuja, Lugbe District",
             property_type_raw = "Duplex",
+            title             = "4 Bedroom Duplex for Sale",
         )
         result = normalise(raw)
 
