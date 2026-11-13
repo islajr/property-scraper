@@ -12,6 +12,7 @@ import sys
 import tempfile
 
 from scraper.property_types import VERSION, classify, metadata, decision_key
+from scraper.classification_artifact import database_fingerprint, classifier_fingerprint
 
 
 def proposal(row):
@@ -47,9 +48,7 @@ def preview(conn, output, *, source=None, status=None, after_id=0, limit=None, b
     temporary = None
     try:
         conn.set_session(readonly=True, isolation_level='REPEATABLE READ', autocommit=False)
-        dsn = conn.get_dsn_parameters()
-        target = hashlib.sha256(json.dumps({key: dsn.get(key) for key in ('host','port','dbname')},
-                                           sort_keys=True).encode()).hexdigest()
+        target = database_fingerprint(conn)
         with conn.cursor() as cur:
             cur.execute("SET LOCAL statement_timeout='30s'")
             cur.execute("SELECT transaction_timestamp(),current_setting('transaction_read_only')")
@@ -74,6 +73,7 @@ def preview(conn, output, *, source=None, status=None, after_id=0, limit=None, b
                     transitions[(row.get('property_type'), new['property_type'], new['property_type_status'])] += 1
                     coverage[(row['source'], row['listing_status'])][new['property_type_status']] += 1
                     record = dict(id=row['id'], source=row['source'], listing_status=row['listing_status'],
+                                  external_id=row['external_id'],
                                   title=(row.get('title') or '')[:2000], row_version=row_version,
                                   raw_label_available=bool(row.get('property_type_raw')),
                                   previous=before, proposed=new)
@@ -84,6 +84,7 @@ def preview(conn, output, *, source=None, status=None, after_id=0, limit=None, b
         temporary.replace(output)
         temporary = None
         summary = dict(rule_version=VERSION, snapshot_at=str(snapshot), read_only=True,
+                       report_format_version=2, classifier_sha256=classifier_fingerprint(),
                        database_fingerprint=target,
                        complete_database_scan=not (source or status or after_id or limit is not None),
                        filters=dict(source=source, status=status, after_id=after_id, limit=limit),
