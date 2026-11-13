@@ -69,10 +69,6 @@ def _operation(cur, run_id):
 
 
 def _register(cur, run_id, kind, target, manifest, reverse_of):
-    if kind == 'APPLY':
-        cur.execute('SELECT 1 FROM raw_data.property_classification_operations WHERE reverse_of=%s LIMIT 1', (run_id,))
-        if cur.fetchone():
-            raise ReviewError('This apply run has a reversal; use a new preview and run ID for further repairs')
     cur.execute('''INSERT INTO raw_data.property_classification_operations
         (run_id,kind,database_fingerprint,manifest,reverse_of) VALUES (%s,%s,%s,%s,%s)
         ON CONFLICT (run_id) DO NOTHING''', (run_id, kind, target, _json(manifest), reverse_of))
@@ -198,6 +194,10 @@ def _execute(conn, records, run_id, kind, target, manifest, selection, *,
                 locked = cur.fetchone()[0]
                 if not locked:
                     raise ReviewError('Another process is already executing this run ID')
+            if available and kind == 'APPLY':
+                cur.execute('SELECT 1 FROM raw_data.property_classification_operations WHERE reverse_of=%s LIMIT 1', (run_id,))
+                if cur.fetchone():
+                    raise ReviewError('This apply run has a reversal; use a new preview and run ID for further repairs')
             selected = sum(selection.matches(row) for row in records())
             manifest = {**manifest, 'selection': selection.manifest(), 'selected': selected}
             result['selected'] = selected

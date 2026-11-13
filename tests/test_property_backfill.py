@@ -203,6 +203,7 @@ def test_starting_reversal_prevents_further_apply_resume(pricing_writer,tmp_path
     db=pricing_writer;path,ids=seed(db,tmp_path);forward=str(uuid4())
     apply(db,path,forward,write=True,max_records=1)
     reverse_run(db.conn,forward,str(uuid4()),write=True)
+    with pytest.raises(ReviewError,match='reversal'):apply(db,path,forward)
     with pytest.raises(ReviewError,match='reversal'):apply(db,path,forward,write=True)
     assert snapshot(db,ids)[1][0]['property_type']=='OLD_LABEL'
 
