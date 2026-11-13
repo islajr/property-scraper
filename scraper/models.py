@@ -33,6 +33,7 @@ class RawListing:
     property_type_raw: Optional[str]  # e.g. "Detached Duplex" / "Flat / Apartment"
     agent_name:        Optional[str]  # listed agent or developer name
     raw_price_text:    Optional[str] = None  # primary quote including sibling unit labels
+    property_type_raw_source: str = 'PORTAL_TYPE'
 
 
 @dataclass
@@ -89,3 +90,16 @@ class NormalisedListing:
     price_currency: Optional[str] = None
     price_basis: str = 'UNKNOWN'
     pricing_observed_at: Optional[datetime] = None
+
+    # Versioned property classification. Defaults preserve old checkpoint shapes.
+    property_category: Optional[str] = None
+    property_type_family: Optional[str] = None
+    property_attachment: Optional[str] = None
+    property_asset_scope: Optional[str] = None
+    property_land_use: Optional[str] = None
+    property_type_raw: Optional[str] = None
+    property_type_raw_source: Optional[str] = None
+    property_type_status: str = 'LEGACY_UNREVIEWED'
+    property_type_evidence: dict = field(default_factory=dict)
+    property_type_version: Optional[str] = None
+    property_type_classified_at: Optional[datetime] = None

@@ -275,7 +275,7 @@ class Runner:
                 if approved:
                     audit_run=str(uuid4())
                     self.state.save_quote(job['listing_id'],row,observation['quote'],observation['purpose'],audit_run)
-                    saved={**job,'row_json':json.dumps(row),'quote_json':json.dumps(observation['quote']),
+                    saved={**job,'row_json':json.dumps(row,default=str),'quote_json':json.dumps(observation['quote'],default=str),
                            'visible_purpose':observation['purpose'],'run_id':audit_run}
                     self.saved(saved,provider)
                 elif observation['retryable']:
