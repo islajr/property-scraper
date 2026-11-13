@@ -1,8 +1,9 @@
 # Property types: proposed vocabulary and classification contract
 
-Status: proposal for review. This document does not change the running scraper,
-database schema, or stored classifications. The supporting inventory and sample
-mapping are in [the audit](property-type-audit-2026-11-13.md).
+Status: accepted vocabulary contract. The [implementation and rollout guide](property-types.md)
+describes the classifier, additive migration, and read-only preview. Production
+backfill remains a separate step. The supporting inventory and sample mapping
+are in [the audit](property-type-audit-2026-11-13.md).
 
 The aim is to give research and applications a dependable meaning for each
 property type. Existing types are the starting point. Keep a type when the
@@ -11,7 +12,7 @@ visible. A low unknown count is not evidence of a good classifier.
 
 ## Respecting the existing vocabulary
 
-Retain all 19 codes defined by `scraper.normaliser.PROPERTY_TYPE_MAP`, including
+Retain all 19 codes defined by the legacy `scraper.normaliser.PROPERTY_TYPE_MAP`, including
 the three that were absent from the audited database. A code's presence in that
 map establishes its intended meaning; it does not certify every row using it.
 

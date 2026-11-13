@@ -364,12 +364,18 @@ Key normalisation rules:
 - All floor areas are stored in **square metres**. Sqft inputs are converted automatically.
 - `price_parse_failed = True` when a price is missing, blank, invalid, or explicitly non-NGN.
 
-Property-type standardisation is proposed in [the taxonomy contract](docs/property-type-taxonomy.md),
-with [database findings and representative mappings](docs/property-type-audit-2026-11-13.md).
-The proposal preserves supported existing types, adds explicit unresolved states,
-and separates property form from attachment, land use, and asset scope. It has
-not yet changed the classifier or stored data. To repeat the legacy vocabulary
-inventory, export `DATABASE_URL` and run:
+Property types use a [versioned classifier and rollout contract](docs/property-types.md)
+that preserves the 19 existing codes, adds the 17 agreed forms, and records explicit
+unresolved states, evidence, and classification history. See the [taxonomy](docs/property-type-taxonomy.md)
+and [original database audit](docs/property-type-audit-2026-11-13.md) for definitions
+and representative mappings. Migration 006 must precede the new writer; it preserves
+old labels as `LEGACY_UNREVIEWED`. Preview existing listings without applying changes:
+
+```bash
+python -m scripts.preview_property_classification --output .local/property-types/preview-v1.jsonl
+```
+
+To repeat the original vocabulary inventory, export `DATABASE_URL` and run:
 
 ```bash
 psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -f scripts/audit_property_types.sql
