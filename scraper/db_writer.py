@@ -26,10 +26,12 @@ from typing import Dict, List, Optional, Set, Tuple
 
 import psycopg2
 import psycopg2.extras
+from uuid import uuid4
 
 from scraper.models import NormalisedListing
 import config
 from scraper.pricing import QUOTE_FIELDS, PERIOD_FIELDS, quote_dict, classify_change, comparable
+from scraper.property_storage import ensure_classification, persist as persist_classification
 
 log = logging.getLogger(__name__)
 
@@ -148,6 +150,9 @@ class DatabaseWriter:
             )
 
         deduped = list(seen_keys.values())
+        self.classification_run_id = str(uuid4())
+        for listing in deduped:
+            ensure_classification(listing)
 
         stats: Dict = {
             "new":                0,
@@ -493,6 +498,10 @@ class DatabaseWriter:
                         new = None
                     if new is not None:
                         event = self._persist_pricing(cur, old, new, now)
+                    if observed_quote is not None and (observed_quote.source, observed_quote.external_id) == (old.get('source'), old.get('external_id')):
+                        persist_classification(cur, listing_id, old, observed_quote, 'HEALTH_CHECK')
+                        cur.execute('UPDATE raw_data.scraped_listings SET title=%s,description=%s WHERE id=%s',
+                                    (observed_quote.title, observed_quote.description, listing_id))
                 cur.execute("""UPDATE raw_data.scraped_listings
                     SET missed_run_count=0, last_health_check_at=%s, next_health_check_at=%s
                     WHERE id=%s""", (now, now + interval, listing_id))
@@ -565,14 +574,19 @@ class DatabaseWriter:
             RETURNING id
         """, {**listing.__dict__, "now": now})
         row = cur.fetchone()
+        if row and row[0] is not None:
+            persist_classification(cur, row[0], None, listing, 'DISCOVERY',
+                                   getattr(self, 'classification_run_id', None))
         return row[0] if row else None
 
     def _update_existing(self, cur, listing: NormalisedListing, now: datetime):
         old = self._load_pricing(cur, listing.source, listing.external_id)
         if old is None: return None
         event = self._persist_pricing(cur, old, quote_dict(listing), now)
+        persist_classification(cur, old['id'], old, listing, 'DISCOVERY',
+                               getattr(self, 'classification_run_id', None))
         cur.execute("""UPDATE raw_data.scraped_listings SET
-            last_seen_at=%(now)s, url=%(url)s, title=%(title)s,
+            last_seen_at=%(now)s, url=%(url)s, title=%(title)s, description=%(description)s,
             lat=COALESCE(%(lat)s,lat), lng=COALESCE(%(lng)s,lng),
             geocoded=(geocoded OR %(geocoded)s), missed_run_count=0, listing_status='ACTIVE'
             WHERE source=%(source)s AND external_id=%(external_id)s""",
