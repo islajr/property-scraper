@@ -31,6 +31,23 @@ def test_sql_vocabulary_matches_shared_definitions_and_migration_reruns(pricing_
         assert cur.fetchall() == [(code, d.category, d.family, d.attachment, d.scope) for code, d in sorted(TYPES.items())]
 
 
+def test_v2_registration_is_repeatable_and_preserves_v1_observations(pricing_writer):
+    db = pricing_writer
+    old = item(title='3 bedroom flat', property_type_raw=None)
+    old.property_type_version = 'property-types-v1'
+    db.upsert([old], {})
+    before = get_row(db, old.external_id)
+    with db.conn.cursor() as cur:
+        migration = Path('schema/008_property_classification_v2.sql').read_text()
+        cur.execute(migration)
+        cur.execute(migration)
+        cur.execute('SELECT version,count(*) FROM raw_data.property_type_vocabulary GROUP BY version')
+        counts = dict(cur.fetchall())
+        assert counts['property-types-v1'] == counts['property-types-v2'] == 36
+    assert get_row(db, old.external_id) == before
+    assert audits(db, before['id'])[0][2]['property_type_version'] == 'property-types-v1'
+
+
 def test_legacy_migration_preserves_old_labels_prices_dates_and_no_fake_evidence(pricing_writer):
     db = pricing_writer
     with db.conn.cursor() as cur:
