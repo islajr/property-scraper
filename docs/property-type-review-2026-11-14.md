@@ -1,11 +1,14 @@
 # Property classification review: round one
 
-Status: draft for joint review. Group A (R01–R05) was **ACCEPTED** on
-16 November 2026. The remaining 26 case decisions are **PENDING**.
+Status: draft for joint review. Group A (R01–R05) and the type/context
+interpretations in R06, R08–R12 were **ACCEPTED** on 16 November 2026.
+The remaining 20 case decisions are **PENDING**.
 Explicit UNIT, MULTIPLE_UNITS, and WHOLE_BUILDING scope rules are also accepted.
 Unclear scope is tolerated initially only with an actionable resolution backlog.
 This document changes no classifier rules, taxonomy codes, or production data.
 The accepted [taxonomy contract](property-type-taxonomy.md) remains in force.
+Start with the [reading guide](property-data-review-guide.md) for the plan,
+accepted changes, open decisions, and implementation boundaries.
 
 The aim is to settle the meaning of a property before changing more records.
 Bedrooms, unit counts, marketing language, transaction purpose, and amenities
@@ -103,10 +106,32 @@ title/description precedence proposal on the same case. R07, R15, R18, and R19
 have accepted scope interpretations, but their combined review decisions remain
 pending. The CSV reviewer notes make that distinction explicit.
 
+### Accepted spelling and context interpretations
+
+On 16 November 2026, the user accepted these bounded interpretations:
+
+- Massionette is a spelling variant of MAISONETTE (R06).
+- Roomself contain identifies SELF_CONTAINED (R08).
+- Three-bed room flat identifies FLAT_APARTMENT, with three bedrooms stated
+  separately (R09). Do not interpret the room token as another offered asset.
+- All rooms ensuite describes a flat's facilities, not separately offered rooms
+  (R10). It does not establish a room count; any count requires explicit evidence.
+- A home office and BQ belonging to the advertised duplex are ancillary spaces,
+  not independently offered property types (R11). Do not assume the office is an
+  additional bedroom or infer its room count.
+- A private cinema belonging to a home is an amenity, not a separately offered
+  cinema (R12). The saved description in that case explicitly identifies a duplex.
+
+These decisions do not establish blanket precedence over genuine separately
+offered rooms, offices, or cinemas. They approve the type/context interpretation,
+not closure of outstanding scope or evidence questions. They do not approve the
+MINIFAT alias in R07 or the other pending proposals. Structured feature extraction
+is a [separate proposal](property-features-proposal.md), not an implemented schema.
+
 | Decision | Proposed starting rule | Boundary to retain |
 | --- | --- | --- |
 | D1: Apartment layouts — accepted | Keep FLAT_APARTMENT broad; refine to MINI_FLAT, STUDIO, or SELF_CONTAINED when explicit supporting wording establishes it | One bedroom alone establishes none of these subtypes; private facilities do not prove a studio layout |
-| D2: Incidental features | Bedroom wording, ensuite rooms, home offices, BQ, and private cinemas do not create separate offered assets | An actual separately offered office or cinema must still be recognized |
+| D2: Incidental features — bounded cases accepted | Bedroom wording, ensuite rooms, home offices, BQ, and private cinemas belonging to the home do not create separate offered assets | An actual separately offered office or cinema must still be recognized; room counts require explicit evidence |
 | D3: Description evidence | Allow a bounded description statement to refine a compatible title or settle what is offered | Preserve true title/description conflicts; never give the description unconditional precedence |
 | D4: Units and buildings — explicit scopes accepted | Use UNIT, MULTIPLE_UNITS, and WHOLE_BUILDING according to explicit offer evidence | Unknown scope requires a tracked resolution action; unit-or-bundle offers need an explicit representation |
 | D5: Primary-type overlaps | Review maisonette/duplex, studio/mini-flat, hotel/guest-house, and shop/office separately | No blanket winner or new MIXED_USE classification based only on two keywords |
@@ -140,6 +165,9 @@ unit, and a room in a shared flat. The CSV records the same decisions.
 | R05 · [862](https://privateproperty.ng/listings/1-bedroom-shared-apartment-for-rent-rockstone-estate-badore-ajah-lagos-2PDJVS) · privateproperty | NULL; AMBIGUOUS; scope unknown | DESCRIPTION: “room apartment in a shared flat” | **ROOM / UNIT**. The offered asset is a room in a shared flat, rather than the entire apartment. |
 
 ## B. Spelling, context, and compatible refinement
+
+**Accepted type/context interpretations: R06, R08–R12.** R07, R13, and R14 remain
+pending. An accepted interpretation does not mean its production row has changed.
 
 These proposals use existing type codes. They require bounded rules and counterexamples, rather than global text substitutions or scanning every amenity.
 
