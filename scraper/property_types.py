@@ -7,7 +7,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 import re
 
-VERSION = 'property-types-v1'
+VERSION = 'property-types-v2'
 
 
 @dataclass(frozen=True)
@@ -68,13 +68,13 @@ _PATTERNS = [
     ('OFFICE_BUILDING', r'office\s+(?:buildings?|blocks?)'),
     ('MINI_FLAT', r'(?:mini\s*flats?|rooms?\s*(?:and|&)\s*parl(?:ou|o)r(?:\s+self\s*contain(?:ed)?)?)'),
     ('STUDIO', r'studio(?:\s+(?:flats?|apartments?))?'),
-    ('SELF_CONTAINED', r'self\s*contain(?:ed)?(?:\s*\(single\s+rooms?\)?)?'),
+    ('SELF_CONTAINED', r'(?:self\s*contain(?:ed)?(?:\s*\(single\s+rooms?\)?)?|a?roomself(?:\s+con(?:tain(?:ed)?)?)?)'),
     ('LAND_SERVICED', r'(?:fully\s+)?serviced\s+(?:plots?\s+of\s+)?land'),
     ('GUEST_HOUSE', r'guest\s*houses?'),
     ('FILLING_STATION', r'(?:filling|petrol|fuel)\s+stations?'),
     ('MIXED_USE_PROPERTY', r'mixed\s+use\s+(?:propert(?:y|ies)|buildings?)'),
     ('COMMERCIAL_OTHER', r'commercial\s+(?:propert(?:y|ies)|premises|spaces?)'),
-    ('PENTHOUSE', r'pent\s*houses?'), ('MAISONETTE', r'maisonettes?'),
+    ('PENTHOUSE', r'pent\s*houses?'), ('MAISONETTE', r'(?:maisonettes?|massionettes?)'),
     ('TOWNHOUSE', r'town\s*houses?'), ('MANSION', r'mansions?'), ('VILLA', r'villas?'),
     ('OFFICE', r'offices?(?:\s+spaces?)?'), ('WAREHOUSE', r'ware\s*houses?'),
     ('SHOWROOM', r'show\s*rooms?'), ('COMMERCIAL_SHOP', r'shops?'),
@@ -113,7 +113,7 @@ def _contextual(text, start):
     return bool(CONTEXT.search(prefix))
 
 
-def _scan(value, source):
+def _scan(value, source, home_features=()):
     original = value or ''
     if source == 'BREADCRUMB':
         original = re.split(r'\bfor\s+(?:sale|rent|short\s*let)\b', original, maxsplit=1, flags=re.I)[0]
@@ -128,7 +128,22 @@ def _scan(value, source):
                 continue
             if _contextual(text, match.start()):
                 continue
-            if code == 'ROOM' and re.search(r'\bbed\s*$', text[:match.start()], re.I):
+            if code == 'ROOM' and re.search(r'(?:\bbed|\b\d+\s*bed)\s*$', text[:match.start()], re.I):
+                evidence.append(dict(source=source, text=original[match.start():match.end()],
+                                     rule='context:bedroom_wording', candidate=None))
+                continue
+            if code == 'ROOM' and any(c in TYPES and TYPES[c].category == 'RESIDENTIAL'
+                                     and c != 'ROOM' for c in candidates) and re.search(
+                    r'\ball\s*$', text[:match.start()], re.I) and re.match(
+                    r'\s+en\s*suite\b', text[match.end():], re.I):
+                evidence.append(dict(source=source, text=original[match.start():match.end()],
+                                     rule='context:ensuite_rooms', candidate=None))
+                continue
+            if code == 'OFFICE' and 'office' in home_features and re.search(
+                    r'(?:\+\s*|\bhome\s+|\bdedicated\s+)$', text[:match.start()], re.I) and not re.match(
+                    r'\s+(?:for\s+(?:sale|rent|lease)|available\s+separately)\b', text[match.end():], re.I):
+                evidence.append(dict(source=source, text=original[match.start():match.end()],
+                                     rule='context:home_office', candidate=None))
                 continue
             if code == 'ROOM' and source == 'DESCRIPTION' and match.group().lower() == 'rooms':
                 continue
@@ -142,10 +157,59 @@ def _scan(value, source):
     unsupported = [m for m in UNSUPPORTED.finditer(text) if not _contextual(text, m.start())
                    and not any(m.start() < end and m.end() > start for start, end in occupied)]
     for match in unsupported:
+        if match.group().lower() == 'cinema' and 'cinema' in home_features and re.search(
+                r'(?:[,;+]\s*|\bprivate\s+|\bhome\s+)$', text[:match.start()], re.I) and not re.match(
+                r'\s+(?:for\s+(?:sale|rent|lease)|available\s+separately)\b', text[match.end():], re.I):
+            evidence.append(dict(source=source, text=original[match.start():match.end()],
+                                 rule='context:private_cinema', candidate=None))
+            continue
         evidence.append(dict(source=source, text=original[match.start():match.end()],
                              rule='unsupported_asset', candidate=None))
         candidates.append('UNSUPPORTED')
     return candidates, evidence
+
+
+def _home_features(title, description):
+    """Corroborate ancillary office/cinema wording, without deciding feature values.
+
+    A leading residential description can establish that '+ office' or a cinema
+    in a bedroom advert's amenity list belongs to the home. A separately offered
+    office/cinema and a conflicting portal label still remain primary candidates.
+    """
+    if not re.search(r'\b(?:office|cinema)\b', title or '', re.I):
+        return set(), []
+    home_families = {'HOUSE', 'DUPLEX', 'BUNGALOW', 'APARTMENT'}
+    def forms(value, source):
+        found, _ = _scan(value, source)
+        return {c for c in found if c in TYPES and TYPES[c].family in home_families}
+    title_forms = forms(title, 'TITLE')
+    identity = next(_description_identity(description), '')
+    description_forms = forms(identity, 'DESCRIPTION')
+    description_context = re.split(
+        r'\b(?:other\s+(?:properties|listings)|agent\s+inventory|contact|for\s+(?:enquiries|inquiries))\b',
+        (description or '')[:3000], maxsplit=1, flags=re.I)[0]
+    compatible = (len(description_forms) == 1 and
+                  all(TYPES[c].family == TYPES[next(iter(description_forms))].family
+                      for c in title_forms))
+    residential_title = len(title_forms) == 1
+    residential_description = compatible and (residential_title or bool(re.search(
+        r'\b\d+\s*bed(?:room)?s?\b', title or '', re.I)))
+    features, evidence = set(), []
+    def support(key, pattern, value, source):
+        for match in re.finditer(pattern, value, re.I):
+            if re.search(r'\b(?:no|not|without)\s+(?:(?:a|any)\s+)?$', value[:match.start()], re.I):
+                continue
+            features.add(key)
+            evidence.append(dict(source=source, text=match.group(),
+                                 rule='context:' + key + '_support', candidate=None))
+            break
+    if residential_title:
+        support('office', r'\bhome\s+office\b', title, 'TITLE')
+        support('cinema', r'\b(?:private|home)\s+cinema\b', title, 'TITLE')
+    if residential_description:
+        support('office', r'\b(?:home|dedicated)\s+office\b', description_context, 'DESCRIPTION')
+        support('cinema', r'\b(?:private|home)\s+cinema\b', description_context, 'DESCRIPTION')
+    return features, evidence
 
 
 def _description_identity(description):
@@ -164,10 +228,10 @@ def _description_identity(description):
     # narrative or advertising copy. Unknown marketing prose stays unresolved.
     for line in segments:
         if re.match(r'^(?:(?:for\s+(?:sale|rent|lease)|to\s+let|property\s+type)\s*[:\-]?\s*)?'
-                    r'(?:(?:this|a|an|the|newly|built|brand|new|luxury|spacious|standard|'
-                    r'beautiful|fully|furnished|serviced|purpose|bedrooms?|beds?|\d+)\s+){0,10}'
+                    r'(?:(?:this|a|an|the|newly|renovated|built|brand|new|luxury|spacious|standard|'
+                    r'beautiful|fully|furnished|serviced|purpose|bedrooms?|beds?|\d+\s*bed(?:rooms?)?|\d+)\s+){0,10}'
                     r'(?:semi|detached|terrace|duplex|bungalow|flat|apartment|studio|mini|'
-                    r'self|room|penthouse|maisonette|townhouse|mansion|villa|land|plot|block|'
+                    r'self|roomself|aroomself|room|penthouse|maisonette|massionette|townhouse|mansion|villa|land|plot|block|'
                     r'office|warehouse|shop|showroom|hotel|guest|school|hospital|restaurant|'
                     r'factory|filling|gas|commercial|mixed)\b', _text(line), re.I):
             yield line[:1000]
@@ -207,22 +271,30 @@ def classify(raw_type=None, title=None, description=None, raw_source='PORTAL_TYP
     result = Classification(property_type_raw=raw_type,
                             property_type_raw_source=raw_source if raw_type else None,
                             property_type_classified_at=datetime.now(timezone.utc))
-    candidates, evidence = [], []
+    candidates = []
+    home_features, evidence = _home_features(title, description)
     fields = [(raw_source, raw_type or ''), ('TITLE', title)]
     for source, value in fields:
-        found, matches = _scan(value, source)
+        found, matches = _scan(value, source, home_features if source == 'TITLE' else ())
         candidates.extend(found)
         evidence.extend(matches)
     # A description cannot override a specific primary label/title. It can
     # recover an asset from generic/missing primary information.
     if not candidates or (set(candidates) <= {'HOUSE', 'COMMERCIAL_OTHER', 'FLAT_APARTMENT'} and not title.strip()):
         for segment in _description_identity(description):
-            found, matches = _scan(segment, 'DESCRIPTION')
+            found, matches = _scan(segment, 'DESCRIPTION', home_features)
             candidates.extend(found)
             evidence.extend(matches)
             if found:
                 fields.append(('DESCRIPTION', segment))
     values = _reduce(candidates)
+    # Removing a spurious ROOM candidate does not establish that a whole block
+    # is offered. Keep this newly exposed scope question for the review backlog.
+    if values == {'BLOCK_OF_FLATS'} and any(e['rule'] in (
+            'context:bedroom_wording', 'context:ensuite_rooms') for e in evidence):
+        values.add('SCOPE_UNRESOLVED')
+        evidence.append(dict(source='TITLE', text=title,
+                             rule='scope:context_correction_requires_review', candidate=None))
     combined = ' '.join(_text(value) for _, value in fields)
     # Attachment is independent of form. Limit it to primary evidence, unless
     # only a description supplied the identity. Span handling excludes the
