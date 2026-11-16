@@ -2,6 +2,8 @@
 
 Status: draft for joint review. Group A (R01–R05) was **ACCEPTED** on
 16 November 2026. The remaining 26 case decisions are **PENDING**.
+Explicit UNIT, MULTIPLE_UNITS, and WHOLE_BUILDING scope rules are also accepted.
+Unclear scope is tolerated initially only with an actionable resolution backlog.
 This document changes no classifier rules, taxonomy codes, or production data.
 The accepted [taxonomy contract](property-type-taxonomy.md) remains in force.
 
@@ -72,14 +74,41 @@ production changes remain separate.
 
 A one-bedroom count alone does not establish a mini flat or studio. These
 definitions do not settle conflicting labels, spelling aliases, or the scope of
-multiple units offered together. Those cases remain pending in groups B–E.
+unclear offers. The remaining combined case decisions stay pending in groups B–E.
+
+### Accepted scope rules and the condition on unresolved cases
+
+On 16 November 2026, the user accepted scope when the offer is explicit:
+
+- One individually offered flat has UNIT scope.
+- Several units that must be taken together have MULTIPLE_UNITS scope.
+- An explicitly offered entire block has WHOLE_BUILDING scope.
+- Several units alone do not establish that the entire building is offered.
+
+The user accepts unresolved cases initially on the condition that there are
+actionable steps to clear the backlog. An unknown value must therefore have a
+reason, an evidence question, a responsible role, a next action, and a closure
+criterion. The [resolution plan](property-type-resolution-plan.md) specifies
+that process and the initial inventory. This is not acceptance of leaving
+unclear cases indefinitely unresolved.
+
+An advert explicitly offering both individual flats and a bundle presents a
+representation problem, rather than necessarily missing information. Preserve
+both offer options in evidence and route it to offer-model review. Do not
+invent a single scope or treat the advert as two separately verified properties.
+Storage and pricing semantics for those options remain to be designed.
+
+Acceptance of an explicit scope rule does not approve the spelling, type, or
+title/description precedence proposal on the same case. R07, R15, R18, and R19
+have accepted scope interpretations, but their combined review decisions remain
+pending. The CSV reviewer notes make that distinction explicit.
 
 | Decision | Proposed starting rule | Boundary to retain |
 | --- | --- | --- |
 | D1: Apartment layouts — accepted | Keep FLAT_APARTMENT broad; refine to MINI_FLAT, STUDIO, or SELF_CONTAINED when explicit supporting wording establishes it | One bedroom alone establishes none of these subtypes; private facilities do not prove a studio layout |
 | D2: Incidental features | Bedroom wording, ensuite rooms, home offices, BQ, and private cinemas do not create separate offered assets | An actual separately offered office or cinema must still be recognized |
 | D3: Description evidence | Allow a bounded description statement to refine a compatible title or settle what is offered | Preserve true title/description conflicts; never give the description unconditional precedence |
-| D4: Units and buildings | Use UNIT, MULTIPLE_UNITS, and WHOLE_BUILDING according to explicit offer evidence | A number of units does not prove a whole building; unit-or-bundle offers need an explicit representation |
+| D4: Units and buildings — explicit scopes accepted | Use UNIT, MULTIPLE_UNITS, and WHOLE_BUILDING according to explicit offer evidence | Unknown scope requires a tracked resolution action; unit-or-bundle offers need an explicit representation |
 | D5: Primary-type overlaps | Review maisonette/duplex, studio/mini-flat, hotel/guest-house, and shop/office separately | No blanket winner or new MIXED_USE classification based only on two keywords |
 | D6: New vocabulary | Assess hostels, gas plants, event venues, religious premises, and farms with definitions and examples | First exclude amenities, landmarks, alternative uses, and investment-package ambiguity |
 
