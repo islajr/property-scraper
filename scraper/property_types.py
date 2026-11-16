@@ -147,6 +147,13 @@ def _scan(value, source, home_features=()):
                 continue
             if code == 'ROOM' and source == 'DESCRIPTION' and match.group().lower() == 'rooms':
                 continue
+            if code == 'ROOM' and source == 'DESCRIPTION' and re.search(
+                    r'\b(?:and|plus)\s+(?:a|\d+)\s*$', text[:match.start()], re.I) and re.match(
+                    r'\s+(?:bq(?=\b|location\s*:|price\s*:)|boys?[’\x27]?\s+quarters?\b)', text[match.end():], re.I) and re.search(
+                    r'\d+\s*bed(?:rooms?)?\b', text[:match.start()], re.I):
+                evidence.append(dict(source=source, text=original[match.start():match.end()],
+                                     rule='context:ancillary_bq_room', candidate=None))
+                continue
             if code == 'ROOM' and re.search(r'\d+\s*$', text[:match.start()]) and re.search(
                     r'\b(?:hotel|house|apartment|duplex|bungalow|guest)\b', text[match.end():], re.I):
                 continue

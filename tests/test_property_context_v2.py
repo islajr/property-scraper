@@ -111,6 +111,16 @@ def test_other_agent_inventory_cannot_corroborate_a_home_amenity():
     assert result.property_type_status == 'AMBIGUOUS'
 
 
+def test_description_recovery_does_not_promote_an_ancillary_bq_room():
+    result = classify(title='5bedroom With Bq.',
+                      description='FOR RENT5bedroom fully detached and a room bqLocation: wuse 2')
+    assert result.property_type is None
+    assert result.property_type_status == 'INSUFFICIENT_EVIDENCE'
+    assert any(m['rule'] == 'context:ancillary_bq_room'
+               for m in result.property_type_evidence['matches'])
+    assert classify(title='A room BQ for rent').property_type == 'ROOM'
+
+
 @pytest.mark.parametrize('title,rule', [
     ('3bed Room Flat', 'context:bedroom_wording'),
     ('All Rooms Ensuite Flat', 'context:ensuite_rooms'),
