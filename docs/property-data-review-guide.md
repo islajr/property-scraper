@@ -35,12 +35,19 @@ and six spelling/context interpretations. Unknown scope is accepted initially
 only with a tracked next action. The worksheet records exactly which cases and
 parts of cases have been accepted; other proposals remain pending.
 
-The next classifier implementation will address the accepted spelling/context
-cases in a focused PR against master: bounded maisonette/self-contained aliases,
-bedroom and ensuite wording, and home office/private cinema context. It will
-include contrasting cases that retain independently offered assets, a new rule
-version, and a read-only database preview. Bedroom counts will not be invented
+The classifier implementation in [draft PR #13](https://github.com/islajr/property-scraper/pull/13)
+addresses the accepted spelling/context cases against master: bounded
+maisonette/self-contained aliases, bedroom and ensuite wording, and home
+office/private cinema context. It includes contrasting cases that retain
+independently offered assets, a new rule
+version, and a read-only database preview. Bedroom counts are not invented
 from amenities or changed by those classification rules.
+
+Its final preview compared v1 and v2 on 28,955 listings on 16 November: 154
+additional classifications are proposed, and four previously supported results
+expose unresolved questions. All 534 tests passed. The PR contains the aggregate
+report and deployment order; the changes have not been applied to production.
+The older worklist must be reconciled with the newer inventory before backfill.
 
 Structured feature fields, offer alternatives, new type codes, pending aliases,
 backlog automation, and downstream consumer changes require separate reviewed
