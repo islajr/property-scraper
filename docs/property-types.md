@@ -1,12 +1,14 @@
 # Property classification: implementation and rollout
 
 The shared classifier in `scraper/property_types.py` implements the
-[taxonomy contract](property-type-taxonomy.md) as `property-types-v1`. It retains
+[taxonomy contract](property-type-taxonomy.md) as `property-types-v2`. It retains
 all 19 legacy codes and adds the 17 agreed forms. Unknown text no longer becomes
 a canonical type. The original [audit](property-type-audit-2026-11-13.md) remains
 the baseline inventory, not an estimate of current classifier accuracy.
 The [full read-only preview](property-type-preview-2026-11-13.md) records proposed
 states and transitions for the 28,102 listings inspected during implementation.
+The [v2 context preview](property-type-context-v2-2026-11-16.md) compares the
+accepted 16 November corrections with v1 on a fresh production snapshot.
 
 ## Current behaviour
 
@@ -33,6 +35,25 @@ type codes remain available. A house does not become a duplex because it has
 four bedrooms. Mansion, villa, and townhouse attachment requires separate
 evidence. `COMMERCIAL` is a broad asset category, not verified legal zoning.
 
+### Version 2: accepted spelling and context corrections
+
+The 16 November review accepted bounded Massionette and Roomself aliases,
+bedroom/ensuite wording as attributes rather than separate ROOM assets, and
+home offices/private cinemas as ancillary when the evidence places them within
+the home. This revision changes rules, not the 36-code vocabulary.
+
+A title such as “semi-detached duplex + office + BQ” can resolve to
+SEMI_DETACHED_DUPLEX when a leading residential description confirms a dedicated
+home office. A bedroom advert listing a cinema can recover its form from a
+leading description explicitly identifying a duplex and a private cinema. The
+classifier retains context rule IDs and exact matched text for excluded asset
+keywords. It does not persist structured feature attributes or infer room counts.
+
+Independently offered offices, cinemas, and rooms remain candidates. Conflicting
+portal labels are preserved; a home cinema does not overrule an explicit Cinema
+portal type. New feature storage, pending aliases, scope recovery rules, and
+offer-option models are outside this revision.
+
 ### Evidence boundaries
 
 PropertyPro captures the last type-bearing link in the primary listing's
@@ -53,7 +74,7 @@ Description recovery is deliberately limited. When primary text cannot identify
 an asset, the classifier checks up to three leading description statements with
 an explicit asset form near the start, stopping at feature, location, or price
 headings. A specific primary title/label is not overridden by a general
-description. Unknown marketing prose remains unresolved. This first version
+description. Unknown marketing prose remains unresolved. The classifier
 does not use portal URL slugs or infer form from bedroom counts.
 
 Input processing is bounded to 1,000 characters for a portal label, 2,000 for a
@@ -69,6 +90,12 @@ versioned `raw_data.property_type_vocabulary` lookup, classification audit table
 and `raw_data.property_classification_coverage` view. It never rewrites existing
 property labels, prices, or lifecycle dates. Existing rows start as
 `LEGACY_UNREVIEWED`, with no invented raw label, evidence, or classification date.
+
+Migration [008](../schema/008_property_classification_v2.sql) registers v2 and
+copies the unchanged 36 vocabulary definitions from v1. Apply it before deploying
+v2 writers. It is repeatable and does not update listings, audit history, or v1
+definitions. Existing v1 previews/receipts remain historical artifacts; create a
+fresh v2 preview for any new backfill selection.
 
 The database constrains status/type coherence, supported categories and facets,
 known rule versions, vocabulary/category/family agreement, compound attachment,
@@ -101,7 +128,7 @@ Run from the repository root:
 
 ```bash
 python -m scripts.preview_property_classification \
-  --output .local/property-types/preview-v1.jsonl
+  --output .local/property-types/preview-v2.jsonl
 ```
 
 The command reads `DATABASE_URL` from the environment or `.env`. It has no apply
@@ -109,7 +136,7 @@ mode, runs no migrations, and visits no portals. PostgreSQL enforces a read-only
 repeatable-read transaction. It works before migration 006 because it uses the
 original columns and reads optional metadata through `row_to_json`.
 
-It streams an atomic local JSONL report and a companion `preview-v1.summary.json`.
+It streams an atomic local JSONL report and a companion `preview-v2.summary.json`.
 Each row includes the listing identity, saved title, previous/proposed metadata,
 and observed row version. The summary contains state counts, type transitions,
 coverage by portal and lifecycle state, a credential-free database fingerprint,
@@ -164,7 +191,7 @@ Consumers should select verified classifications explicitly:
 SELECT property_category, property_type_family, property_type, COUNT(*)
 FROM raw_data.scraped_listings
 WHERE property_type_status = 'CLASSIFIED'
-  AND property_type_version = 'property-types-v1'
+  AND property_type_version IN ('property-types-v1', 'property-types-v2')
 GROUP BY property_category, property_type_family, property_type;
 
 SELECT * FROM raw_data.property_classification_coverage;
@@ -173,6 +200,8 @@ SELECT * FROM raw_data.property_classification_coverage;
 Keep sale/rent/short-let, billing-period, currency, and price-basis eligibility
 guards when comparing prices. A supported property form alone does not make
 prices comparable. Keep unresolved and legacy rows in coverage denominators.
+Pin a specific classification version when the research design requires it;
+the example above includes both registered versions of the shared vocabulary.
 
 Operational rollback means rolling back the application code while retaining
 the additive columns, vocabulary, and audit evidence. Do not drop the audit
