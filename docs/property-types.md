@@ -185,8 +185,8 @@ classification evidence; stop affected jobs while reverting or correcting them.
 The [round-one review worksheet](property-type-review-2026-11-14.md) contains
 31 proposed case decisions from the post-backfill production inventory, including
 legacy labels, unresolved examples, and classified rows needing scope review.
-Its [editable CSV](property-type-review-2026-11-14.csv) keeps every decision
-pending until reviewed; it does not change the accepted rules or production data.
+Its [editable CSV](property-type-review-2026-11-14.csv) records accepted decisions
+and keeps the others pending; it does not change classifier rules or production data.
 
 The regression set includes all canonical codes; phrase, conflict, context, scope,
 and missing-evidence cases; saved primary HTML from the enabled portals; and

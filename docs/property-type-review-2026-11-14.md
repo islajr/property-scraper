@@ -1,6 +1,7 @@
 # Property classification review: round one
 
-Status: draft for joint review. Every proposed decision below is **PENDING**.
+Status: draft for joint review. Group A (R01–R05) was **ACCEPTED** on
+16 November 2026. The remaining 26 case decisions are **PENDING**.
 This document changes no classifier rules, taxonomy codes, or production data.
 The accepted [taxonomy contract](property-type-taxonomy.md) remains in force.
 
@@ -55,9 +56,27 @@ overlap; do not sum them or treat them as recoverable totals.
 
 ## Decisions to settle
 
+### Accepted apartment and room definitions
+
+The user accepted these definitions on 16 November 2026, together with the five
+group A examples. This records agreement on interpretation; implementation and
+production changes remain separate.
+
+| Type | Accepted meaning |
+| --- | --- |
+| FLAT_APARTMENT | General flat or apartment; bedroom count stays separate |
+| MINI_FLAT | Explicitly advertised mini flat or room-and-parlour unit |
+| STUDIO | Explicitly advertised studio |
+| SELF_CONTAINED | Explicitly advertised self-contained unit with insufficient evidence for a more specific layout |
+| ROOM | One room offered within shared accommodation |
+
+A one-bedroom count alone does not establish a mini flat or studio. These
+definitions do not settle conflicting labels, spelling aliases, or the scope of
+multiple units offered together. Those cases remain pending in groups B–E.
+
 | Decision | Proposed starting rule | Boundary to retain |
 | --- | --- | --- |
-| D1: Apartment layouts | Keep FLAT_APARTMENT broad; refine to MINI_FLAT, STUDIO, or SELF_CONTAINED when explicit supporting wording establishes it | One bedroom alone establishes none of these subtypes; private facilities do not prove a studio layout |
+| D1: Apartment layouts — accepted | Keep FLAT_APARTMENT broad; refine to MINI_FLAT, STUDIO, or SELF_CONTAINED when explicit supporting wording establishes it | One bedroom alone establishes none of these subtypes; private facilities do not prove a studio layout |
 | D2: Incidental features | Bedroom wording, ensuite rooms, home offices, BQ, and private cinemas do not create separate offered assets | An actual separately offered office or cinema must still be recognized |
 | D3: Description evidence | Allow a bounded description statement to refine a compatible title or settle what is offered | Preserve true title/description conflicts; never give the description unconditional precedence |
 | D4: Units and buildings | Use UNIT, MULTIPLE_UNITS, and WHOLE_BUILDING according to explicit offer evidence | A number of units does not prove a whole building; unit-or-bundle offers need an explicit representation |
@@ -79,7 +98,9 @@ an automatic production change or settle every example in the group.
 
 ## A. Apartment and room definitions
 
-Start here. These five examples establish the difference between an apartment, a mini flat, a studio, a broad self-contained unit, and a room in a shared flat.
+**ACCEPTED on 16 November 2026: R01–R05.** These five examples establish the
+difference between an apartment, a mini flat, a studio, a broad self-contained
+unit, and a room in a shared flat. The CSV records the same decisions.
 
 | Case / source listing | Current decision | Saved evidence | Proposed result and reason |
 | --- | --- | --- | --- |
@@ -145,7 +166,7 @@ These are vocabulary questions, not approved new codes. Review more examples and
 
 ## From review to implementation
 
-1. Settle group A first, then confirm the context and scope boundaries in B/C.
+1. Group A is accepted. Next confirm the context and scope boundaries in B/C.
    Record changes and holds explicitly; do not convert every pending case into
    an accepted label merely because a broad rule sounds reasonable.
 2. Add the accepted cases and deliberately contrasting examples to an evaluation
