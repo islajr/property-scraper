@@ -2,7 +2,7 @@
 
 Status: completed read-only saved-text profile. The count semantics were accepted
 in [review PR #12](https://github.com/islajr/property-scraper/pull/12); the
-[profiler](property-count-profiling.md) gathers candidate evidence, not accepted
+[profiler](../property-counts.md) gathers candidate evidence, not accepted
 facts. There were no production writes, migrations, or listing-portal requests.
 
 
@@ -78,12 +78,13 @@ not calculated bedroom totals. Both boundaries have regression examples.
 ## What this changes in the plan
 
 A single numeric unit_count column would be inadequate for these observations.
-The [storage design for review](property-count-storage-design.md) proposes
+The [count implementation guide](../property-counts.md) describes
 assessment records, child count observations, and append-only acceptance history.
 It separates quantity, entity, relationship, parent/offer, source evidence, and
 review state. It also illustrates consumer queries that exclude unaccepted claims.
-No table names, fields, migration, or apply behavior have been approved by this
-profile. No regex match has been promoted to a production fact.
+This dated profile did not approve a migration or promote a regex match to a
+production fact. Its storage proposal has since been accepted and developed in
+the implementation guide; retain this report as the historic evidence baseline.
 
 The next review should settle entity/relationship assignment rules on samples
 of the 1,744 building/unit cases, while retaining mixed offers and source conflicts
