@@ -1,8 +1,9 @@
 # Property counts: proposal for review
 
-Status: count semantics and example distinctions accepted by the user on
-17 November 2026. Storage fields and extraction rules remain to be designed and
-reviewed against the saved-data profile.
+Status: count semantics and storage approach accepted by the user on
+17 November 2026. Retained design record; the implementation and consolidated
+contract/operations guide are in [PR #15](https://github.com/islajr/property-scraper/pull/15).
+Concrete extraction outputs remain subject to review before production use.
 This extends the [feature proposal](property-features-proposal.md). It introduces
 no columns, classifier changes, production writes, or portal requests.
 
@@ -78,15 +79,17 @@ the earlier observation. Descriptions, prices, and lifecycle history remain inta
    those decisions while investigating malformed and contradictory numbers,
    mixed bedroom layouts, per-unit prices, bundles, and availability statements.
 2. The read-only profile in [PR #14](https://github.com/islajr/property-scraper/pull/14)
-   scanned 28,955 listings and found building/unit count clues in 1,794. It reports
+   scanned 28,955 listings and found building/unit count clues in 1,744 after a
+   numeric-boundary correction (superseding the preliminary 1,794). It reports
    literal candidates, possible conflicts, alternative-offer hints, and pattern
    gaps; these are not verified counts or confirmed absences. The old bedroom
    values, including 1234, were not used as a unit-count source.
-3. Next, review the proposed additive storage and query examples in PR #14. Review
-   compatibility with prices, property identity, and downstream aggregation.
-4. Implement extraction, validation, regression cases, and a read-only preview in
-   a separate focused PR against master. Review the preview before any audited
-   historical update. Missing-count work joins the existing resolution process.
+3. The accepted storage approach is implemented in PR #15, including an additive
+   schema, append-only decisions, freshness checks, and query examples. Review
+   compatibility with prices, property identity, and downstream aggregation there.
+4. PR #15 includes extraction, validation, regression cases, and a read-only
+   preview. Review the outputs before a bounded production caller is implemented.
+   Discovery integration and production count writes remain follow-up work.
 
 ## Relationship to the open PRs
 
@@ -98,6 +101,7 @@ It introduces no count or structured-feature storage. It can be reviewed on that
 scope independently; a merge does not complete or implement this proposal.
 
 No PR is merged by this documentation change. The read-only count profile is
-complete in PR #14. The next count milestone is review of its concrete storage
-design and extraction/acceptance boundaries informed by that evidence. A migration
-or broader production backfill is not the next step.
+complete in PR #14, and PR #15 contains the storage/extraction implementation.
+Land PR #14 first, then rebase PR #15 against master. Classification PR #13 is
+independent. The next count milestone is reviewing the extraction preview and
+preparing a bounded caller, not running an unrestricted production backfill.
