@@ -21,7 +21,9 @@ not replace it.
 4. [Property counts proposal](property-counts-proposal.md): how to distinguish
    assets offered, dwelling units within a building, and bedrooms per dwelling.
    Its semantics were accepted on 17 November; numeric fields and extraction
-   rules still need a saved-data profile and design review.
+   rules still need design review informed by the completed saved-data profile.
+   [Draft PR #14](https://github.com/islajr/property-scraper/pull/14) now contains
+   the completed read-only profile, its tooling, and the proposed storage design.
 5. [Accepted taxonomy](property-type-taxonomy.md) and
    [implementation guide](property-types.md): the current 36 codes, metadata,
    evidence rules, storage, and consumer contract. Consult these for detail.
@@ -56,8 +58,15 @@ The older worklist must be reconciled with the newer inventory before backfill.
 Both PRs remain unmerged for review. PR #12 records the design discussion; PR #13
 implements the already agreed classification corrections. Counts and structured
 features are not implemented by either PR and do not need to be folded into the
-classification fix. Count semantics are now accepted; their next step is a read-only profile,
-followed by a separate implementation proposal against master.
+classification fix. Count semantics are now accepted and the read-only profile
+is complete; count storage and extraction need a separate implementation proposal
+against master.
+
+The count profile is complete in PR #14: it scanned 28,955 listings and found
+building/unit quantity clues in 1,794. These are candidates, not accepted counts.
+The next count milestone is review of its assessment/observation storage design,
+entity/relationship assignment rules, and query examples before a migration or
+audited count extraction is implemented. PR #14 changes no production data.
 
 Structured feature fields, offer alternatives, new type codes, pending aliases,
 backlog automation, and downstream consumer changes require separate reviewed

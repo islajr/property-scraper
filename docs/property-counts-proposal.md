@@ -77,11 +77,12 @@ the earlier observation. Descriptions, prices, and lifecycle history remain inta
 1. The user has accepted the semantic distinctions and examples above. Preserve
    those decisions while investigating malformed and contradictory numbers,
    mixed bedroom layouts, per-unit prices, bundles, and availability statements.
-2. Next, profile saved primary listing text without modifying production. Report how
-   many counts are explicitly supported, absent, conflicting, or tied to an offer
-   alternative. The old bedroom values, including 1234, are not evidence of asset
-   quantity and must not be reused as a unit-count source.
-3. Propose additive storage and query examples with those semantics. Review
+2. The read-only profile in [PR #14](https://github.com/islajr/property-scraper/pull/14)
+   scanned 28,955 listings and found building/unit count clues in 1,794. It reports
+   literal candidates, possible conflicts, alternative-offer hints, and pattern
+   gaps; these are not verified counts or confirmed absences. The old bedroom
+   values, including 1234, were not used as a unit-count source.
+3. Next, review the proposed additive storage and query examples in PR #14. Review
    compatibility with prices, property identity, and downstream aggregation.
 4. Implement extraction, validation, regression cases, and a read-only preview in
    a separate focused PR against master. Review the preview before any audited
@@ -96,7 +97,7 @@ classification spelling/context corrections, v2 registration, tests, and preview
 It introduces no count or structured-feature storage. It can be reviewed on that
 scope independently; a merge does not complete or implement this proposal.
 
-Neither PR is merged by this documentation change. The next count milestone is
-the read-only profile, followed by a concrete storage and extraction design
-informed by that evidence. A migration or broader production backfill is not
-the next step.
+No PR is merged by this documentation change. The read-only count profile is
+complete in PR #14. The next count milestone is review of its concrete storage
+design and extraction/acceptance boundaries informed by that evidence. A migration
+or broader production backfill is not the next step.
