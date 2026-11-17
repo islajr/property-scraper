@@ -18,7 +18,10 @@ not replace it.
 3. [Structured features proposal](property-features-proposal.md): how clues in
    titles and descriptions could become useful attributes without mixing them
    into property types. This design is still open for review.
-4. [Accepted taxonomy](property-type-taxonomy.md) and
+4. [Property counts proposal](property-counts-proposal.md): how to distinguish
+   assets offered, dwelling units within a building, and bedrooms per dwelling.
+   Read this before agreeing to numeric fields or extraction rules.
+5. [Accepted taxonomy](property-type-taxonomy.md) and
    [implementation guide](property-types.md): the current 36 codes, metadata,
    evidence rules, storage, and consumer contract. Consult these for detail.
 
@@ -48,6 +51,12 @@ additional classifications are proposed, and four previously supported results
 expose unresolved questions. All 534 tests passed. The PR contains the aggregate
 report and deployment order; the changes have not been applied to production.
 The older worklist must be reconciled with the newer inventory before backfill.
+
+Both PRs remain unmerged for review. PR #12 records the design discussion; PR #13
+implements the already agreed classification corrections. Counts and structured
+features are not implemented by either PR and do not need to be folded into the
+classification fix. Their next step is semantic review and a read-only profile,
+followed by a separate implementation proposal against master.
 
 Structured feature fields, offer alternatives, new type codes, pending aliases,
 backlog automation, and downstream consumer changes require separate reviewed

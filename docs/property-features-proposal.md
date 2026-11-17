@@ -85,3 +85,8 @@ counts, multiple offers, and conflicting claims.
 
 Research consumers should be able to query type, bedrooms, scope, and features
 independently, while tracing each value back to the actual wording.
+
+The [count proposal](property-counts-proposal.md) develops the distinction between
+assets offered, units contained within buildings, bedrooms per dwelling, and
+development availability. A single unqualified unit-count integer would lose
+those distinctions; the numeric model remains open for review.
