@@ -20,7 +20,8 @@ not replace it.
    into property types. This design is still open for review.
 4. [Property counts proposal](property-counts-proposal.md): how to distinguish
    assets offered, dwelling units within a building, and bedrooms per dwelling.
-   Read this before agreeing to numeric fields or extraction rules.
+   Its semantics were accepted on 17 November; numeric fields and extraction
+   rules still need a saved-data profile and design review.
 5. [Accepted taxonomy](property-type-taxonomy.md) and
    [implementation guide](property-types.md): the current 36 codes, metadata,
    evidence rules, storage, and consumer contract. Consult these for detail.
@@ -55,7 +56,7 @@ The older worklist must be reconciled with the newer inventory before backfill.
 Both PRs remain unmerged for review. PR #12 records the design discussion; PR #13
 implements the already agreed classification corrections. Counts and structured
 features are not implemented by either PR and do not need to be folded into the
-classification fix. Their next step is semantic review and a read-only profile,
+classification fix. Count semantics are now accepted; their next step is a read-only profile,
 followed by a separate implementation proposal against master.
 
 Structured feature fields, offer alternatives, new type codes, pending aliases,
