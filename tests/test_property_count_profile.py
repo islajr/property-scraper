@@ -30,6 +30,20 @@ def test_bedroom_number_is_not_a_house_quantity_or_a_separate_room():
     assert not mentions(profile_text('A three-bedroom house'),'DWELLING_UNIT')
 
 
+@pytest.mark.parametrize('text', ['12 bedroom detached duplex','16 Bedroom Building',
+                                  '10 Bedroom Detached Duplex','1234 bedroom house'])
+def test_multi_digit_bedroom_numbers_cannot_split_into_an_asset_quantity(text):
+    result=profile_text(text)
+    assert len(mentions(result,'BEDROOM'))==1
+    assert not mentions(result,'DWELLING_UNIT') and not mentions(result,'BUILDING')
+
+
+def test_compound_bedroom_quantity_or_layout_is_flagged_before_acceptance():
+    for text in ['Ninety-one-bedroom houses sold together','4-2-bedroom flats sold together']:
+        units=mentions(profile_text(text),'DWELLING_UNIT')
+        assert units and all('AMBIGUOUS_QUANTITY_BOUNDARY' in c['review_flags'] for c in units)
+
+
 def test_one_building_can_contain_multiple_units_without_becoming_five_assets():
     result=profile_text('One block containing four flats')
     assert mentions(result,'BUILDING')[0]['quantity']['minimum']==1

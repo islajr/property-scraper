@@ -16,7 +16,7 @@ _BED = r'(?:bedrooms?|bed[ -]+rooms?|beds?)'
 _NOUN = r'(?:mini[ -]*flats?|studio[ -]+apartments?|maisonettes?|duplex(?:es)?|bungalows?|houses?|flats?|apartments?|buildings?|blocks?|rooms?|units?)'
 _MODIFIER = rf'(?:(?:fully[ -]+)?detached|semi[ -]+detached|terraced?|newly[ -]+built|separate|residential|commercial|{_NUMBER}[ -]*{_BED})'
 _START = r'(?<![\w,])\b'
-_ASSETS = re.compile(rf'{_START}(?P<quantity>{_QUANTITY})[ -]*(?:[×x]\s*)?(?:(?:{_MODIFIER})[ -]+){{0,3}}(?P<noun>{_NOUN})\b', re.I)
+_ASSETS = re.compile(rf'{_START}(?P<quantity>{_QUANTITY})(?![\d,])(?:[ -]+(?:[×x]\s*)?(?:(?:{_MODIFIER})[ -]+){{0,3}}|[×x]\s*(?:(?:{_MODIFIER})[ -]+){{0,3}}|(?={_NOUN}))(?P<noun>{_NOUN})\b', re.I)
 _BEDROOMS = re.compile(rf'{_START}(?P<quantity>{_QUANTITY})[ -]*(?P<noun>{_BED})\b', re.I)
 _QUANTITY_PARTS = re.compile(rf'^(?P<lower>at\s+least|minimum\s+of|not\s+less\s+than)?\s*(?P<first>{_NUMBER})(?:\s*(?:[-–—]|to)\s*(?P<second>{_NUMBER}))?$', re.I)
 _MONEY = re.compile(r'(?:[₦$£€]|\b(?:NGN|USD|GBP|EUR)|\bN(?=\d))\s*\d[\d,]*(?:\.\d+)?(?:\s*(?:million|billion|[mb])\b)?',re.I)
@@ -120,6 +120,11 @@ def profile_text(title=None, description=None):
                                        noun=match['noun'], start=match.start(), end=match.end(),
                                        text=match.group(), relation_hints=hints, review_flags=flags,
                                        context=text[max(0,match.start()-80):match.end()+80]))
+    bedroom_starts={(c['source'],c['start']) for c in candidates
+                    if c['entity'] in {'BEDROOM','BEDROOM_SHORTHAND'}}
+    for c in candidates:
+        if c['entity'] in {'BUILDING','DWELLING_UNIT','UNSPECIFIED_UNIT'} and (c['source'],c['start']) in bedroom_starts:
+            c['review_flags'].append('AMBIGUOUS_QUANTITY_BOUNDARY')
     candidates.sort(key=lambda c:(0 if c['source']=='TITLE' else 1, c['start'], c['end']))
     if len(candidates) > CANDIDATE_LIMIT:
         truncated.append('CANDIDATE_LIMIT')
