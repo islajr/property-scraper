@@ -381,12 +381,16 @@ The v2 reader and all room assessments were current. That is the preservation
 baseline; later primary observations can legitimately correct supported values.
 
 The first live verification batch attempted 96 listings. Its canary exposed
-additional ratio/layout validation gates, so expansion was paused for a tested
-follow-up. Live verification progress, actual updates and unresolved outcomes are
-recorded in private artifacts referenced by:
+additional ratio/layout validation gates. PR #18 added the tested guards and bulk
+room-only observations and was merged/deployed. Two provisional bathroom writes
+were reversed/reassessed with prior values restored and advertised claims retained;
+293 potentially affected assessments were checked without other numeric changes.
+The restarted pass keeps the earlier checkpoint and excludes previously attempted
+records. Live verification progress, updates and unresolved outcomes are in:
 
 - `.local/room-counts/active-rollout.json`: backup, canary, full repair and verification.
-- `.local/room-counts/active-verification.json`: the initial primary verification pass.
+- `.local/room-counts/active-verification.json`: the current primary verification pass.
+- `.local/room-counts/active-verification-initial.json`: the preserved first-batch checkpoint.
 - `.local/room-counts/ops/`: archived operation helpers and their checksums.
 
 Do not mistake an initial preview or pilot for applied production improvements.
@@ -446,7 +450,9 @@ These are recommendations, not claims that the work is already implemented.
 
 1. **Measure field coverage continuously.** Track evidence-supported values,
    unresolved reasons, source age and verified outliers by portal and asset class.
-   A rising row count is not a data-quality metric. Alert on sudden parser coverage
+   A rising row count is not a data-quality metric. Retain observed/attempt times
+   separately from assessment time; an inaccessible page does not establish a
+   removal, and a matching hash does not establish a recent fetch. Alert on sudden parser coverage
    drops and selector drift, using genuinely different fixture values.
 2. **Retain compact observation evidence.** Raw strings, source spans, extraction
    versions and timestamps make decisions reproducible. Add a bounded retention
