@@ -1,6 +1,6 @@
 # Unified property preview, 18 November 2026
 
-Read-only production snapshot: 07:58:36 UTC. These are proposed results, not a
+Read-only production snapshot: 08:09:05 UTC. These are proposed results, not a
 claim that classifications/counts/features have been applied to production.
 
 | Measure | Listings |
@@ -11,7 +11,7 @@ claim that classifications/counts/features have been applied to production.
 | Ambiguous identity | 756 |
 | Unsupported identity | 23 |
 | Source-bound user review matches | 31 |
-| At least one accepted count observation | 12,739 |
+| At least one accepted count observation | 19,459 |
 | Advertised feature claims | 17,316 |
 | Detected/reviewed alternative offers | 6 |
 
@@ -26,9 +26,9 @@ The v3 proposal leaves no unreviewed legacy observations after a complete,
 unchanged-source apply. Source changes during rollout require a fresh preview.
 
 Report SHA-256:
-`f17630e6c2e92bb9b553a544f0cfb7fd2c445bc6e34f6ceb006f517319947fde`.
+`76bbd36d2ac7fed8c6d9f071dc925c15a229e88b2c2bc074c50b696f9dc9c137`.
 Code SHA-256:
-`76ece3a8b3e46ce44a5f4de734537cec0cf7f265e1ea25fe2871568eab8c5139`.
+`7075eeac5b7dff6a5a1f5f03d3c3b884cd3bae39e14bae015c73bc53ee57e488`.
 
 Private source backup SHA-256:
 `18fd04300b00cbc70e6a104c1b5988615a505adea96e21f3f6c2f4282fe4e436`.
@@ -46,6 +46,20 @@ function still exists. Catalog inspection found no database dependents and no
 market-schema property_type columns. This cannot discover dynamic external callers.
 The integration provides a separate stable view; external consumers must adopt it.
 
-Validation: the full disposable-database suite passed 623 tests. Subsequent targeted
+Validation: the full disposable-database suite passed 636 tests. Subsequent targeted
 checks for dedicated home-office features also passed. Reviewed cases are
 regression examples rather than independently sampled ground truth.
+
+The final attachment-modifier correction recognizes explicit wording such as
+“four bedroom detached duplex”, recovering count evidence for 6,720 additional
+listings compared with the initial same-day preview. Landmarks, out-of-range
+quantities, ranges and mixed-layout guards remain enforced.
+
+Final full-data rehearsal on an isolated local database processed all 28,955
+listings in 58 atomic batches (298 seconds). All 28,955 protected source/pricing/
+lifecycle rows were unchanged. The database held 28,955 classification audits,
+28,955 count assessments, 35,254 observations and decisions, 28,955 feature
+assessments and 28,955 durable receipts. Every listing had a current research
+contract, including unresolved identities. Retrying the completed operation
+attempted zero rows. The final read view reconciled one row per listing and all
+35,254 quantity claims. This was a local rehearsal, not a production backfill.

@@ -367,7 +367,7 @@ Key normalisation rules:
 Property types use a [versioned classifier and rollout contract](docs/property-types.md)
 that preserves the 19 existing codes, adds the 17 agreed forms, and records explicit
 unresolved states, evidence, and classification history. See the [taxonomy](docs/property-type-taxonomy.md)
-and [original database audit](docs/property-type-audit-2026-11-13.md) for definitions
+and [original database audit](docs/archive/property-type-audit-2026-11-13.md) for definitions
 and representative mappings. Migration 006 must precede the new writer; it preserves
 old labels as `LEGACY_UNREVIEWED`. Preview existing listings without applying changes:
 

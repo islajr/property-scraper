@@ -88,6 +88,6 @@ backfills with safe reversal. Integration tests require a disposable explicit
 TEST_DATABASE_URL and never use production as a test fixture. Reviewed examples
 are regression cases, not an accuracy estimate for the full inventory.
 
-Historical observations remain in the dated [audit](property-type-audit-2026-11-13.md),
-[first preview](property-type-preview-2026-11-13.md), and
-[v2 context preview](property-type-context-v2-2026-11-16.md).
+Historical observations remain in the dated [audit](archive/property-type-audit-2026-11-13.md),
+[first preview](archive/property-type-preview-2026-11-13.md), and
+[v2 context preview](archive/property-type-context-v2-2026-11-16.md).
