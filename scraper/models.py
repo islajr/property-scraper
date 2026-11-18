@@ -34,6 +34,7 @@ class RawListing:
     agent_name:        Optional[str]  # listed agent or developer name
     raw_price_text:    Optional[str] = None  # primary quote including sibling unit labels
     property_type_raw_source: str = 'PORTAL_TYPE'
+    room_metric_sources: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -103,3 +104,7 @@ class NormalisedListing:
     property_type_evidence: dict = field(default_factory=dict)
     property_type_version: Optional[str] = None
     property_type_classified_at: Optional[datetime] = None
+    raw_bedrooms: Optional[str] = None
+    raw_bathrooms: Optional[str] = None
+    room_metric_sources: dict = field(default_factory=dict)
+    room_counts: dict = field(default_factory=dict)

@@ -156,11 +156,12 @@ class JijiParser:
         description = _text(soup, DESCRIPTION_SELECTOR)
         agent       = _text(soup, AGENT_NAME_SELECTOR)
 
-        # Parse attributes — ordered: property type, bedrooms, bathrooms
+        # Property type remains separate; room metrics are selected by their labels.
         attrs = [el.get_text(strip=True) for el in soup.select(ATTRIBUTE_SELECTOR)]
         prop_type  = attrs[0] if len(attrs) > 0 else None
-        raw_beds   = attrs[1] if len(attrs) > 1 else None  # "4 bedrooms"
-        raw_baths  = attrs[2] if len(attrs) > 2 else None  # "5 bathrooms"
+        metrics,metric_sources = extract_room_metrics(soup,self.source)
+        raw_beds = metrics['bedrooms']
+        raw_baths = metrics['bathrooms']
 
         # Price type from URL or price string
         raw_price_type = None
@@ -178,6 +179,7 @@ class JijiParser:
             title             = title or "",
             raw_price         = raw_price,
             raw_price_type    = raw_price_type,
+            room_metric_sources = metric_sources,
             raw_bedrooms      = raw_beds,
             raw_bathrooms     = raw_baths,
             raw_address       = raw_address,
