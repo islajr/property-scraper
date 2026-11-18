@@ -45,7 +45,7 @@ def _claims(text, origin, row, role=None, trusted=True):
     for match in _AREA.finditer(text or ''):
         start,end=match.span();before=text[max(0,start-100):start];after=text[end:end+85]
         # Resolve labels within a sentence/line, using the nearest explicit label.
-        local=re.split(r'[;\n!?]',before)[-1]
+        local=re.split(r'[;\n!?]|(?<!\d)\.(?!\d)',before)[-1]
         role_context=re.sub(r'\b(?:about|approx(?:imately)?\.?|circa|over|under|above|below|between|from|at least|at most)\s*$','',local,flags=re.I)
         amount=Decimal(match['number'].replace(',',''));sqm=amount*_factor(match['unit'])
         basis='ADVERTISED_ASSET';resolved=role or 'UNSPECIFIED';reasons=[]
@@ -60,13 +60,19 @@ def _claims(text, origin, row, role=None, trusted=True):
             basis='PER_UNIT'
         elif resolved=='FLOOR' and row.get('property_asset_scope') in {'MULTIPLE_UNITS','WHOLE_BUILDING'}:
             basis='ASSET_OR_UNIT_UNRESOLVED';reasons.append('multiple_units_floor_basis_unclear')
+        multiple_plots=bool(re.search(r'(?<![a-z])plots(?![a-z])',row.get('title') or '',re.I) or re.search(r'(?<![a-z])plots(?![a-z])',local,re.I))
+        total_context=re.sub(r'\(\s*(?:sqm|m[²2]|sqft)\s*\)\s*:?\s*$','',role_context,flags=re.I)
+        explicit_total=bool(re.search(r'\b(?:total|combined)(?:\s+(?:land|plot|site))?(?:\s+(?:area|size))?\s*[:=\-]?\s*(?:of\s*)?$|\b(?:altogether|in\s+all|together|totalling|totaling)\s*[:=\-]?\s*$',total_context,re.I)
+            or re.match(r'\s*(?:in\s+total|combined|altogether|in\s+all|total(?!\s*(?:price|cost|package)))\b',after,re.I))
+        if resolved=='LAND' and multiple_plots and basis!='PER_UNIT' and not explicit_total:
+            basis='PARCEL_OR_UNIT_UNRESOLVED';reasons.append('multiple_plots_area_basis_unclear')
         if resolved=='LAND' and row.get('property_category')=='RESIDENTIAL' and row.get('property_type_family') in {'APARTMENT','ROOM'}:
             basis='SHARED_SITE_OR_ASSET_UNRESOLVED';reasons.append('site_is_not_dwelling_area')
         # The matched quantity may be the trailing half of a range, bad number,
         # negative quantity or price rate. Keep it as evidence, never silently use.
         if re.search(r'(?:[\d,.]\s*[-–—/]\s*|\b(?:to|between|from|minimum|maximum|upto|up to|over|under|above|below|at least|at most)\s*)$',before,re.I) or re.match(r'\s*(?:[-–—]|to\b)\s*\d',after,re.I):
             reasons.append('range_or_bound')
-        if re.search(r'[-\d,.]$',before):reasons.append('negative_or_malformed_number')
+        if re.search(r'[-\d,.]$|\d\s+$',before):reasons.append('negative_or_malformed_number')
         if re.search(r'(?:₦|NGN|USD|\$|price\s*[:=]?)\s*$',before,re.I) or re.match(r'\s*(?:/|per\b)',after,re.I):reasons.append('price_rate_not_asset_area')
         if re.search(r'(?:/|per\s*)$',before,re.I):reasons.append('price_rate_not_asset_area')
         if re.search(r'\b(?:other properties|also available|we (?:also )?have|various locations|our (?:listings|properties)|nearby|neighbouring)\b',local,re.I):reasons.append('other_offer_or_location')

@@ -33,7 +33,7 @@ def test_land_and_floor_are_separate_and_generic_area_is_retained():
  'Land area: 500-600sqm','Land area: 500sqm to 600sqm','Land area: between 500sqm and 600sqm',
  'Land area: -500sqm','Land area: 0sqm','Land area: 12,34sqm','Land price ₦50,000/sqm',
  'Land area: over 500sqm','We also have land area: 500sqm',
- 'Land area: not 500sqm','Land area: 999999999999999999999999999999999sqm',
+ 'Land area: 1 250sqm','Land area: not 500sqm','Land area: 999999999999999999999999999999999sqm',
  'Pool size: 500sqm','Land area: 500sqm per plot',
 ])
 def test_held_claims_never_populate_asset_area(text):
@@ -115,3 +115,27 @@ def test_bq_floor_area_is_not_the_main_dwelling_floor():
     a=assess(row(description='BQ floor area: 50sqm'))
     assert a['floor_area_sqm']['value'] is None
     assert a['claims'][0]['reasons']==['ancillary_feature_area']
+
+
+@pytest.mark.parametrize('text',['2 plots of land measuring 600sqm','Two plots: 600sqm','2plots of land measuring 600sqm','2 plots 600sqm total price 50m'])
+def test_plural_plots_do_not_establish_total_area(text):
+    data=row(title=text);data['property_category']='LAND'
+    a=assess(data);assert a['land_area_sqm']['value'] is None
+    assert 'multiple_plots_area_basis_unclear' in a['claims'][0]['reasons']
+
+
+@pytest.mark.parametrize('text',['2 plots totalling 1200sqm','2 plots. Total land area: 1200sqm','2 plots: 1200sqm in total','2 plots. Total land area: about 1200sqm'])
+def test_explicit_total_can_settle_multiple_parcel_area(text):
+    data=row(title=text);data['property_category']='LAND'
+    assert assess(data)['land_area_sqm']['value']=='1200.00'
+
+
+def test_retained_area_conflict_has_an_action_and_generic_total_label_keeps_role():
+    data=row(title='Land area: 600sqm');data.update(land_area_sqm=500)
+    decision=proposal(data)['area_data']['land_area_sqm']
+    assert decision['status']=='UNVERIFIED' and decision['next_action']
+    soup=BeautifulSoup('<div class="product-info"><div class="aux-info"><dl><dt>Total Area (sqm)</dt><dd>600</dd></dl></div></div>','html.parser')
+    fields=extract_area_metrics(soup,'nigeriapropertycentre')
+    data=row(title='Two plots');data.update(property_category='LAND',raw_area_fields=fields)
+    assert assess(data)['land_area_sqm']['value']=='600.00'
+    assert fields==[dict(role='UNSPECIFIED',label='Total Area (sqm)',value='600 sqm',source='PRIMARY_LABEL')]

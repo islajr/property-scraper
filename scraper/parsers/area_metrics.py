@@ -1,7 +1,7 @@
 """Labelled area widgets inside the primary listing, excluding related cards."""
 import re
 
-_LABEL=re.compile(r'^(?:(?:total\s+)?(?:land|plot|site|floor|built[ -]?up|internal|living|covered)\s+(?:area|size|space)|size|area)(?:\s*\((?:sqm|m²|m2|sqft)\))?\s*:?$',re.I)
+_LABEL=re.compile(r'^(?:(?:total\s+)?(?:land|plot|site|floor|built[ -]?up|internal|living|covered)\s+(?:area|size|space)|(?:total\s+)?(?:property\s+)?(?:size|area))(?:\s*\((?:sqm|m²|m2|sqft)\))?\s*:?$',re.I)
 
 
 def extract_area_metrics(soup,source):

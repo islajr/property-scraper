@@ -13,7 +13,9 @@ portal Size widgets use `raw_area_fields`, whose role can remain UNSPECIFIED.
 Each claim includes its original text and unit, converted sqm, role, scope/basis,
 approximate wording and reasons it may be held. Rates, ranges, bounds, ancillary
 features, conflicting claims and unclear per-unit/shared-site sizes cannot silently
-populate an asset-wide scalar. This is bounded text interpretation: unsupported
+populate an asset-wide scalar. “Two plots, 600 sqm” leaves total versus per-plot
+basis unclear; an explicit total such as “two plots totalling 1,200 sqm” can
+establish the total without multiplying an assumed plot size. This is bounded text interpretation: unsupported
 wording remains a follow-up task, not proof that a size was absent from the advert.
 
 Existing non-null areas are preserved. Missing supported values can be filled.
