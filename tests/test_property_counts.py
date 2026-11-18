@@ -77,6 +77,29 @@ def test_bedroom_count_is_not_an_offered_asset_count():
 
 
 @pytest.mark.parametrize('title',[
+    '4 bedroom detached duplex', '4 bedroom fully detached duplex',
+    '4 bedroom semi detached duplex', '4 bedroom semi-detached duplex',
+    '4 bedroom fully semi-detached bungalow', '4 bedroom terrace duplex',
+    '4 bedroom terraced duplex', '4 bedroom terraced bungalow',
+])
+def test_explicit_bedrooms_before_attachment_modifiers(title):
+    observations=accepted(title)
+    assert len(observations)==1
+    assert observations[0]['relationship']=='BEDROOMS_PER_DWELLING'
+    assert observations[0]['quantity']==dict(kind='EXACT',minimum=4,maximum=4)
+    assert not any(o['relationship']=='OFFERED_ASSET' for o in observations)
+
+
+@pytest.mark.parametrize('title',[
+    '4 bedroom detached warehouse', 'Near a 4 bedroom detached duplex',
+    '40 bedroom detached duplex', '3-4 bedroom semi-detached duplex',
+    'Four 3-bedroom detached duplexes and two 2-bedroom flats',
+])
+def test_attachment_wording_does_not_bypass_count_guards(title):
+    assert accepted(title)==[]
+
+
+@pytest.mark.parametrize('title',[
     'One Room And Parlor','Executive 1 Room & Parlour Apartment',
     'For Sale 2 Bedroom Flat&1 Unit Of Mini Flat',
     '4 Nos of 2bedrooms Flats, 1 4bedroom Flats, a Mini Flats',
