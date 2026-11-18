@@ -19,8 +19,8 @@ wording remains a follow-up task, not proof that a size was absent from the adve
 Existing non-null areas are preserved. Missing supported values can be filled.
 The first prior values remain in `area_legacy`; every change is audited in the
 existing `property_fact_assessments` table under `property-areas-v1`. Existing room,
-quantity and feature audits remain independent. A discrepancy of at most 0.10 sqm
-can match a previously rounded conversion; the exact converted claim remains
+quantity and feature audits remain independent. Only an existing legacy floor value equal to the old one-decimal sqft conversion
+can use a rounding match; the exact converted claim remains
 available. This does not certify the portal's physical measurements.
 
 ## Consumer queries

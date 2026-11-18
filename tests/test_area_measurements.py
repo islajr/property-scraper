@@ -99,3 +99,19 @@ def test_measuring_does_not_mean_land_and_multi_floor_inventory_is_held():
     assert a['floor_area_sqm']['value'] is None
     assert {c['rounded_sqm'] for c in a['claims']}=={'662.00','235.00'}
     assert assess(row(description='Total lettable space: 660sqm'))['floor_area_sqm']['value']=='660.00'
+
+
+def test_new_small_area_change_does_not_use_legacy_conversion_tolerance():
+    data=row(title='Land area: 600.05sqm');data.update(land_area_sqm=600,area_legacy={'land_area_sqm':None})
+    assert proposal(data)['area_data']['land_area_sqm']['status']=='UNVERIFIED'
+    data=row(raw_floor_area='2700 sqft');data.update(floor_area_sqm=250.8)
+    a=proposal(data);assert a['area_data']['floor_area_sqm']['status']=='KNOWN'
+    assert a['area_data']['floor_area_sqm']['legacy_rounding_match']
+    data['area_legacy']={'floor_area_sqm':None}
+    assert proposal(data)['area_data']['floor_area_sqm']['status']=='UNVERIFIED'
+
+
+def test_bq_floor_area_is_not_the_main_dwelling_floor():
+    a=assess(row(description='BQ floor area: 50sqm'))
+    assert a['floor_area_sqm']['value'] is None
+    assert a['claims'][0]['reasons']==['ancillary_feature_area']
