@@ -14,9 +14,9 @@ SOURCE_FIELDS = ('source','external_id','title','description','property_type_raw
 FIELD_KEYS = ('role','label','value','source')
 _AMOUNT = r'(?:\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)'
 _UNIT = r'(?:sq\.?\s*(?:m(?:et(?:er|re)s?)?|f(?:t|eet))\.?|square\s+(?:met(?:er|re)s?|feet|foot)|m[²2]|hectares?|ha|acres?)'
-_AREA = re.compile(r'(?<![\w.,])(?P<number>'+_AMOUNT+r')\s*(?P<unit>'+_UNIT+r')(?!\w)',re.I)
+_AREA = re.compile(r'(?<![\w.,])(?P<number>'+_AMOUNT+r')\s*(?P<unit>'+_UNIT+r')(?-i:(?![a-z]))',re.I)
 _LAND = re.compile(r'\b(?:land|plot|site)(?:\s+(?:area|size))?\s*[:=\-]?\s*$',re.I)
-_FLOOR = re.compile(r'\b(?:floor|built[ -]?up|internal|living|covered)(?:\s+(?:area|size|space))?\s*[:=\-]?\s*$',re.I)
+_FLOOR = re.compile(r'\b(?:floor|built[ -]?up|internal|living|covered|lettable)(?:\s+(?:area|size|space))?\s*[:=\-]?\s*$',re.I)
 
 
 def source_hash(row):
@@ -50,11 +50,12 @@ def _claims(text, origin, row, role=None, trusted=True):
         amount=Decimal(match['number'].replace(',',''));sqm=amount*_factor(match['unit'])
         basis='ADVERTISED_ASSET';resolved=role or 'UNSPECIFIED';reasons=[]
         if _FLOOR.search(role_context):resolved='FLOOR'
-        elif _LAND.search(role_context) or re.search(r'\b(?:on|sitting on|measuring)\s+(?:a\s+)?$',local,re.I):
+        elif _LAND.search(role_context) or re.search(r'\b(?:on|sitting on)\s+(?:a\s+)?$',local,re.I):
             resolved='LAND';basis='SITE'
         elif re.match(r'\s*(?:of\s+)?(?:land|plot|site)\b',after,re.I):resolved='LAND'
         elif re.match(r'\s*(?:floor\s+(?:area|space)|of\s+floor\s+space)\b',after,re.I):resolved='FLOOR'
         elif resolved=='UNSPECIFIED' and row.get('property_category')=='LAND':resolved='LAND'
+        if re.search(r'\b(?:available\s+(?:spaces|plots|units)|payment\s+plans|residential\s+plot.*commercial\s+plot)\b',text,re.I):reasons.append('multiple_offers_or_sizes_need_scope_review')
         if re.search(r'\b(?:per|each)\s+(?:unit|plot|flat|apartment)\b',local+' '+after,re.I) or re.match(r'\s*(?:each|per\s+(?:unit|plot|flat|apartment))\b',after,re.I):
             basis='PER_UNIT'
         elif resolved=='FLOOR' and row.get('property_asset_scope') in {'MULTIPLE_UNITS','WHOLE_BUILDING'}:
