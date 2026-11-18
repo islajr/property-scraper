@@ -90,3 +90,12 @@ def test_primary_area_widgets_exclude_related_cards_and_keep_generic_role():
 def test_old_pagewide_size_does_not_certify_floor_or_land():
     a=assess({**row(), 'raw_area_fields':[dict(role='FLOOR',label='Floor area',value='120sqm',source='LEGACY_UNSCOPED_FIELD')]})
     assert a['floor_area_sqm']['value'] is None
+
+
+def test_measuring_does_not_mean_land_and_multi_floor_inventory_is_held():
+    a=assess(row(title='Office space measuring 660sqm'))
+    assert a['land_area_sqm']['value'] is None
+    a=assess(row(description='Available Spaces9th Floor: 662sqm (Entire Floor)3rd Floor: 235sqmRent $200 per sqm'))
+    assert a['floor_area_sqm']['value'] is None
+    assert {c['rounded_sqm'] for c in a['claims']}=={'662.00','235.00'}
+    assert assess(row(description='Total lettable space: 660sqm'))['floor_area_sqm']['value']=='660.00'
