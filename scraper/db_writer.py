@@ -34,6 +34,7 @@ from scraper.pricing import QUOTE_FIELDS, PERIOD_FIELDS, quote_dict, classify_ch
 from scraper.property_storage import ensure_classification, persist as persist_classification
 from scraper.property_count_store import persist_current as persist_property_facts
 from scraper.room_count_store import persist as persist_room_counts
+from scraper.room_counts import assess as assess_room_counts
 
 log = logging.getLogger(__name__)
 
@@ -155,6 +156,11 @@ class DatabaseWriter:
         self.classification_run_id = str(uuid4())
         for listing in deduped:
             ensure_classification(listing)
+            # Old checkpoints may contain concatenated/oversized numeric values.
+            # Revalidate before INSERT, not only after the row has been stored.
+            listing.room_counts=assess_room_counts(vars(listing))
+            listing.bedrooms=listing.room_counts['bedrooms']['value']
+            listing.bathrooms=listing.room_counts['bathrooms']['value']
 
         stats: Dict = {
             "new":                0,

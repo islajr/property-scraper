@@ -76,6 +76,12 @@ def test_genuinely_conflicting_bedroom_claims_are_not_arbitrarily_ranked():
     assert {c['value'] for c in a['bedrooms']['claims'] if c['usable']}=={3,4}
 
 
+def test_primary_type_label_is_not_ignored_when_its_bedroom_count_conflicts():
+    a=assess(row(property_type_raw='2 bedroom flat / apartment for rent',raw_bedrooms='3 Bedrooms'))
+    assert a['bedrooms']['status']=='AMBIGUOUS' and a['bedrooms']['value'] is None
+    assert {c['value'] for c in a['bedrooms']['claims'] if c['usable']}=={2,3}
+
+
 def test_bathrooms_do_not_come_from_bedrooms_ensuite_or_toilets():
     for description in ('All three rooms ensuite. Four guest toilets.','3 toilets','Six rooms with showers'):
         r=row();r['description']=description

@@ -121,6 +121,18 @@ def assess(row):
         claims['bedrooms'].append(dict(value=value,basis=_basis(row),usable=1<=value<=20,
             reason='explicit_primary_title' if 1<=value<=20 else 'unusual_quantity_requires_review',
             evidence=dict(source='TITLE',start=c['start'],end=c['end'],text=c['text'])))
+    # Portal type labels/breadcrumbs sometimes include the bedroom number.
+    # They are primary evidence too: a 2-bedroom label must not silently agree
+    # with a contradictory 3-bedroom title or widget.
+    raw_type=row.get('property_type_raw')
+    if raw_type:
+        label_profile=property_count_profile.profile_text(raw_type,None)
+        for c in label_profile['candidates']:
+            if c['entity']!='BEDROOM' or c['review_flags'] or c['quantity']['kind']!='EXACT':continue
+            value=c['quantity']['minimum']
+            claims['bedrooms'].append(dict(value=value,basis=_basis(row),usable=1<=value<=20,
+                reason='explicit_primary_type_label' if 1<=value<=20 else 'unusual_quantity_requires_review',
+                evidence=dict(source=row.get('property_type_raw_source') or 'PORTAL_TYPE',text=c['text'])))
     for o in assessment['observations']:
         if o['entity']=='BEDROOM' and o['relationship']=='BEDROOMS_PER_DWELLING':
             exact=o['quantity']['kind']=='EXACT'
