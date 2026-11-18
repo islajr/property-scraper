@@ -7,6 +7,15 @@ from scraper.room_count_repair import preview,load_preview,apply_batch,reverse_b
 from scraper.room_counts import source_hash
 from scraper.room_count_store import FIELDS
 from scraper.classification_artifact import ReviewError
+from tests.conftest import make_normalised
+
+
+def test_oversized_legacy_checkpoint_is_revalidated_before_insert(pricing_writer):
+    db=pricing_writer
+    item=make_normalised(external_id=uuid4().hex,bedrooms=123456789,bathrooms=987654321)
+    db.upsert([item],{})
+    row=get_row(db,item.external_id)
+    assert row['bedrooms']==3 and row['bathrooms'] is None
 
 
 def test_observations_refresh_both_room_fields_and_keep_legacy_snapshot(pricing_writer):
