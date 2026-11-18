@@ -362,3 +362,18 @@ should report their smaller supported sample. Exploratory analyses may include
 retained UNVERIFIED numbers explicitly, inspect the outlier flags and compare
 results with the supported subset. Describe those assumptions and differences in
 portal coverage rather than presenting the whole database as uniformly verified.
+
+
+### PropertyPro pages without visible metrics
+
+Some current PropertyPro pages omit the older primary metric widgets. The parser
+can also read positive `numberOfBedrooms` and `numberOfBathroomsTotal` JSON-LD
+values, but only from a residence whose name matches a RealEstateListing tied to
+the page's canonical URL. Related residences, malformed values and unmatched
+identities do not become metrics. Zero schema defaults are ignored: they do not
+prove zero bedrooms or bathrooms. Widget/schema conflicts remain ambiguous.
+
+A page with no trustworthy count still needs its explicit title/description clues
+or follow-up with the portal/agent. The absence of widgets does not authorize
+clearing an old number. The extractor's broad SingleFamilyResidence schema type
+is not used as property-type evidence.
