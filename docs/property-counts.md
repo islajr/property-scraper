@@ -377,3 +377,27 @@ A page with no trustworthy count still needs its explicit title/description clue
 or follow-up with the portal/agent. The absence of widgets does not authorize
 clearing an old number. The extractor's broad SingleFamilyResidence schema type
 is not used as property-type evidence.
+
+### Export a current room worksheet
+
+```bash
+python -m scripts.export_room_review --output-dir .local/room-counts/review \
+  --verification-root .local/room-counts
+```
+
+This is read-only. It produces a full pending worksheet, separate exceptional and
+100-plus worksheets, coverage/action totals and a `current.json` pointing to the
+new files. Each export has a unique name, so earlier review annotations survive.
+The optional verification directory adds the last recorded outcome from supplied
+run logs; missing logs do not establish that a property was never visited.
+
+Start with active exceptional listings, then work by action code. Retry access
+failures in bounded passes. Resolve changed asset/layout identities before updates.
+For matching pages that still omit counts, inspect explicit source clues and obtain
+the missing quantity from the portal/agent when necessary. Use the candidate and
+original/current columns to see exactly what needs reconciliation. Do not copy
+bedrooms into bathrooms or turn missing/default zero into a measurement.
+
+The blank review columns are for recording checked values, basis and evidence.
+Editing them does not update production. Checked decisions must become a reviewed,
+source-bound repair with an audit; the worksheet is not a bypass around write guards.
