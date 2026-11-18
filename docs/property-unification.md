@@ -1,9 +1,13 @@
 # Unified property data: consumer contract and rollout
 
 The supported consumer entry point is `raw_data.property_research_current`,
-contract `property-research-v1`. It returns **one row per portal listing**, including
+contract `property-research-v2`. It returns **one row per portal listing**, including
 unresolved records. A listing is not proof of a unique physical property; adverts
 from different portals may describe the same building.
+
+Room-count quality now includes bedrooms and bathrooms, their evidence, scope and
+original legacy values. See [room-count policy and repair](property-counts.md#bedrooms-and-bathrooms-evidence-backed-current-fields).
+Unknown bathroom values must not be filled from bedroom quantities.
 
 ## What consumers can use
 
@@ -13,13 +17,17 @@ from different portals may describe the same building.
 | property_category, property_type_family | Aggregation category and family; neither is legal zoning |
 | property_attachment, property_asset_scope, property_land_use | Separate facets; NULL means the evidence did not establish one |
 | bedrooms_per_dwelling | Accepted exact bedroom quantity when the accepted layouts agree; NULL for mixed, conflicting or absent evidence |
-| legacy_bedrooms | The old numeric scrape, retained for compatibility; not certified by this contract |
+| legacy_bedrooms, legacy_bathrooms | First pre-repair numbers, retained for comparison; not certified |
+| bathrooms_per_dwelling | Supported exact bathroom quantity for a dwelling; toilets and ensuite wording do not supply a number |
+| bedrooms_as_advertised, bathrooms_as_advertised | Supported scalar claims; inspect the accompanying basis and status |
+| bedrooms_status, bathrooms_status | Field-specific quality marker, including ambiguity, mixed layouts and missing evidence |
+| room_count_evidence, room_counts_current | Source-bound room claims, warnings and freshness |
 | count_claims | All current extracted/reviewed quantity claims with ACCEPT/HOLD/REJECT/REVOKE state, evidence and observation ID; held quantities are not certified counts |
 | counts | Accepted quantities with entity, relationship, bounds, parent, offer and evidence; never one unqualified unit_count |
 | features | Advertiser claims, including explicit negatives and private/shared/unknown scope; absence means unknown |
 | offers, multiple_offers | Source-bound reviewed offer options and a flag that the headline price cannot represent every option |
 | review_questions, count_questions | Specific evidence gaps and follow-up actions |
-| contract_current | Current classification version plus applicable count and feature assessments for the saved source |
+| contract_current | Current classification version plus applicable count, feature and room assessments for the saved source |
 | single_unit_price_candidate | An initial eligibility filter for a classified individual unit with a supported NGN quote; consumers must still match purpose, period, location and comparables |
 
 Use the status and freshness fields explicitly:

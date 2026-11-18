@@ -171,3 +171,88 @@ acceptance, immutable audit evidence, source freshness, concurrent decisions,
 reversal ownership and batch failures. The unified runner also verifies SQL
 pagination so batches larger than 100 observations retain every returned ID and
 initial decision. No test uses production.
+
+## Bedrooms and bathrooms: evidence-backed current fields
+
+Room quality is part of `property-research-v2`. The original numeric columns had
+two problems: some portal parsers read the same first widget for both fields,
+and old observations were never refreshed on updates. Some numbers were also
+placeholders or combined text, such as 1234 bedrooms on a land advert.
+
+The repaired writer reads separately identified primary metrics, saves the raw
+strings and their label/icon provenance, and updates both numbers in the same
+transaction as their immutable evidence. It also uses explicit saved text and
+source-bound reviews where they establish the quantity. Toilets, ensuite wording,
+room capacity, BQ accommodation and bedrooms do not manufacture bathroom totals.
+Source conflicts stay unresolved; mixed layouts retain their component claims.
+
+Use these fields in `raw_data.property_research_current`:
+
+- `bedrooms_per_dwelling` and `bathrooms_per_dwelling`: supported exact quantities
+  whose basis is an individual dwelling. A whole building or a shared room needs
+  separate context; a count attached to that advert is not automatically per flat.
+- `bedrooms_as_advertised` and `bathrooms_as_advertised`: supported scalar claims,
+  with `bedrooms_basis`/`bathrooms_basis` stating whether the dwelling basis is
+  established or the count is only stated for the advertised asset.
+- `bedrooms_status` and `bathrooms_status`: KNOWN, UNKNOWN, AMBIGUOUS,
+  MIXED_LAYOUT, REVIEW_REQUIRED or NOT_APPLICABLE. PENDING means the saved source
+  needs reassessment. KNOWN means supported as advertised, not physically verified.
+- `room_count_evidence`: all contributing claims, held inputs, warnings and next
+  actions. `room_counts_current` checks that source, interpretation, audit and
+  saved numeric values still agree. The v2 `contract_current` includes this check.
+- `legacy_bedrooms` and `legacy_bathrooms`: the first pre-repair values, kept for
+  comparison. They do not become verified because they look plausible.
+
+The main `scraped_listings.bedrooms` and `.bathrooms` columns become supported
+values or NULL. Original numbers are retained in `room_count_legacy`, and each
+change has a before/after room assessment in `property_fact_assessments` under
+rule `property-rooms-v1`. This adds no physical history tables. New listings have
+no invented historical values.
+
+### Repair and rollout
+
+Install migration 012 before new writers. Migration 013 publishes the v2 reader.
+For a controlled cutover, install 012, complete and verify the bounded room repair,
+then publish 013 and resume the updated writers. Retain the source backup and
+reviewed artifacts. A pre-migration preview is informational and cannot be applied.
+
+```bash
+python -m scripts.repair_room_counts preview --output .local/room-counts/repair.jsonl
+# Inspect coverage, status transitions, changed values and evidence first.
+python -m scripts.repair_room_counts apply --report .local/room-counts/repair.jsonl \
+  --run-id <uuid> --ids <reviewed-canary-ids> --max-records 25
+# Adding --apply enables writes. Use a fresh preview/new run for the full inventory.
+# Repeat the same bounded full run until remaining=0; maximum batch size is 500.
+python -m scripts.repair_room_counts reverse --original-run-id <apply-uuid> --run-id <new-uuid>
+```
+
+Both repair and reversal default to read-only. Writes bind the artifact, code,
+source identity, row version and selection. Changes, audit and receipts commit
+atomically. A completed retry writes nothing; reversal cannot overwrite later
+observations. Room history shares the existing manifests/receipts and fact history.
+Price-only repairs remain price-only. Existing unified repairs also reassess rooms
+when asset context changes, and coordinate room reversal with their other changes.
+
+### Recovering values that were never saved
+
+Most historical bathroom numbers have no retained labelled source. A NULL after
+repair is an explicit gap, not proof that the property has no bathroom. Keep
+coverage separate from property absence. Some current pages genuinely omit a
+bathroom value; do not fill it from bedrooms, toilets or an assumption of ensuite.
+
+```bash
+python -m scripts.refresh_room_counts --source propertypro --limit 25 \
+  --after-id 0 --output .local/room-counts/primary-observations-001.json
+```
+
+This bounded command observes primary pages and saves a report. It respects robot
+directives, uses the recovery traffic lock, defers to health-check traffic, checks
+identity and requires exact title/description agreement. Add `--apply` only to
+save the room fields and audit. Prices and unrelated fields are unchanged.
+Changed text is reported as needing a full health-check observation. Unavailable,
+redirected and incomplete pages stay unresolved. Use a new report path and its
+`next_after_id` to continue; do not repeatedly revisit the same unresolved pages.
+
+When operating from a worktree, set PROPERTY_SCRAPER_LOCK_DIR to the production
+checkout's `.local/locks` so recovery and health checks share the same host lock.
+This is bounded recovery tooling, not an unattended retry scheduler.
