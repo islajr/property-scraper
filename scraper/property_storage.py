@@ -3,14 +3,14 @@ from dataclasses import asdict
 import json
 from uuid import uuid4
 from psycopg2.extras import Json
-from scraper.property_types import FIELDS, classify, metadata, decision_key
+from scraper.property_types import FIELDS, VERSION, classify, metadata, decision_key
 
 
 def ensure_classification(listing):
     """Old DTO/checkpoint values are unreviewed, not supporting raw evidence."""
-    if listing.property_type_status == 'LEGACY_UNREVIEWED':
+    if listing.property_type_status == 'LEGACY_UNREVIEWED' or listing.property_type_version != VERSION:
         result = classify(listing.property_type_raw, listing.title, listing.description,
-                          listing.property_type_raw_source)
+                          listing.property_type_raw_source, source=listing.source, external_id=listing.external_id)
         for name, value in asdict(result).items():
             setattr(listing, name, value)
     return listing

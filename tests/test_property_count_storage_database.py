@@ -1,4 +1,5 @@
 import json
+from unittest.mock import patch
 from pathlib import Path
 from uuid import uuid4
 import psycopg2
@@ -13,7 +14,9 @@ from tests.test_pricing_database import pricing_writer,get_row
 
 def add(db,title='One block containing four flats'):
     item=normalise(make_raw(external_id=uuid4().hex,title=title,description=None))
-    db.upsert([item],{});row=get_row(db,item.external_id)
+    with patch('scraper.db_writer.persist_property_facts'):
+        db.upsert([item],{})
+    row=get_row(db,item.external_id)
     with db.conn.cursor() as cur:
         cur.execute('SELECT xmin::text FROM raw_data.scraped_listings WHERE id=%s',(row['id'],));version=cur.fetchone()[0]
     db.conn.commit()
@@ -22,7 +25,7 @@ def add(db,title='One block containing four flats'):
 
 def store(db,row,version,run):
     return persist_assessment(db.conn,row['id'],expected_row_version=version,
-                              expected_source_hash=source_hash(row['title'],row['description']),
+                              expected_source_hash=source_hash(row['title'],row['description'],row['property_type_raw']),
                               expected_extractor_hash=extractor_hash(),run_id=run)
 
 
@@ -31,6 +34,7 @@ def test_additive_rerun_idempotent_persistence_and_source_preservation(pricing_w
     with db.conn.cursor() as cur:
         cur.execute(Path('schema/009_property_counts.sql').read_text())
         cur.execute(Path('schema/009_property_counts.sql').read_text())
+        cur.execute(Path('schema/010_property_unification.sql').read_text())
     result=store(db,before,version,run);db.conn.commit()
     assert result['outcome']=='STORED'
     assert store(db,before,version,run)['outcome']=='ALREADY_ASSESSED'
@@ -43,7 +47,7 @@ def test_additive_rerun_idempotent_persistence_and_source_preservation(pricing_w
 def test_stale_guard_and_freshness_view(pricing_writer):
     db=pricing_writer;_,row,version=add(db)
     assert persist_assessment(db.conn,row['id'],expected_row_version=version,
-        expected_source_hash=source_hash(row['title'],row['description']),
+        expected_source_hash=source_hash(row['title'],row['description'],row['property_type_raw']),
         expected_extractor_hash='0'*64,run_id=uuid4())['outcome']=='STALE_RULES'
     assert store(db,row,'0',uuid4())['outcome']=='STALE_SOURCE'
     assert store(db,row,version,uuid4())['outcome']=='STORED';db.conn.commit()

@@ -110,7 +110,7 @@ def test_amenities_and_development_opportunities_do_not_imply_form_or_attachment
     assert result.property_type == 'HOUSE' and result.property_attachment == 'DETACHED'
 
 
-@pytest.mark.parametrize('label', ['Gas plant', 'Converted church', 'Unmapped specialized asset'])
+@pytest.mark.parametrize('label', ['Converted church', 'Unmapped specialized asset'])
 def test_unsupported_labels_have_explicit_marker(label):
     result = classify(label)
     assert result.property_type is None

@@ -7,7 +7,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 import re
 
-VERSION = 'property-types-v2'
+VERSION = 'property-types-v3'
 
 
 @dataclass(frozen=True)
@@ -31,7 +31,7 @@ for _code in ('ROOM', 'SELF_CONTAINED'):
 TYPES['BLOCK_OF_FLATS'] = TypeDefinition('RESIDENTIAL', 'BLOCK_OF_FLATS', scope='WHOLE_BUILDING')
 for _code in ('OFFICE', 'COMMERCIAL_SHOP', 'SHOWROOM', 'COMMERCIAL_OTHER',
               'WAREHOUSE', 'OFFICE_BUILDING', 'HOTEL', 'GUEST_HOUSE', 'SCHOOL',
-              'HOSPITAL', 'RESTAURANT', 'FACTORY', 'FILLING_STATION'):
+              'HOSPITAL', 'RESTAURANT', 'FACTORY', 'FILLING_STATION', 'HOSTEL', 'GAS_PLANT', 'EVENT_VENUE'):
     TYPES[_code] = TypeDefinition('COMMERCIAL', _code, scope=(
         'WHOLE_BUILDING' if _code in ('OFFICE_BUILDING', 'HOTEL', 'GUEST_HOUSE') else None))
 for _code in ('LAND', 'LAND_SERVICED'):
@@ -72,6 +72,8 @@ _PATTERNS = [
     ('LAND_SERVICED', r'(?:fully\s+)?serviced\s+(?:plots?\s+of\s+)?land'),
     ('GUEST_HOUSE', r'guest\s*houses?'),
     ('FILLING_STATION', r'(?:filling|petrol|fuel)\s+stations?'),
+    ('GAS_PLANT', r'gas\s+plants?'), ('HOSTEL', r'hostels?'),
+    ('EVENT_VENUE', r'(?:event\s+(?:cent(?:re|er)s?|halls?)|halls?)'),
     ('MIXED_USE_PROPERTY', r'mixed\s+use\s+(?:propert(?:y|ies)|buildings?)'),
     ('COMMERCIAL_OTHER', r'commercial\s+(?:propert(?:y|ies)|premises|spaces?)'),
     ('PENTHOUSE', r'pent\s*houses?'), ('MAISONETTE', r'(?:maisonettes?|massionettes?)'),
@@ -89,7 +91,7 @@ RULES = [(code, re.compile(r'\b(?:' + pattern + r')\b', re.I)) for code, pattern
 ATTACHMENTS = [(code, re.compile(r'\b' + pattern + r'\b', re.I)) for code, pattern in (
     ('SEMI_DETACHED', r'semi\s*detached'), ('TERRACED', r'terrac(?:e|ed|es)'),
     ('DETACHED', r'(?:fully\s+)?detached'))]
-UNSUPPORTED = re.compile(r'\b(?:gas\s+plants?|church(?:es)?|mosques?|cinemas?|farms?|hostels?)\b', re.I)
+UNSUPPORTED = re.compile(r'\b(?:church(?:es)?|mosques?|cinemas?|farms?)\b', re.I)
 CONTEXT = re.compile(
     r'\b(?:near|beside|opposite|behind|adjacent\s+to|close\s+to|next\s+to|'
     r'suitable\s+for|ideal\s+for|can\s+be\s+used\s+as|convert(?:ed|ible)?\s+to|'
@@ -265,13 +267,15 @@ def _reduce(candidates):
     return values
 
 
-def classify(raw_type=None, title=None, description=None, raw_source='PORTAL_TYPE'):
+def classify(raw_type=None, title=None, description=None, raw_source='PORTAL_TYPE', *, source=None, external_id=None):
     """Return a bounded, traceable decision. Previous stored types are not inputs.
 
     Description fallback deliberately favors precision over coverage. Portal
     labels and titles can refine each other; incompatible asset evidence remains
     ambiguous. This function never infers from bedrooms, price or location.
     """
+    from scraper.property_reviews import matching_review
+    review = matching_review(source, external_id, raw_type, title, description)
     raw_type = raw_type[:1000] if raw_type else None
     title = (title or '')[:2000]
     raw_source = raw_source if raw_source in ('PORTAL_TYPE', 'BREADCRUMB') else 'PORTAL_TYPE'
@@ -383,6 +387,25 @@ def classify(raw_type=None, title=None, description=None, raw_source='PORTAL_TYP
             evidence.append(dict(source=raw_source, text=raw_type, rule='unmapped_portal_label'))
     result.property_type_evidence = {'matches': evidence[:40], 'candidates': sorted(values),
                                      'reason': ('attachment_conflict' if len(attachments) > 1 else result.property_type_status.lower())}
+    if review and review['classification']:
+        overrides = review['classification']
+        code = overrides.get('property_type')
+        if code:
+            definition = TYPES[code]
+            result.property_type = code
+            result.property_category = definition.category
+            result.property_type_family = definition.family
+            result.property_attachment = definition.attachment
+            result.property_asset_scope = definition.scope
+            result.property_type_status = 'CLASSIFIED'
+        for key, value in overrides.items():
+            setattr(result, key, value)
+        result.property_type_evidence['matches'].append(dict(source='USER_REVIEW', text=review['note'], rule='human_review:'+review['case_id'], candidate=result.property_type))
+        result.property_type_evidence['candidates'] = [result.property_type] if result.property_type else []
+        result.property_type_evidence['reason'] = 'source_bound_human_review'
+        result.property_type_evidence['human_review'] = dict(
+            case_id=review['case_id'], evidence_sha256=review['evidence_sha256'],
+            reviewed_at=review['reviewed_at'], note=review['note'], questions=review['questions'])
     return result
 
 

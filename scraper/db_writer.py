@@ -32,6 +32,7 @@ from scraper.models import NormalisedListing
 import config
 from scraper.pricing import QUOTE_FIELDS, PERIOD_FIELDS, quote_dict, classify_change, comparable
 from scraper.property_storage import ensure_classification, persist as persist_classification
+from scraper.property_count_store import persist_current as persist_property_facts
 
 log = logging.getLogger(__name__)
 
@@ -502,6 +503,7 @@ class DatabaseWriter:
                         persist_classification(cur, listing_id, old, observed_quote, 'HEALTH_CHECK')
                         cur.execute('UPDATE raw_data.scraped_listings SET title=%s,description=%s WHERE id=%s',
                                     (observed_quote.title, observed_quote.description, listing_id))
+                        persist_property_facts(self.conn, listing_id, run_id=str(uuid4()))
                 cur.execute("""UPDATE raw_data.scraped_listings
                     SET missed_run_count=0, last_health_check_at=%s, next_health_check_at=%s
                     WHERE id=%s""", (now, now + interval, listing_id))
@@ -577,6 +579,7 @@ class DatabaseWriter:
         if row and row[0] is not None:
             persist_classification(cur, row[0], None, listing, 'DISCOVERY',
                                    getattr(self, 'classification_run_id', None))
+            persist_property_facts(self.conn, row[0], run_id=getattr(self, 'classification_run_id', None) or str(uuid4()))
         return row[0] if row else None
 
     def _update_existing(self, cur, listing: NormalisedListing, now: datetime):
@@ -591,6 +594,7 @@ class DatabaseWriter:
             geocoded=(geocoded OR %(geocoded)s), missed_run_count=0, listing_status='ACTIVE'
             WHERE source=%(source)s AND external_id=%(external_id)s""",
             {**listing.__dict__, 'now':now})
+        persist_property_facts(self.conn, old['id'], run_id=getattr(self, 'classification_run_id', None) or str(uuid4()))
         if old.get('listing_status') == 'REMOVED':
             self._insert_history_events([dict(listing_id=old['id'],event_type='RELISTED',
                 old_value=old['price_kobo'],new_value=listing.price_kobo,

@@ -6,17 +6,20 @@ from pathlib import Path
 import re
 from scraper import property_count_profile
 
-VERSION = 'property-counts-v1'
+VERSION = 'property-counts-v2'
 _DWELLING = r'(?:mini[ -]*flats?|flats?|apartments?|houses?|duplex(?:es)?|bungalows?|maisonettes?)'
 
 
-def source_hash(title, description):
+def source_hash(title, description, raw_type=None):
     title, description = title or '', description or ''
-    return hashlib.sha256(f'{len(title)}:{title}{len(description)}:{description}'.encode()).hexdigest()
+    payload=f'{len(title)}:{title}{len(description)}:{description}'
+    if raw_type is not None:payload+=f'{len(raw_type)}:{raw_type}'
+    return hashlib.sha256(payload.encode()).hexdigest()
 
 
 def extractor_hash():
-    return hashlib.sha256(Path(__file__).read_bytes()+Path(property_count_profile.__file__).read_bytes()).hexdigest()
+    from scraper.property_reviews import review_fingerprint
+    return hashlib.sha256(Path(__file__).read_bytes()+Path(property_count_profile.__file__).read_bytes()+review_fingerprint()).hexdigest()
 
 
 def _interpret(candidate, original):
@@ -56,7 +59,7 @@ def _interpret(candidate, original):
     return entity, 'UNRESOLVED', None, 'entity_or_relationship_needs_review'
 
 
-def assess_counts(title=None, description=None):
+def assess_counts(title=None, description=None, *, source=None, external_id=None, raw_type=None):
     profile = property_count_profile.profile_text(title,description)
     observations = []
     for c in profile['candidates']:
@@ -114,15 +117,34 @@ def assess_counts(title=None, description=None):
         else:
             dedup[key]=o
     observations=list(dedup.values())
+    from scraper.property_reviews import matching_review
+    review=matching_review(source,external_id,raw_type,title,description)
+    if review:
+        # Review decisions replace only the same relationship in this exact snapshot.
+        # Mixed layout claims must not retain the generic unqualified bedroom parent.
+        roles={c['relationship'] for c in review['counts']}
+        if review['case_id']=='R21':roles.add('BEDROOMS_PER_DWELLING')
+        for o in observations:
+            if o['relationship'] in roles:
+                o.update(decision='HOLD',rule='superseded_by_source_bound_review')
+        for c in review['counts']:
+            observations.append(dict(entity=c['entity'],quantity=dict(kind='EXACT',minimum=c['quantity'],maximum=c['quantity']),
+                relationship=c['relationship'],parent_key=c['parent_key'],offer_key='primary' if c['relationship']!='UNRESOLVED' else None,decision='ACCEPT' if c['relationship']!='UNRESOLVED' else 'HOLD',
+                rule='human_review:'+review['case_id'],review_flags=[],evidence=[dict(source='USER_REVIEW',
+                text=review['note'],evidence_sha256=review['evidence_sha256'],case_id=review['case_id'])]))
     questions=[]
     if not any(o['decision']=='ACCEPT' and o['relationship']=='OFFERED_ASSET' for o in observations):
         questions.append(dict(reason='offered_quantity_unestablished',next_action='Establish what is offered and whether the quantity is explicit or not applicable.'))
     if any(o['decision']=='HOLD' for o in observations):
         questions.append(dict(reason='held_claims',next_action='Review source claims and assign entity, relationship, and parent/offer references.'))
+    if any(o['decision']=='HOLD' and o['entity'] in {'BUILDING','DWELLING_UNIT','UNSPECIFIED_UNIT'} and o['quantity']['minimum']>1 for o in observations):
+        questions.append(dict(reason='asset_quantity_relationship_unestablished',next_action='Establish whether listed assets are bundled, individually offered, contained units or development availability.'))
     if profile['offer_alternative_hint']:
         questions.append(dict(reason='offer_alternatives',next_action='Link individual and bundle counts to their respective offer and price evidence.'))
     if profile['truncated']:
         questions.append(dict(reason='truncated_evidence',next_action='Inspect full saved source text before accepting counts.'))
-    return dict(rule_version=VERSION,source_hash=source_hash(title,description),
+    if review:
+        questions.extend(dict(reason='human_review_follow_up',next_action=q) for q in review['questions'])
+    return dict(rule_version=VERSION,source_hash=source_hash(title,description,raw_type),
                 state='NO_PATTERN_MATCH' if not observations else 'REVIEW_REQUIRED' if questions else 'COUNTS_FOUND',
                 observations=observations,questions=questions,derived_totals=False)

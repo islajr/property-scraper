@@ -15,7 +15,7 @@
   {"id": 12679, "source": "propertypro", "title": "A Well Structured Hospital Building", "type": "HOSPITAL", "status": "CLASSIFIED", "reason": "Hospital premises are explicitly the asset."},
   {"id": 14326, "source": "privateproperty", "title": "For rent: Luxurious 19 Rooms Hotel For Lease", "type": "HOTEL", "status": "CLASSIFIED", "reason": "Rooms count describes the hotel; it is not an individual room listing."},
   {"id": 20688, "source": "privateproperty", "title": "For sale: Filling Station", "type": "FILLING_STATION", "status": "CLASSIFIED", "reason": "Explicit filling station."},
-  {"id": 22974, "source": "nigeriapropertycentre", "title": "Gas Plant Property", "type": null, "status": "UNSUPPORTED", "reason": "Gas plants are not a supported synonym for filling stations."},
+  {"id": 22974, "source": "nigeriapropertycentre", "title": "Gas Plant Property", "type": "GAS_PLANT", "status": "CLASSIFIED", "reason": "Gas plants have their own reviewed type."},
   {"id": 16877, "source": "propertypro", "title": "Industrial Pure Water Factory For Sale", "type": "FACTORY", "status": "CLASSIFIED", "reason": "Factory is explicit."},
   {"id": 17837, "source": "privateproperty", "title": "For sale: Exquisite Blocks Of Flat On 667 Sqm", "type": "BLOCK_OF_FLATS", "status": "CLASSIFIED", "reason": "Blocks of flats are advertised as the asset."},
   {"id": 25116, "source": "nigeriapropertycentre", "title": "3 Bedroom Maisonette", "type": "MAISONETTE", "status": "CLASSIFIED", "reason": "Specific residential form."},
