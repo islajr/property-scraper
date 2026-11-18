@@ -14,6 +14,7 @@ from typing import List, Optional
 
 from bs4 import BeautifulSoup
 
+from scraper.parsers.area_metrics import extract_area_metrics
 from scraper.models import RawListing
 from scraper.parsers.base_parser import BaseParser
 from scraper.parsers.room_metrics import extract_room_metrics
@@ -131,6 +132,7 @@ class PrivatePropertyParser(BaseParser):
             raw_bedrooms      = raw_bedrooms,
             raw_bathrooms     = raw_bathrooms,
             raw_address       = raw_address,
+            raw_area_fields   = extract_area_metrics(soup,self.source),
             raw_floor_area    = None,
             description       = description,
             property_type_raw = prop_type,

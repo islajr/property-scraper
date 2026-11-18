@@ -22,6 +22,7 @@ from typing import Dict, List, Optional, Tuple
 
 from playwright.sync_api import sync_playwright, Page, Browser
 
+from scraper.parsers.area_metrics import extract_area_metrics
 from scraper.models import RawListing
 import config
 
@@ -183,6 +184,7 @@ class JijiParser:
             raw_bedrooms      = raw_beds,
             raw_bathrooms     = raw_baths,
             raw_address       = raw_address,
+            raw_area_fields   = extract_area_metrics(soup,self.source),
             raw_floor_area    = None,
             description       = description,
             property_type_raw = prop_type,

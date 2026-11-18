@@ -100,6 +100,12 @@ def load_checkpoint(expected_mode: str) -> Optional[Dict[str, Any]]:
         if expected_mode == "discovery" and "collected_raw_listings" in state:
             deserialized = []
             for item in state["collected_raw_listings"]:
+                # Pre-area checkpoints used a generic page-wide Size selector.
+                # Preserve its text without certifying it as primary floor area.
+                if 'raw_area_fields' not in item and item.get('raw_floor_area'):
+                    item['raw_area_fields']=[dict(role='UNSPECIFIED',label='Size',
+                        value=item['raw_floor_area'],source='LEGACY_UNSCOPED_FIELD')]
+                    item['raw_floor_area']=None
                 deserialized.append(RawListing(**item))
             state["collected_raw_listings"] = deserialized
 
