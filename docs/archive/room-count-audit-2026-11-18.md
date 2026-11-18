@@ -30,7 +30,7 @@ These samples validate the mechanisms, not the accuracy of every listing.
 
 ## Production preview: what would change
 
-The read-only snapshot was taken at **2026-11-18 13:20:01 UTC**. Normal scraper
+The latest read-only snapshot was taken at **2026-11-18 13:50:18 UTC**. Normal scraper
 activity may change later preview totals.
 
 | Measure | Bedrooms | Bathrooms |
@@ -72,15 +72,90 @@ Private row-level artifacts remain outside Git under `.local/room-counts/`.
 
 Preview provenance:
 
-- Rules/repair fingerprint: `0655df91cc64e2a5adffaf3ec4f06a8f103643bf193453f8d70490fc6042434d`
-- Preview SHA-256: `d2b69040f2a4323f8a9d19223c8b1ffc490a2924a44c669783e0e9bdc7dbf991`
+- Rules/repair fingerprint: `8e2e720e7f249aa79f171cc03490cc8a1115df4a1777466ee7916926b766bac9`
+- Preview SHA-256: `fc5e5ecdfe02293b733fd1db9e31a08dabee6970483593e76436b509e56a1d6e`
+
+## Explicit exceptional-value review
+
+The latest preview identifies **1,831 distinct listings with review flags**.
+Within that group, 1,406 have numeric/context exceptions at priority 0 or 1,
+and 1,274 have at least one 100+ count. There are 837 bedroom fields and 1,274
+bathroom fields at 100 or more; those groups overlap. No negative values were
+found in this snapshot.
+
+| Review trigger | Listings flagged |
+| --- | ---: |
+| 100+ room count | 1,274 |
+| Possible concatenated digits (123/1234) | 1,274 |
+| Positive room count on land | 430 |
+| Stored/source conflict | 764 |
+| Unusual room ratio on a residential unit advert | 340 |
+| Unexplained zero | 54 |
+| Count between 21 and 99 | 21 |
+
+These counts overlap and are not confirmed-error totals. A hotel-wide quantity
+needs different interpretation from bedrooms per flat. The flags preserve that
+asset context and never authorize automatic correction by threshold alone.
+
+The private full worksheet is
+`.local/room-counts/preservation-preview-20261118T135018Z.review.csv` (27,148 rows,
+including ordinary missing/unverified evidence as well as exceptions). Its SHA-256
+is `3341920b3af43ecf5888fdf6a8ab5d636ac9400aa6eddafe435b86ca250445c0`.
+Focused editable copies are under `.local/room-counts/review/`:
+
+- `exceptional-room-counts-2026-11-18.csv`: 1,406 rows, including 1,331 active listings.
+- `100-plus-room-counts-2026-11-18.csv`: 1,274 rows, including 1,216 active listings.
+
+Each row contains the listing link, stored values, candidate values, field-specific
+statuses, asset context, specific flags and the next verification action. Most
+ordinary recovery should be automated; manual review is for exceptions that
+source observations cannot resolve, not every row of the full worksheet.
+
+## What dependent projects can already use
+
+Among **18,448 active residential listings**, saved evidence supports 15,659
+bedroom claims (**84.9%**) and 169 bathroom claims (**0.9%**). These are coverage
+figures, not independently measured accuracy. Retained unverified numbers remain
+available separately. A bedroom analysis need not discard a supported bedroom
+because bathroom evidence is missing. Bathroom-dependent work still needs the
+recovery pass; the low bathroom coverage is unfinished work, not a satisfactory
+final state for that use case.
+
+## Read-only recovery pilot
+
+A targeted pilot selected eight recent exceptional records and up to eight
+ordinary unverified records per portal, yielding 32 visits. It was purposive,
+not a random accuracy sample. All visits respected the recovery traffic guard
+and robot directives. No production writes were made.
+
+| Outcome | Listings |
+| --- | ---: |
+| Matching saved source, usable supported room evidence | 17 |
+| Matching saved source, still no usable room count | 8 |
+| Changed source requiring a full listing observation | 7 |
+
+The 17 supported observations confirmed the **existing bathroom values without
+changing them**; all 17 would move from UNVERIFIED to KNOWN. One bedroom field
+would also gain support. No corrections or missing-field fills were proposed by
+this pilot. It demonstrates an actual route to reducing uncertainty without
+discarding legitimate numbers, but does not establish a recovery percentage for
+the remaining database.
+
+The full private report is
+`.local/room-counts/recovery-pilot-20261118T135315Z.json`; its companion selection
+file records the worksheet and chosen records. These are proposed assessments,
+not applied production improvements. The pilot confirmed 8 bathroom counts on
+Private Property, 8 on Nigeria Property Centre and 1 on PropertyPro. Seven
+PropertyPro records needed a full source refresh; those are follow-up candidates,
+not evidence that their room values are wrong or permanently unrecoverable.
 
 ## Full-data rehearsal
 
-All 687 tests pass against disposable local PostgreSQL. They cover preservation
+All 696 tests pass against disposable local PostgreSQL. They cover preservation
 of plausible and unusual historic counts, missing new metrics, conflicting claims,
 evidence-backed corrections, raw-source identity, atomic failures, stale previews,
-reversal ownership, source freshness and recovery.
+reversal ownership, source freshness, explicit outlier flags, worksheet contents,
+and recovery of missing bedrooms even when bathrooms already have support.
 
 The revised full-data rehearsal completed in **260.6 seconds across 58 batches**
 on a separate disposable copy of the earlier audit snapshot:
@@ -101,6 +176,10 @@ The local run ID was `d46ac67c-8510-43f6-b27c-355c7ab03f89`; it is not a
 production operation. Older rehearsals of the withdrawn clearing policy are not
 validation of this revised policy.
 
+That preservation rehearsal predates the latest diagnostic flags and worksheet
+metadata. It remains the preservation baseline; the latest additions were checked
+with the full 696-test suite and the fresh read-only production preview above.
+
 ## Deployment and the remaining recovery work
 
 Merge the reviewed PR into master before deployment. Pause writers, retain a
@@ -118,6 +197,14 @@ needs a full listing observation; conflicts need evidence review. Unavailable
 pages retain their existing numbers with explicit evidence-quality markers.
 The current assessment can be fresh while a particular retained number is
 UNVERIFIED: assessment applicability is not verification of the number.
+
+After merge, verification is part of completion: process active exceptional values
+first, then source conflicts and ordinary unverified fields in bounded automated
+batches. Route changed-source records through full identity-checked observations;
+do not depend on the ordinary health selection eventually including every row,
+since that selection is restricted by cooldown and missed-run rules. Reconcile
+supported counts and outstanding actions after each pass by portal and field.
+Do not call the bathroom cleanup finished merely because every row has a marker.
 
 The broader architecture guide, schema usability work and extraction of sqm
 measurements remain follow-up tasks after the room-count deployment.

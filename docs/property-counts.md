@@ -275,3 +275,72 @@ redirected and incomplete pages stay unresolved. Use a new report path and its
 When operating from a worktree, set PROPERTY_SCRAPER_LOCK_DIR to the production
 checkout's `.local/locks` so recovery and health checks share the same host lock.
 This is bounded recovery tooling, not an unattended retry scheduler.
+
+### Turning the verification backlog into usable data
+
+UNVERIFIED is a starting condition to investigate, not a finished cleanup. A
+bedroom assessment and a bathroom assessment are separate: an unverified bathroom
+must not discard a supported bedroom, property type or price. Count coverage by
+field, portal, asset category and active/removed status. A missing bathroom number
+on a land listing is different from one on an active flat listing.
+
+Every room preview now writes a matching `.review.csv` worksheet and includes its
+checksum and row count in the summary. Rows contain the listing URL, stored values,
+candidate counts, statuses, asset context, review reasons, priority, source hash,
+next action and blank review-result/evidence/note columns. Keep the frozen export;
+copy it before adding review notes. Editing a worksheet does not itself update the
+database or turn a number into a verified fact.
+
+The priorities are:
+
+| Priority | Work |
+| --- | --- |
+| 0 | Negative counts, 100+ counts and possible concatenated-digit values such as 123/1234 |
+| 1 | Counts above 20, unexplained zeroes, positive room counts on land and unusual room ratios |
+| 2 | Stored numbers that conflict with supported source claims, or conflicting/mixed source evidence |
+| 3 | Ordinary retained numbers whose evidence is still unverified |
+| 4 | Missing or unresolved counts without a stored number |
+
+These are review triggers, not errors established by a numeric threshold. For
+example, 120 bedrooms could be a hotel-wide claim. Check building/unit scope and
+primary evidence before accepting or correcting it. The ratio check applies only
+to residential unit adverts: at least one count is 10 or more and exceeds five
+times the other positive count. Equal ordinary bedroom/bathroom numbers are not
+an outlier trigger. Flags are exposed in `room_count_evidence.review_flags` and in
+the research review queue as `room_review_flags` and `room_review_priority`.
+
+Most primary-page recovery should be automatic. Select active exceptional rows
+first, followed by source conflicts and ordinary unverified counts. Each request
+can recover both fields; `--field` also permits a field-specific pass. Use the
+worksheet IDs to prioritize without revisiting unrelated rows:
+
+```bash
+python -m scripts.refresh_room_counts --ids <comma-separated-reviewed-ids> \
+  --limit 25 --output .local/room-counts/priority-recovery-001.json
+python -m scripts.refresh_room_counts --source propertypro --field bathrooms \
+  --limit 25 --after-id <cursor> --output .local/room-counts/bathrooms-002.json
+```
+
+Recovery reports distinguish supported observations, newly supported fields,
+proposed corrections, proposed fills and failure outcomes. Without `--apply`,
+all of these are proposed improvements, not production changes. Exact source
+changes go through a full identity-checked health observation so current metrics
+are not combined with stale listing text. Missing widgets, inaccessible pages and
+genuine conflicts remain visible with their reason. Do not repeatedly revisit
+them in an immediate retry loop.
+
+Start with a bounded pilot across portals and work priorities, measure the actual
+yield, then run successive batches and compare coverage before/after. A useful
+completion report accounts for every exceptional value, separates resolved from
+unavailable/changed/conflicting cases, and lists the next action for each remaining
+case. It must not equate HTTP success with a supported count, extrapolate a small
+pilot into a promised accuracy percentage, or make the backlog smaller by relabelling
+unsupported values as verified. Continued new observations should reduce the
+backlog automatically; evidence that portals never disclose remains a real limit.
+
+Downstream bedroom analyses can use `bedrooms_status='KNOWN'` and the appropriate
+count basis without requiring a verified bathroom. Bathroom-dependent analyses
+should report their smaller supported sample. Exploratory analyses may include
+retained UNVERIFIED numbers explicitly, inspect the outlier flags and compare
+results with the supported subset. Describe those assumptions and differences in
+portal coverage rather than presenting the whole database as uniformly verified.
