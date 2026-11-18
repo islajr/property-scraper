@@ -72,11 +72,47 @@ def test_repair_is_reviewed_bounded_idempotent_and_preserves_unrelated_data(pric
     assert get_row(db,item.external_id)==before;db.conn.rollback()
     assert apply_batch(db.conn,*artifact,run,write=True,ids=ids)['outcomes']=={'APPLIED':1}
     after=get_row(db,item.external_id);db.conn.rollback()
-    assert after['bedrooms']==3 and after['bathrooms'] is None
+    assert after['bedrooms']==1234 and after['bathrooms']==123
+    assert after['room_count_data']['bedrooms']['status']=='UNVERIFIED'
+    assert after['room_count_data']['bedrooms']['value']==3
+    assert after['room_count_data']['bathrooms']['status']=='UNVERIFIED'
     assert after['room_count_legacy']==dict(bedrooms=1234,bathrooms=123)
     assert {k:v for k,v in before.items() if k not in FIELDS}=={k:v for k,v in after.items() if k not in FIELDS}
     assert apply_batch(db.conn,*artifact,run,write=True,ids=ids)['attempted']==0
     with pytest.raises(ReviewError):apply_batch(db.conn,*artifact,run,write=True)
+
+
+def test_preserved_numbers_are_exposed_separately_from_supported_research_counts(pricing_writer,tmp_path):
+    db=pricing_writer;item,before=historical(db);db.conn.rollback();path=tmp_path/'preserve.jsonl'
+    summary=preview(db.conn,path)
+    assert summary['counts']['bedrooms_existing_changed']==0
+    assert summary['counts']['bathrooms_existing_changed']==0
+    apply_batch(db.conn,*load_preview(path),uuid4(),write=True,ids=(before['id'],))
+    with db.conn.cursor() as c:
+        c.execute('''SELECT bedrooms_as_advertised,bathrooms_as_advertised,bedrooms_per_dwelling,
+            bathrooms_per_dwelling,bedrooms_status,bathrooms_status,room_counts_current
+            FROM raw_data.property_research_current WHERE listing_id=%s''',(before['id'],))
+        assert c.fetchone()==(1234,123,None,None,'UNVERIFIED','UNVERIFIED',True)
+
+
+def test_fresh_primary_metrics_correct_preserved_numbers_but_missing_fields_do_not(pricing_writer):
+    db=pricing_writer;item,before=historical(db)
+    # A new observation with no room metrics leaves the existing counts intact.
+    absent=listing(title='3 bedroom flat',raw_bedrooms=None,raw_bathrooms=None)
+    absent.external_id=item.external_id;db.upsert([absent],{})
+    row=get_row(db,item.external_id)
+    assert (row['bedrooms'],row['bathrooms'])==(1234,123)
+    # A labelled primary observation supplies evidence for both corrections.
+    observed=listing(title='3 bedroom flat',raw_bedrooms='3 Bedrooms',raw_bathrooms='2 Bathrooms')
+    observed.external_id=item.external_id;db.upsert([observed],{})
+    row=get_row(db,item.external_id)
+    assert (row['bedrooms'],row['bathrooms'])==(3,2)
+    assert row['room_count_legacy']==dict(bedrooms=1234,bathrooms=123)
+    # A later omitted bathroom does not erase the supported number either.
+    db.upsert([absent],{})
+    row=get_row(db,item.external_id)
+    assert (row['bedrooms'],row['bathrooms'])==(3,2)
+    assert row['room_count_data']['bathrooms']['status']=='UNVERIFIED'
 
 
 @pytest.mark.parametrize('later_edit',[False,True])

@@ -39,6 +39,9 @@ def preview(conn,path):
                     totals['scanned']+=1
                     for field in ('bedrooms','bathrooms'):
                         totals[field+'_changed']+=row.get(field)!=after[field]
+                        totals[field+'_existing_changed']+=row.get(field) is not None and row.get(field)!=after[field]
+                        totals[field+'_filled']+=row.get(field) is None and after[field] is not None
+                        totals[field+'_retained_unverified']+=after['room_count_data'][field]['status']=='UNVERIFIED'
                         totals[field+'_supported']+=after['room_count_data'][field]['status']=='KNOWN'
                         states[field+':'+after['room_count_data'][field]['status']]+=1
         conn.rollback();temporary.replace(path);temporary=None

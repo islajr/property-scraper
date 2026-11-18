@@ -4,8 +4,8 @@ CREATE OR REPLACE VIEW raw_data.property_research_current AS
 WITH rooms AS (
  SELECT s.id AS listing_id,s.room_count_data AS data,
  coalesce(p.id IS NOT NULL AND s.room_count_data=p.facts->'assessment'
-  AND s.bedrooms IS NOT DISTINCT FROM (s.room_count_data->'bedrooms'->>'value')::integer
-  AND s.bathrooms IS NOT DISTINCT FROM (s.room_count_data->'bathrooms'->>'value')::integer,false) AS current
+  AND s.bedrooms IS NOT DISTINCT FROM (s.room_count_data->'bedrooms'->>'stored_value')::integer
+  AND s.bathrooms IS NOT DISTINCT FROM (s.room_count_data->'bathrooms'->>'stored_value')::integer,false) AS current
  FROM raw_data.scraped_listings s LEFT JOIN raw_data.current_property_rooms p ON p.listing_id=s.id
 ), counts AS (
  SELECT listing_id,jsonb_agg(jsonb_build_object(
