@@ -1,225 +1,93 @@
-# Property classification: implementation and rollout
+# Property classification
 
-The shared classifier in `scraper/property_types.py` implements the
-[taxonomy contract](property-type-taxonomy.md) as `property-types-v2`. It retains
-all 19 legacy codes and adds the 17 agreed forms. Unknown text no longer becomes
-a canonical type. The original [audit](property-type-audit-2026-11-13.md) remains
-the baseline inventory, not an estimate of current classifier accuracy.
-The [full read-only preview](property-type-preview-2026-11-13.md) records proposed
-states and transitions for the 28,102 listings inspected during implementation.
-The [v2 context preview](property-type-context-v2-2026-11-16.md) compares the
-accepted 16 November corrections with v1 on a fresh production snapshot.
+The shared classifier implements `property-types-v3` and the
+[39-code vocabulary](property-type-taxonomy.md). Unknown portal text cannot create
+new canonical codes. For consumers and deployment, use the
+[unified contract and operations guide](property-unification.md).
 
-## Current behaviour
+## Decisions and evidence
 
-Discovery normalization returns the property type together with category,
-family, attachment, asset scope, advertised land use, raw portal label, status,
-matched evidence, rule version, and classification time. The numeric bedrooms,
-listing purpose, price, and lifecycle contracts remain independent.
+Every observation records type, category, family, attachment, asset scope,
+advertised land use, raw label/source, status, matched evidence, rule version and
+time. Existing numeric bedrooms, transaction purpose, pricing and lifecycle
+fields remain separate. Historic canonical labels are never supporting inputs.
 
 | Evidence | Result |
 | --- | --- |
-| Semi-detached label and a duplex title | `SEMI_DETACHED_DUPLEX` |
-| Generic duplex | `DUPLEX`, attachment NULL |
-| Mini flat in a generic apartment category | `MINI_FLAT` |
-| Conflicting detached and terraced descriptors on a duplex | `DUPLEX`, attachment NULL; evidence records the conflict |
-| Commercial label and an explicit land title | `LAND`, advertised use `COMMERCIAL` |
-| Bungalow with a terrace amenity | `BUNGALOW`; the terrace does not establish attachment |
-| Block-of-flats label and an individual-apartment title | `AMBIGUOUS`, type NULL |
-| Gas plant | `UNSUPPORTED`, type NULL |
-| Bedrooms or short-let purpose without form evidence | `INSUFFICIENT_EVIDENCE`, type NULL |
+| Semi-detached label and duplex title | SEMI_DETACHED_DUPLEX |
+| Generic duplex | DUPLEX; attachment unknown |
+| Explicit mini-flat in an apartment category | MINI_FLAT |
+| Detached and terraced descriptors on the same duplex | DUPLEX; attachment conflict retained |
+| Commercial label and explicit land title | LAND with advertised commercial use |
+| Bungalow with a terrace amenity | BUNGALOW; terrace does not establish attachment |
+| Contradictory block/individual-apartment claims | AMBIGUOUS unless a source-bound review resolves that snapshot |
+| Gas plant, hostel or event hall | GAS_PLANT, HOSTEL or EVENT_VENUE |
+| Bedrooms or rental purpose without a form | INSUFFICIENT_EVIDENCE |
 
-The vocabulary lookup supplies aggregation families. For example, generic,
-detached, semi-detached, and terraced duplexes share family `DUPLEX`; the finer
-type codes remain available. A house does not become a duplex because it has
-four bedrooms. Mansion, villa, and townhouse attachment requires separate
-evidence. `COMMERCIAL` is a broad asset category, not verified legal zoning.
+A broad HOUSE does not become a duplex because it has four bedrooms. A commercial
+category is not verified legal zoning. A default UNIT facet is not a numeric
+count of one or certification of the price basis.
 
-### Version 2: accepted spelling and context corrections
+Specific phrases consume their own spans; incompatible assets remain conflicting
+candidates. Broad compatible forms can be refined. Rules exclude amenities,
+nearby landmarks, alternative uses and agent inventories. Description recovery
+uses bounded leading identity statements and cannot generally override a
+specific contradictory title or portal label. Missing historical labels are not
+fabricated from old canonical values, descriptions or URL slugs.
 
-The 16 November review accepted bounded Massionette and Roomself aliases,
-bedroom/ensuite wording as attributes rather than separate ROOM assets, and
-home offices/private cinemas as ancillary when the evidence places them within
-the home. This revision changes rules, not the 36-code vocabulary.
+The inherited v2 corrections recognize bounded Massionette and Roomself spelling
+variants; bedroom/ensuite wording does not create extra ROOM assets. Corroborated
+home offices and private cinemas remain ancillary. Independently offered offices,
+cinemas and rooms remain primary candidates. The separate feature assessor saves
+advertised amenities without increasing bedroom or asset quantities.
 
-A title such as “semi-detached duplex + office + BQ” can resolve to
-SEMI_DETACHED_DUPLEX when a leading residential description confirms a dedicated
-home office. A bedroom advert listing a cinema can recover its form from a
-leading description explicitly identifying a duplex and a private cinema. The
-classifier retains context rule IDs and exact matched text for excluded asset
-keywords. It does not persist structured feature attributes or infer room counts.
+V3 adds the three specialist types and source-bound review decisions. The
+[original review notes](archive/property-type-review-2026-11-14.csv) are interpreted
+in `scraper/property_reviews.json`. Each decision is bound to portal identity and
+the exact saved raw label/title/description hash. New source evidence expires the
+override. Evidence records the case, date, original note and outstanding questions.
+The registry is not a blanket rule that every similarly worded advert is the same
+asset or that every image has been inspected by this program.
 
-Independently offered offices, cinemas, and rooms remain candidates. Conflicting
-portal labels are preserved; a home cinema does not overrule an explicit Cinema
-portal type. New feature storage, pending aliases, scope recovery rules, and
-offer-option models are outside this revision.
+## Storage and ongoing observations
 
-### Evidence boundaries
+Migrations 006 and 007 supply metadata, vocabulary, immutable classification
+history and classification-only operation receipts. Migration 008 preserves v1
+and registers the unchanged v2 vocabulary. Migration 010 registers v3 with 39
+codes; 011 supplies the unified consumer views. Apply migrations in order before
+new writers. Rerunning a migration does not reclassify existing listings.
 
-PropertyPro captures the last type-bearing link in the primary listing's
-breadcrumb. It preserves that link's wording as `BREADCRUMB` evidence and ignores
-location/purpose suffixes while matching. PrivateProperty captures the labelled
-type in the primary property-details section. NigeriaPropertyCentre retains its
-primary type label, including incomplete descriptors such as “Semi-detached”.
-Missing labels remain NULL. No raw label is fabricated from a historic type.
+Discovery inserts, updates, relistings and identity-matched primary health-check
+observations write classifications with their existing transactions. A changed
+decision gets an immutable before/after audit; identical decisions preserve the
+original decision time. Old checkpoints are recomputed when their classifier
+version differs. Source-only prices and legacy callers do not invent raw evidence.
+Count and feature assessments share the observation transaction. Failures roll
+back all related changes.
 
-Rules use word boundaries, plural/spacing/hyphen aliases, and specific phrases
-before broader phrases. Separate incompatible assets remain candidates rather
-than being hidden by whichever rule matches first. Compatible labels can refine
-each other. Included features, nearby landmarks, negations, and alternative uses
-are not evidence of another offered asset. “Suitable for a hotel” does not
-establish an existing hotel.
+For historical data, use the unified bounded preview/apply/reversal commands in
+the [operations guide](property-unification.md). The older classification-only
+[backfill guide](property-classification-backfill.md) remains for its original
+operation receipts and reversals; it does not reverse unified operations.
 
-Description recovery is deliberately limited. When primary text cannot identify
-an asset, the classifier checks up to three leading description statements with
-an explicit asset form near the start, stopping at feature, location, or price
-headings. A specific primary title/label is not overridden by a general
-description. Unknown marketing prose remains unresolved. The classifier
-does not use portal URL slugs or infer form from bedroom counts.
+## Compatibility and verification
 
-Input processing is bounded to 1,000 characters for a portal label, 2,000 for a
-title, and the leading 3,000 characters of a description. Evidence contains at
-most 40 matches, with source, exact text, rule ID, and the supported candidate or
-attribute. These limits can leave some records unresolved. Coverage is reported
-separately from accuracy; there is no numeric confidence score.
+Consumers should use `raw_data.property_research_current`, explicitly inspect
+status/freshness, and retain unresolved rows in coverage denominators. Clients
+must tolerate all supported codes and NULL with a reason. Pin a version for
+reproducible studies. A supported type alone does not make prices comparable.
 
-## Storage and transaction behaviour
+This repository does not replace an external `market.classify_property`, rebuild
+external market snapshots or update other projects' enum definitions. Move those
+consumers to the unified view or a documented adapter before relying on them.
 
-Migration [006](../schema/006_property_classification.sql) adds the metadata,
-versioned `raw_data.property_type_vocabulary` lookup, classification audit table,
-and `raw_data.property_classification_coverage` view. It never rewrites existing
-property labels, prices, or lifecycle dates. Existing rows start as
-`LEGACY_UNREVIEWED`, with no invented raw label, evidence, or classification date.
+Tests cover every canonical code; bounded aliases, primary conflicts and context;
+source-bound review expiry; SQL vocabulary/status coherence; migration reruns;
+transaction rollback; discovery/relisting/health checks; and frozen, resumable
+backfills with safe reversal. Integration tests require a disposable explicit
+TEST_DATABASE_URL and never use production as a test fixture. Reviewed examples
+are regression cases, not an accuracy estimate for the full inventory.
 
-Migration [008](../schema/008_property_classification_v2.sql) registers v2 and
-copies the unchanged 36 vocabulary definitions from v1. Apply it before deploying
-v2 writers. It is repeatable and does not update listings, audit history, or v1
-definitions. Existing v1 previews/receipts remain historical artifacts; create a
-fresh v2 preview for any new backfill selection.
-
-The database constrains status/type coherence, supported categories and facets,
-known rule versions, vocabulary/category/family agreement, compound attachment,
-and required scope for land and whole-building types. A `CLASSIFIED` result must
-have a supported code and evidence. Unresolved nonlegacy results have a NULL
-type. Legacy values remain readable until explicitly reviewed.
-
-The discovery writer persists classification on inserts, ordinary updates, and
-relisting/conflict paths. Health checks persist it when a typed primary
-observation has the same source and external ID as the stored listing. An
-unparseable new price does not prevent a supported classification correction;
-the existing price-rejection contract still preserves the prior price.
-
-Classification and audit insertion share the caller's transaction. Every change
-records old/new metadata, origin, run ID, rule version, and decision time in
-`raw_data.property_classification_history`. Initial decisions have no previous
-classification. Identical decisions do not create duplicate history or refresh
-their classification time. Audit rows cannot be updated or deleted; a future
-backfill reversal must append a new event.
-
-Old dataclass/checkpoint shapes retain defaults. Before writing an unreviewed
-DTO, the writer classifies its saved title/description/raw label; it never treats
-the old canonical value as new evidence. The pricing-recovery job remains a
-pricing-only repair path; it does not apply property-type changes discovered
-incidentally during a quote visit.
-
-## Preview existing listings before applying a backfill
-
-Run from the repository root:
-
-```bash
-python -m scripts.preview_property_classification \
-  --output .local/property-types/preview-v2.jsonl
-```
-
-The command reads `DATABASE_URL` from the environment or `.env`. It has no apply
-mode, runs no migrations, and visits no portals. PostgreSQL enforces a read-only,
-repeatable-read transaction. It works before migration 006 because it uses the
-original columns and reads optional metadata through `row_to_json`.
-
-It streams an atomic local JSONL report and a companion `preview-v2.summary.json`.
-Each row includes the listing identity, saved title, previous/proposed metadata,
-and observed row version. The summary contains state counts, type transitions,
-coverage by portal and lifecycle state, a credential-free database fingerprint,
-and the report's SHA256. A partial run
-does not replace the last completed report. Verify the checksum before pairing
-a summary with a detailed report; the two files are replaced individually.
-
-Optional bounds:
-
-```bash
-python -m scripts.preview_property_classification \
-  --source nigeriapropertycentre --status ACTIVE --limit 500 \
-  --output .local/property-types/npc-sample.jsonl
-```
-
-`--after-id` and `--batch-size` are also supported. Filters are recorded, and a
-bounded report is explicitly marked as a partial database scan. Full reports
-include removed rows and apparently valid canonical labels. Old values are
-never fed back to the classifier as raw labels. Original portal labels absent
-from historic storage are explicitly counted as unavailable.
-
-Connection failures suppress libpq details to prevent credentials entering logs.
-Reports are project-local and ignored by Git. Detailed reports contain listing
-evidence, so share a reviewed aggregate summary rather than committing every
-row's text to the repository.
-
-## Deployment order and consumers
-
-1. Review the PR, regression cases, disposable-database checks, and full preview.
-   The preview is a proposal, not permission for a production rewrite.
-2. Apply numbered migrations in order before starting classification-aware
-   writers. `run.sh`, weekly discovery, and daily health-check workflows already
-   apply all files under `schema/` in order. Direct Python invocations and other
-   deployments must arrange this explicitly. Migration 006 is additive and
-   repeatable; it uses a short lock timeout rather than waiting indefinitely.
-3. Capture classifications on new primary observations. Discovery still skips
-   known active URLs; do not expect the normal runs to repair the full inventory.
-4. Review dry-run transitions and unresolved examples, then implement a separate
-   bounded, auditable apply/reversal command with concurrency guards and resume.
-   The [backfill runbook](property-classification-backfill.md) documents migration
-   007, exact selections, durable receipts, and the prepared four-listing canary.
-   Both subcommands default to read-only; no production backfill has been run as
-   part of implementation.
-5. Inventory callers of `market.classify_property` and external enum/API/report
-   consumers. Move them to the shared contract or a documented versioned adapter.
-   This release does not replace that external function or rebuild market
-   snapshots. Clients must tolerate new codes and explicit unresolved states.
-
-Consumers should select verified classifications explicitly:
-
-```sql
-SELECT property_category, property_type_family, property_type, COUNT(*)
-FROM raw_data.scraped_listings
-WHERE property_type_status = 'CLASSIFIED'
-  AND property_type_version IN ('property-types-v1', 'property-types-v2')
-GROUP BY property_category, property_type_family, property_type;
-
-SELECT * FROM raw_data.property_classification_coverage;
-```
-
-Keep sale/rent/short-let, billing-period, currency, and price-basis eligibility
-guards when comparing prices. A supported property form alone does not make
-prices comparable. Keep unresolved and legacy rows in coverage denominators.
-Pin a specific classification version when the research design requires it;
-the example above includes both registered versions of the shared vocabulary.
-
-Operational rollback means rolling back the application code while retaining
-the additive columns, vocabulary, and audit evidence. Do not drop the audit
-table or overwrite a historic type from a fresh portal visit. Old application
-writers must not continue updating already verified rows without updating their
-classification evidence; stop affected jobs while reverting or correcting them.
-
-## Verification
-
-The regression set includes all canonical codes; phrase, conflict, context, scope,
-and missing-evidence cases; saved primary HTML from the enabled portals; and
-[32 title-only examples](../tests/fixtures/property_type_cases.json) from the
-database audit. Their expected decisions have explicit rationales. They are
-review examples, not a randomly sampled ground-truth dataset or an accuracy
-estimate for all listings.
-
-Tests using an explicitly selected disposable `TEST_DATABASE_URL` check initial
-migration and reruns, legacy preservation, vocabulary agreement, constraints,
-audit immutability, update/relisting/health-check paths, idempotence, transaction
-rollback, and pre-migration read-only preview. No test uses production as its
-database fixture.
+Historical observations remain in the dated [audit](property-type-audit-2026-11-13.md),
+[first preview](property-type-preview-2026-11-13.md), and
+[v2 context preview](property-type-context-v2-2026-11-16.md).

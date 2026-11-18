@@ -10,6 +10,10 @@ Apply migration [007](../schema/007_property_classification_operations.sql) afte
 it does not change any listing classifications. Existing deployment entry points
 already apply numbered migrations in order.
 
+This guide describes the original classification-only operation. Use the
+[unified operations guide](property-unification.md) for new runs that include
+counts and features; the old reverse command does not reverse unified operations.
+
 ## Review the selection
 
 Use the detailed JSONL produced by `scripts.preview_property_classification`
