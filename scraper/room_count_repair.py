@@ -1,6 +1,6 @@
 """Reviewed, bounded room-count repairs using existing manifests and fact history."""
 from collections import Counter
-import hashlib,json,tempfile
+import csv,hashlib,json,tempfile
 from pathlib import Path
 from uuid import UUID
 from psycopg2.extras import Json,execute_values
@@ -18,7 +18,7 @@ def _before(row):return {k:row.get(k) for k in room_count_store.FIELDS}
 def preview(conn,path):
     path=Path(path);path.parent.mkdir(parents=True,exist_ok=True);temporary=None
     conn.set_session(readonly=True,isolation_level='REPEATABLE READ',autocommit=False)
-    totals=Counter();states=Counter();digest=hashlib.sha256()
+    totals=Counter();states=Counter();digest=hashlib.sha256();worklist=[];coverage=Counter();flag_counts=Counter()
     try:
         with conn.cursor() as cur:
             cur.execute("SET LOCAL statement_timeout='45s'")
@@ -34,9 +34,26 @@ def preview(conn,path):
                 for row,version in cur:
                     after=room_count_store.proposal(row)
                     record=dict(id=row['id'],source=row['source'],external_id=row['external_id'],url=row['url'],title=row['title'],
+                        listing_status=row.get('listing_status'),property_type=row.get('property_type'),
+                        property_category=row.get('property_category'),property_asset_scope=row.get('property_asset_scope'),
                         row_version=version,source_hash=room_counts.source_hash(row),before=_before(row),after=after)
                     line=json.dumps(record,sort_keys=True,ensure_ascii=False)+'\n';file.write(line);digest.update(line.encode())
                     totals['scanned']+=1
+                    data=after['room_count_data'];flags=data['review_flags']
+                    flag_counts.update({f['code'] for f in flags})
+                    for field in ('bedrooms','bathrooms'):
+                        coverage[(row['source'],row.get('property_category'),row.get('listing_status'),field,data[field]['status'])]+=1
+                    if flags or any(data[f]['status'] not in {'KNOWN','NOT_APPLICABLE'} for f in ('bedrooms','bathrooms')):
+                        worklist.append(dict(listing_id=row['id'],source=row['source'],url=row['url'],title=row['title'],
+                            listing_status=row.get('listing_status'),property_type=row.get('property_type'),
+                            property_category=row.get('property_category'),asset_scope=row.get('property_asset_scope'),
+                            priority=data['review_priority'],bedrooms=after['bedrooms'],bathrooms=after['bathrooms'],
+                            bedrooms_status=data['bedrooms']['status'],bathrooms_status=data['bathrooms']['status'],
+                            bedroom_candidate=data['bedrooms']['value'],bathroom_candidate=data['bathrooms']['value'],
+                            flags=json.dumps(flags,sort_keys=True),source_hash=record['source_hash'],
+                            next_action='Verify flagged values and their asset/unit basis on the primary page.' if flags else
+                                'Recover separate labelled primary room metrics; retain existing numbers when evidence is absent.',
+                            review_result='',review_evidence='',review_note=''))
                     for field in ('bedrooms','bathrooms'):
                         totals[field+'_changed']+=row.get(field)!=after[field]
                         totals[field+'_existing_changed']+=row.get(field) is not None and row.get(field)!=after[field]
@@ -47,7 +64,18 @@ def preview(conn,path):
         conn.rollback();temporary.replace(path);temporary=None
         summary=dict(report_kind='property_room_repair',read_only=True,apply_compatible=compatible,rule_version=room_counts.VERSION,
             snapshot_at=str(snapshot),code_sha256=fingerprint(),report_sha256=digest.hexdigest(),
-            database_fingerprint=database_fingerprint(conn),counts=dict(totals),states=dict(states))
+            database_fingerprint=database_fingerprint(conn),counts=dict(totals),states=dict(states),
+            flagged_listings=sum(bool(json.loads(r['flags'])) for r in worklist),
+            flag_counts=dict(flag_counts),coverage=[dict(source=k[0],category=k[1],listing_status=k[2],field=k[3],status=k[4],count=v)
+                for k,v in sorted(coverage.items(),key=lambda x:str(x[0]))])
+        worklist_path=path.with_suffix('.review.csv')
+        with tempfile.NamedTemporaryFile(mode='w',encoding='utf8',dir=path.parent,delete=False,newline='') as file:
+            temporary=Path(file.name)
+            fields=list(worklist[0]) if worklist else ['listing_id','priority','flags','review_result','review_evidence','review_note']
+            writer=csv.DictWriter(file,fieldnames=fields);writer.writeheader()
+            writer.writerows(sorted(worklist,key=lambda r:(r['priority'],r['listing_id'])))
+        temporary.replace(worklist_path);temporary=None
+        summary['worklist']=dict(path=str(worklist_path),rows=len(worklist),sha256=hashlib.sha256(worklist_path.read_bytes()).hexdigest())
         with tempfile.NamedTemporaryFile(mode='w',encoding='utf8',dir=path.parent,delete=False) as file:
             temporary=Path(file.name);file.write(json.dumps(summary,indent=2,sort_keys=True)+'\n')
         temporary.replace(path.with_suffix('.summary.json'));temporary=None

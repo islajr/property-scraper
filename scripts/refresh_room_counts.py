@@ -44,10 +44,18 @@ def primary_observation(parser,row,robots):
 def main(argv=None):
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--output',required=True,type=Path)
     p.add_argument('--source',choices=sorted(PARSERS));p.add_argument('--after-id',type=int,default=0)
-    p.add_argument('--limit',type=int,default=25);p.add_argument('--apply',action='store_true');args=p.parse_args(argv)
+    p.add_argument('--limit',type=int,default=25);p.add_argument('--apply',action='store_true')
+    p.add_argument('--ids',help='Comma-separated listing IDs from the prioritized worksheet')
+    p.add_argument('--field',choices=('bedrooms','bathrooms','either'),default='either');args=p.parse_args(argv)
     os.umask(0o077)
     if args.output.exists():p.error('Use a new output path; completed recovery reports are never overwritten')
     if not 1<=args.limit<=250 or args.after_id<0:p.error('Use --limit 1..250 and a nonnegative --after-id')
+    ids=()
+    if args.ids:
+        try:
+            ids=tuple(sorted(set(int(i) for i in args.ids.split(','))))
+            if not ids or len(ids)>250 or min(ids)<1:raise ValueError
+        except ValueError:p.error('--ids requires 1..250 positive listing IDs')
     from dotenv import load_dotenv
     import psycopg2
     import requests
@@ -63,21 +71,30 @@ def main(argv=None):
             if args.apply:
                 c.execute("SELECT to_regclass('raw_data.current_property_rooms') IS NOT NULL")
                 if not c.fetchone()[0]:raise ValueError('Apply the room migration before enabling writes')
-            conditions=["s.id>%s","s.listing_status='ACTIVE'","s.property_category='RESIDENTIAL'",
-                "coalesce(to_jsonb(s)->'room_count_data'->'bathrooms'->>'status','PENDING') NOT IN ('KNOWN','NOT_APPLICABLE')"]
+            conditions=["s.id>%s","s.listing_status='ACTIVE'"]
             params=[args.after_id]
+            if ids:conditions.append('s.id=ANY(%s)');params.append(list(ids))
+            else:
+                fields=('bedrooms','bathrooms') if args.field=='either' else (args.field,)
+                conditions.append('('+' OR '.join("coalesce(to_jsonb(s)->'room_count_data'->'%s'->>'status','PENDING') NOT IN ('KNOWN','NOT_APPLICABLE')" % field for field in fields)+')')
             if args.source:conditions.append('s.source=%s');params.append(args.source)
             params.append(args.limit)
             c.execute('SELECT row_to_json(s),xmin::text FROM raw_data.scraped_listings s WHERE '+' AND '.join(conditions)+' ORDER BY id LIMIT %s',params)
             targets=c.fetchall()
         conn.rollback();conn.set_session(readonly=not args.apply)
         report=dict(run_id=str(uuid4()),database_fingerprint=database_fingerprint(conn),apply=args.apply,
-            observed_at=datetime.now(timezone.utc).isoformat(),rows=[],next_after_id=args.after_id)
+            observed_at=datetime.now(timezone.utc).isoformat(),rows=[],next_after_id=args.after_id,
+            selection=dict(ids=list(ids),field=args.field,source=args.source,limit=args.limit),summary={})
+        from collections import Counter
+        from scraper.room_count_store import proposal
+        metrics=Counter()
         parsers={};policies={}
         # Use the same lock directory as production when running from a worktree.
         with recovery_traffic():
             for row,version in targets:
                 source=row['source'];entry=dict(listing_id=row['id'],source=source,url=row['url'])
+                before=proposal(row)
+                entry['before']={f:dict(value=row.get(f),status=before['room_count_data'][f]['status']) for f in ('bedrooms','bathrooms')}
                 report['next_after_id']=row['id']
                 if source not in PARSERS:entry['outcome']='UNSUPPORTED_SOURCE';report['rows'].append(entry);continue
                 if source not in parsers:
@@ -97,6 +114,15 @@ def main(argv=None):
                     if observed:
                         entry.update(raw_bedrooms=observed.raw_bedrooms,raw_bathrooms=observed.raw_bathrooms,
                             metric_sources=observed.room_metric_sources)
+                        after=proposal(row,listing=observed,previous=row)
+                        entry['after']={f:dict(value=after[f],status=after['room_count_data'][f]['status'],
+                            storage_action=after['room_count_data'][f]['storage_action']) for f in ('bedrooms','bathrooms')}
+                        for field in ('bedrooms','bathrooms'):
+                            if after['room_count_data'][field]['status']=='KNOWN':
+                                metrics[field+'_supported_observations']+=1
+                                if before['room_count_data'][field]['status']!='KNOWN':metrics[field+'_newly_supported']+=1
+                            metrics[field+'_proposed_corrections']+=row.get(field) is not None and after[field]!=row.get(field)
+                            metrics[field+'_proposed_fills']+=row.get(field) is None and after[field] is not None
                         if args.apply:
                             with conn.cursor() as c:
                                 c.execute("SET LOCAL lock_timeout='3s'")
@@ -105,9 +131,10 @@ def main(argv=None):
                                 else:entry['repair']=persist(c,row['id'],run_id=report['run_id'],listing=observed,previous=row)
                             conn.commit()
                         else:
-                            from scraper.room_count_store import proposal
-                            entry['proposal']=proposal(row,listing=observed,previous=row)
+                            entry['proposal']=after
                 report['rows'].append(entry)
+                metrics['attempted']+=1;metrics['outcome:'+entry['outcome']]+=1
+                report['summary']=dict(metrics)
                 # Keep completed per-row outcomes durable even if later requests fail.
                 args.output.parent.mkdir(parents=True,exist_ok=True)
                 with tempfile.NamedTemporaryFile(mode='w',encoding='utf8',dir=args.output.parent,delete=False) as file:

@@ -58,3 +58,31 @@ def test_missing_value_can_be_filled_from_explicit_evidence_without_replacing_ot
     assert (after['bedrooms'],after['bathrooms'])==(3,3)
     assert after['room_count_data']['bedrooms']['storage_action']=='FILLED_FROM_EVIDENCE'
     assert after['room_count_data']['bathrooms']['status']=='UNVERIFIED'
+
+
+@pytest.mark.parametrize('bedrooms,bathrooms,code',[
+    (1234,123,'POSSIBLE_CONCATENATED_DIGITS'),(100,2,'ROOM_COUNT_100_PLUS'),
+    (24,2,'ROOM_COUNT_OVER_20'),(-1,2,'NEGATIVE_ROOM_COUNT'),(0,2,'ZERO_REQUIRES_CONTEXT'),
+    (1,12,'UNUSUAL_ROOM_RATIO'),
+])
+def test_eccentric_stored_counts_get_explicit_review_flags_without_being_changed(bedrooms,bathrooms,code):
+    before=row();before.update(bedrooms=bedrooms,bathrooms=bathrooms)
+    after=proposal(before)
+    assert (after['bedrooms'],after['bathrooms'])==(bedrooms,bathrooms)
+    assert code in {f['code'] for f in after['room_count_data']['review_flags']}
+    assert after['room_count_data']['review_priority']<3
+
+
+def test_large_hotel_count_is_reviewed_in_whole_asset_context_and_not_declared_wrong():
+    before=row();before.update(title='120 bedroom hotel',bedrooms=120,bathrooms=120,
+        property_type='HOTEL',property_category='COMMERCIAL',property_asset_scope='WHOLE_BUILDING')
+    after=proposal(before)
+    assert after['bedrooms']==120
+    assert after['room_count_data']['review_priority']==0
+    assert all(f['asset_context']=='WHOLE_ASSET_OR_MULTIPLE_UNITS' for f in after['room_count_data']['review_flags'])
+
+
+def test_equal_ordinary_counts_are_not_an_outlier_flag():
+    after=proposal(row())
+    assert after['room_count_data']['review_flags']==[]
+    assert after['room_count_data']['review_priority']==3
