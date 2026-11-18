@@ -78,19 +78,25 @@ LEFT JOIN raw_data.current_property_facts f ON f.listing_id=s.id;
 
 CREATE OR REPLACE VIEW raw_data.property_review_queue AS
 SELECT listing_id,source,external_id,url,property_type,property_type_status,
- CASE WHEN NOT contract_current THEN 0 WHEN property_type_status<>'CLASSIFIED' THEN 1
+ CASE WHEN jsonb_array_length(coalesce(room_count_evidence->'review_flags','[]'::jsonb))>0 THEN 0
+      WHEN NOT contract_current THEN 0 WHEN property_type_status<>'CLASSIFIED' THEN 1
       WHEN multiple_offers THEN 2 WHEN jsonb_array_length(coalesce(review_questions,'[]'::jsonb))>0 THEN 3
       ELSE 4 END AS priority,
- CASE WHEN NOT contract_current THEN 'Refresh assessment using current rules and saved source.'
+ CASE WHEN jsonb_array_length(coalesce(room_count_evidence->'review_flags','[]'::jsonb))>0
+      THEN 'Verify the flagged room counts and their asset/unit basis on the primary page; preserve values until evidence supports a correction.'
+      WHEN NOT contract_current THEN 'Refresh assessment using current rules and saved source.'
       WHEN property_type_status='AMBIGUOUS' THEN 'Review conflicting asset claims; verify the primary offered asset on the portal.'
       WHEN property_type_status='UNSUPPORTED' THEN 'Review the source label for a vocabulary addition or supported alias.'
       WHEN property_type_status<>'CLASSIFIED' THEN 'Revisit the detail page; inspect breadcrumb, description and images for asset identity.'
       WHEN multiple_offers THEN 'Separate the offers; confirm each price, period, asset and ownership basis.'
       ELSE 'Review the attached count and source questions; record evidence before accepting a quantity.' END AS next_action,
- review_questions,count_questions,count_claims,bedrooms_status,bathrooms_status,room_count_evidence
+ review_questions,count_questions,count_claims,bedrooms_status,bathrooms_status,room_count_evidence,
+ coalesce(room_count_evidence->'review_flags','[]'::jsonb) AS room_review_flags,
+ (room_count_evidence->>'review_priority')::integer AS room_review_priority
 FROM raw_data.property_research_current
 WHERE NOT contract_current OR property_type_status<>'CLASSIFIED' OR multiple_offers
  OR jsonb_array_length(coalesce(review_questions,'[]'::jsonb))>0
  OR jsonb_array_length(count_questions)>0
- OR bedrooms_status NOT IN ('KNOWN','NOT_APPLICABLE') OR bathrooms_status NOT IN ('KNOWN','NOT_APPLICABLE');
+ OR bedrooms_status NOT IN ('KNOWN','NOT_APPLICABLE') OR bathrooms_status NOT IN ('KNOWN','NOT_APPLICABLE')
+ OR jsonb_array_length(coalesce(room_count_evidence->'review_flags','[]'::jsonb))>0;
 COMMIT;

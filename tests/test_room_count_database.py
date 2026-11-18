@@ -68,6 +68,12 @@ def test_repair_is_reviewed_bounded_idempotent_and_preserves_unrelated_data(pric
     db=pricing_writer;item,before=historical(db);db.conn.rollback();path=tmp_path/'repair.jsonl'
     summary=preview(db.conn,path);artifact=load_preview(path);run=uuid4();ids=(before['id'],)
     assert summary['read_only']
+    import csv,hashlib
+    worklist=Path(summary['worklist']['path'])
+    assert hashlib.sha256(worklist.read_bytes()).hexdigest()==summary['worklist']['sha256']
+    review=next(r for r in csv.DictReader(worklist.open()) if int(r['listing_id'])==before['id'])
+    assert review['priority']=='0' and 'ROOM_COUNT_100_PLUS' in review['flags']
+    assert review['bedrooms']=='1234' and review['bathrooms']=='123'
     assert apply_batch(db.conn,*artifact,run,ids=ids)['outcomes']=={'ELIGIBLE':1}
     assert get_row(db,item.external_id)==before;db.conn.rollback()
     assert apply_batch(db.conn,*artifact,run,write=True,ids=ids)['outcomes']=={'APPLIED':1}
@@ -77,6 +83,11 @@ def test_repair_is_reviewed_bounded_idempotent_and_preserves_unrelated_data(pric
     assert after['room_count_data']['bedrooms']['value']==3
     assert after['room_count_data']['bathrooms']['status']=='UNVERIFIED'
     assert after['room_count_legacy']==dict(bedrooms=1234,bathrooms=123)
+    with db.conn.cursor() as c:
+        c.execute('SELECT room_review_flags,next_action FROM raw_data.property_review_queue WHERE listing_id=%s',(before['id'],))
+        flags,action=c.fetchone()
+        assert any(f['code']=='ROOM_COUNT_100_PLUS' for f in flags) and 'flagged room' in action
+    db.conn.rollback()
     assert {k:v for k,v in before.items() if k not in FIELDS}=={k:v for k,v in after.items() if k not in FIELDS}
     assert apply_batch(db.conn,*artifact,run,write=True,ids=ids)['attempted']==0
     with pytest.raises(ReviewError):apply_batch(db.conn,*artifact,run,write=True)
@@ -113,6 +124,31 @@ def test_fresh_primary_metrics_correct_preserved_numbers_but_missing_fields_do_n
     row=get_row(db,item.external_id)
     assert (row['bedrooms'],row['bathrooms'])==(3,2)
     assert row['room_count_data']['bathrooms']['status']=='UNVERIFIED'
+
+
+def test_recovery_targets_missing_bedrooms_even_when_bathrooms_are_supported(pricing_writer,tmp_path,monkeypatch):
+    import json,os
+    from contextlib import nullcontext
+    from types import SimpleNamespace
+    from scripts import refresh_room_counts as refresh
+    db=pricing_writer;source='room-test-'+uuid4().hex
+    item=listing(source=source,title='Flat for rent',description='A flat.',raw_bedrooms=None,raw_bathrooms='2 Bathrooms')
+    db.upsert([item],{});before=get_row(db,item.external_id);db.conn.rollback()
+    assert before['bedrooms'] is None and before['room_count_data']['bathrooms']['status']=='KNOWN'
+    observed=listing(source=source,title='Flat for rent',description='A flat.',raw_bedrooms='3 Bedrooms',raw_bathrooms='2 Bathrooms')
+    parser=SimpleNamespace(base_url='https://example.com',session=SimpleNamespace(get=lambda *a,**k:SimpleNamespace(status_code=404)))
+    monkeypatch.setattr(refresh,'PARSERS',{source:lambda *a,**k:parser})
+    monkeypatch.setattr(refresh,'recovery_traffic',nullcontext)
+    monkeypatch.setattr(refresh.time,'sleep',lambda *a:None)
+    monkeypatch.setattr(refresh,'primary_observation',lambda *a:(observed,'OBSERVED'))
+    monkeypatch.setenv('DATABASE_URL',os.environ['TEST_DATABASE_URL'])
+    output=tmp_path/'recovery.json'
+    assert refresh.main(['--source',source,'--limit','1','--output',str(output)])==0
+    report=json.loads(output.read_text())
+    assert report['rows'][0]['listing_id']==before['id']
+    assert report['summary']['bedrooms_newly_supported']==1
+    assert report['summary']['bedrooms_proposed_fills']==1
+    assert get_row(db,item.external_id)==before  # Default recovery is observation-only.
 
 
 @pytest.mark.parametrize('later_edit',[False,True])

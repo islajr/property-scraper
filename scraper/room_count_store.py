@@ -34,6 +34,10 @@ def proposal(before,*,listing=None,previous=None):
             decision['warnings']=sorted(set(decision['warnings']+[
                 'stored_number_differs_from_supported_claim' if candidate is not None and stored[field]!=candidate
                 else 'stored_number_lacks_unambiguous_support']))
+    assessment['review_flags']=room_counts.review_flags(row,assessment)
+    assessment['review_priority']=min((f['priority'] for f in assessment['review_flags']),default=
+        3 if any(assessment[f]['status']=='UNVERIFIED' for f in ('bedrooms','bathrooms')) else
+        4 if any(assessment[f]['status'] not in {'KNOWN','NOT_APPLICABLE'} for f in ('bedrooms','bathrooms')) else 5)
     legacy=before.get('room_count_legacy')
     if legacy is None:
         origin=previous if previous is not None else before if listing is None else {}

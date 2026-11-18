@@ -37,6 +37,33 @@ def _number(value):
     return int(value) if value.isdigit() else _WORDS[value.lower()]
 
 
+def review_flags(row,assessment):
+    """Review triggers, never proof of error or authorization to change a value."""
+    flags=[]
+    context=('WHOLE_ASSET_OR_MULTIPLE_UNITS' if row.get('property_asset_scope') in
+             {'WHOLE_BUILDING','MULTIPLE_UNITS'} else row.get('property_asset_scope') or 'UNRESOLVED')
+    def add(field,code,value,priority):
+        flags.append(dict(field=field,code=code,value=value,priority=priority,asset_context=context))
+    for field in ('bedrooms','bathrooms'):
+        value=assessment[field]['stored_value']
+        if value is not None:
+            if value<0:add(field,'NEGATIVE_ROOM_COUNT',value,0)
+            if value>=100:add(field,'ROOM_COUNT_100_PLUS',value,0)
+            elif value>20:add(field,'ROOM_COUNT_OVER_20',value,1)
+            if value in {123,1234}:add(field,'POSSIBLE_CONCATENATED_DIGITS',value,0)
+            if value==0 and assessment[field]['status']!='KNOWN':add(field,'ZERO_REQUIRES_CONTEXT',value,1)
+            if value>0 and row.get('property_category')=='LAND':add(field,'ROOM_COUNT_ON_LAND',value,1)
+        if assessment[field]['status']=='UNVERIFIED' and (
+            assessment[field]['evidence_status'] in {'AMBIGUOUS','MIXED_LAYOUT'} or
+            assessment[field]['value'] is not None and assessment[field]['value']!=value):
+            add(field,'STORED_SOURCE_CONFLICT',value,2)
+    bed,bath=(assessment[f]['stored_value'] for f in ('bedrooms','bathrooms'))
+    if row.get('property_asset_scope')=='UNIT' and row.get('property_category')=='RESIDENTIAL' and bed and bath and min(bed,bath)>0:
+        if max(bed,bath)>=10 and max(bed,bath)>5*min(bed,bath):
+            add('bedrooms/bathrooms','UNUSUAL_ROOM_RATIO',dict(bedrooms=bed,bathrooms=bath),1)
+    return sorted(flags,key=lambda f:(f['priority'],f['field'],f['code']))
+
+
 def _basis(row,context=''):
     if re.search(r'\b(?:per\s+(?:unit|flat|apartment|dwelling)|each\s+(?:flat|apartment|dwelling|unit))\b',context,re.I):
         return 'PER_DWELLING'
