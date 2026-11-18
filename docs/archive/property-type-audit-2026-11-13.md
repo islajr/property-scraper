@@ -5,8 +5,8 @@ the current classifier. No classifications, schema, or lifecycle data were
 changed. Counts include active and removed listings. The last recorded discovery
 observation was 7 November 2026; this report does not imply a fresh portal visit.
 
-The [taxonomy proposal](property-type-taxonomy.md) defines the recommended
-contract. [The inventory SQL](../scripts/audit_property_types.sql) can repeat the
+The [taxonomy proposal](../property-type-taxonomy.md) defines the recommended
+contract. [The inventory SQL](../../scripts/audit_property_types.sql) can repeat the
 counts and bounded examples using a consistent, read-only database transaction.
 Its vocabulary list deliberately describes the old classifier, so future runs
 can still measure the legacy contract rather than silently move the baseline.

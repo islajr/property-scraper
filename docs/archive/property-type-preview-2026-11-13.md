@@ -7,7 +7,7 @@ removed, from all three enabled portals. No migrations, classification updates,
 or portal visits were performed against production.
 
 These are proposed rule-based decisions from saved evidence, not a completed
-backfill or a measured accuracy rate. The [rollout guide](property-types.md)
+backfill or a measured accuracy rate. The [rollout guide](../property-types.md)
 describes the classifier, limitations, preview command, and next migration steps.
 
 ## Proposed states
