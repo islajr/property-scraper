@@ -1,0 +1,60 @@
+"""Preservation and correction are separate from evidence extraction."""
+from types import SimpleNamespace
+import pytest
+from scraper.room_count_store import proposal
+
+
+def row(**overrides):
+    return dict(source='test',external_id='1',title='3 bedroom flat',description=None,
+        property_type_raw=None,property_type='FLAT_APARTMENT',property_asset_scope='UNIT',
+        property_category='RESIDENTIAL',property_type_family='APARTMENT',bedrooms=3,bathrooms=3,
+        raw_bedrooms=None,raw_bathrooms=None,room_metric_sources={},**overrides)
+
+
+@pytest.mark.parametrize('title,category,bedrooms,bathrooms',[
+    ('3 bedroom flat','RESIDENTIAL',3,3),
+    ('3 bedroom flat','RESIDENTIAL',1234,123),
+    ('2 or 3 bedroom flats','RESIDENTIAL',2,4),
+    ('500sqm land','LAND',1234,123),
+    ('62 bedroom hotel','COMMERCIAL',62,65),
+])
+def test_backfill_never_replaces_or_clears_an_existing_number(title,category,bedrooms,bathrooms):
+    before=row();before.update(title=title,property_category=category,bedrooms=bedrooms,bathrooms=bathrooms)
+    after=proposal(before)
+    assert (after['bedrooms'],after['bathrooms'])==(bedrooms,bathrooms)
+    for field in ('bedrooms','bathrooms'):
+        assert after['room_count_data'][field]['stored_value']==before[field]
+        assert after['room_count_data'][field]['storage_action']=='PRESERVED'
+
+
+def test_unlabelled_new_numbers_cannot_replace_existing_values():
+    before=row()
+    observed=SimpleNamespace(raw_bedrooms='3',raw_bathrooms='5',room_metric_sources={})
+    after=proposal(before,listing=observed)
+    assert (after['bedrooms'],after['bathrooms'])==(3,3)
+    assert after['room_count_data']['bathrooms']['status']=='UNVERIFIED'
+
+
+def test_a_clear_primary_metric_corrects_only_its_own_field():
+    before=row()
+    observed=SimpleNamespace(raw_bedrooms=None,raw_bathrooms='5',room_metric_sources={'bathrooms':'PRIMARY_LABEL'})
+    after=proposal(before,listing=observed)
+    assert (after['bedrooms'],after['bathrooms'])==(3,5)
+    assert after['room_count_data']['bathrooms']['storage_action']=='CORRECTED_FROM_PRIMARY_METRIC'
+    assert after['room_count_data']['bedrooms']['storage_action']=='PRESERVED'
+
+
+def test_conflicting_new_metrics_cannot_overwrite_existing_values():
+    before=row()
+    observed=SimpleNamespace(raw_bedrooms='4 Bedrooms',raw_bathrooms='2 Baths | 5 Baths',room_metric_sources={})
+    after=proposal(before,listing=observed)
+    assert (after['bedrooms'],after['bathrooms'])==(3,3)
+    assert all(after['room_count_data'][field]['status']=='UNVERIFIED' for field in ('bedrooms','bathrooms'))
+
+
+def test_missing_value_can_be_filled_from_explicit_evidence_without_replacing_other_numbers():
+    before=row();before.update(bedrooms=None)
+    after=proposal(before)
+    assert (after['bedrooms'],after['bathrooms'])==(3,3)
+    assert after['room_count_data']['bedrooms']['storage_action']=='FILLED_FROM_EVIDENCE'
+    assert after['room_count_data']['bathrooms']['status']=='UNVERIFIED'

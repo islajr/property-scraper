@@ -12,11 +12,33 @@ def proposal(before,*,listing=None,previous=None):
         row.update(raw_bedrooms=getattr(listing,'raw_bedrooms',None),raw_bathrooms=getattr(listing,'raw_bathrooms',None),
             room_metric_sources=getattr(listing,'room_metric_sources',{}) or {})
     assessment=room_counts.assess(row)
+    stored={}
+    for field in ('bedrooms','bathrooms'):
+        decision=assessment[field]
+        existing=before.get(field)
+        candidate=decision['value']
+        # Historic parser output is neither proof of correctness nor proof of
+        # error. Only a fresh, unambiguous labelled metric may replace a number.
+        primary=[c for c in decision['claims'] if c['reason'] in
+                 {'labelled_primary_metric','consistent_primary_widgets'} and c['usable']]
+        fresh_metric=listing is not None and decision['status']=='KNOWN' and any(
+            c['value']==candidate for c in primary)
+        stored[field]=candidate if existing is None or fresh_metric else existing
+        decision['evidence_status']=decision['status']
+        decision['stored_value']=stored[field]
+        decision['storage_action']=('FILLED_FROM_EVIDENCE' if existing is None and candidate is not None else
+            'CORRECTED_FROM_PRIMARY_METRIC' if stored[field]!=existing else 'PRESERVED')
+        if stored[field] is not None and (decision['status']!='KNOWN' or stored[field]!=candidate):
+            decision['status']='UNVERIFIED'
+            decision['next_action']='Preserve the stored number; obtain a labelled primary metric and reconcile conflicting source claims before correcting it.'
+            decision['warnings']=sorted(set(decision['warnings']+[
+                'stored_number_differs_from_supported_claim' if candidate is not None and stored[field]!=candidate
+                else 'stored_number_lacks_unambiguous_support']))
     legacy=before.get('room_count_legacy')
     if legacy is None:
         origin=previous if previous is not None else before if listing is None else {}
         legacy={k:origin.get(k) for k in ('bedrooms','bathrooms')}
-    return dict(bedrooms=assessment['bedrooms']['value'],bathrooms=assessment['bathrooms']['value'],
+    return dict(**stored,
         raw_bedrooms=row.get('raw_bedrooms'),raw_bathrooms=row.get('raw_bathrooms'),
         room_metric_sources=row.get('room_metric_sources') or {},room_count_data=assessment,room_count_legacy=legacy)
 
