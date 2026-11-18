@@ -91,7 +91,7 @@ parser does not automatically repair all old rows.
 ### 2. Normalisation interprets raw strings
 
 [normaliser.py](scraper/normaliser.py) creates a `NormalisedListing`. It calls the
-pricing, property-type and room assessors rather than treating every field as an
+pricing, property-type, room and area assessors rather than treating every field as an
 isolated integer conversion. It also normalizes neighbourhood labels, infers a
 city from text and detects the diaspora-marketing flag.
 
@@ -102,6 +102,36 @@ amount is insufficient to compare a monthly flat, a daily short let and a sale.
 `neighbourhood` is the resulting name. `neighbourhood_normalised` is a boolean
 saying whether it matched the canonical vocabulary; it is not another name field.
 Unknown values remain explicit. An unknown quantity does not become one or zero.
+
+### Area quantities need their own interpretation
+
+[area_measurements.py](scraper/area_measurements.py) reads titles, descriptions and
+labelled fields collected by [area_metrics.py](scraper/parsers/area_metrics.py).
+“House on 600 sqm, floor area 250 sqm” produces two quantities with different roles.
+“500 sqm apartment” retains a size claim with an unspecified role. It does not
+silently become a 500 sqm floor. A generic portal **Size** widget is handled the
+same way. Old checkpoints with the previous page-wide Size selector are retained
+as unscoped evidence, not trusted floor fields.
+
+Square feet, hectares and international acres convert to sqm. Claims retain the
+original text, amount, unit, conversion, basis and approximate wording. Plots have
+no assumed conversion. Rates, ranges, bounds, conflicting values, ancillary-feature
+sizes and unclear per-unit/shared-site claims stay available with review reasons.
+The extractor is deliberately bounded; absence of a supported scalar does not
+mean the advert contains no clues. Unsupported spellings and formats need review.
+
+[area_store.py](scraper/area_store.py) fills missing supported land/floor fields and
+preserves existing non-null areas. It keeps a first legacy snapshot and an audit
+in the existing fact-assessment table. A new advert that contradicts an old area
+marks it unverified; it does not overwrite it. Legacy sqft conversion differences
+within 0.10 sqm are tolerated when matching an existing value. The original claim
+still carries the exact conversion and the stored scalar uses two decimal places.
+
+After migration 015, use `research.properties.supported_floor_area_sqm` and
+`supported_land_area_sqm`, together with their statuses and `area_evidence`.
+The `stored_*` fields retain unsupported numbers. `research.area_measurements`
+exposes individual claims, including held ones: `claim_usable` alone does not
+resolve a conflict between claims. Check the final field status as well.
 
 ### 3. Geocoding supplies an approximate area location
 
@@ -258,6 +288,7 @@ After installation, everyday entry points are:
 | `research.properties` | Read one row per listing, interpretations, retained counts, source text and location |
 | `research.review_queue` | Investigate outstanding questions and explicit room flags |
 | `research.room_count_coverage` | Measure support and gaps by field, portal, category and lifecycle |
+| `research.area_measurements` | Inspect each size claim, its land/floor role, units, scope and held reasons |
 
 The 17 physical tables have different jobs. `scraped_listings` is current state.
 Vocabulary tables constrain canonical forms. Count assessments/observations/
@@ -473,11 +504,11 @@ These are recommendations, not claims that the work is already implemented.
    evidence. Keep uncertain links reversible. Never merge adverts merely because
    their titles, bedroom counts or neighbourhoods match; blocks and units complicate
    identity. Keep asking-price history separate from physical-property history.
-7. **Separate area roles and quote bases.** Existing `floor_area_sqm` extraction is
-   narrow and does not establish that every number is floor area. The requested
-   text/primary-field sqm work must retain land, floor and unspecified-size claims,
-   their units and conflicts. A price per sqm is not a property size. Do not assume
-   a universal sqm size for an unspecified plot.
+7. **Expand area evidence carefully.** The area assessor now separates land, floor
+   and unspecified claims from titles, descriptions and labelled primary fields.
+   Next, extend portal fixtures and review held claims before supporting further
+   wording or unit conventions. A price per sqm is not a property size. Never
+   assume a universal sqm size for an unspecified plot.
 8. **Profile storage and queries before adding infrastructure.** Keep one current
    listing store with indexed identities and append-only evidence. Audit/history
    retention needs a deliberate policy. Use EXPLAIN on actual consumer queries;

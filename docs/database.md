@@ -10,13 +10,14 @@ and `raw_data.property_review_queue`. Migration 014 adds three consumer views in
 `research`, describes the operational objects with database comments, and leaves
 the 17 physical tables in place. It does not grant anonymous access or move data.
 
-## The three everyday readers
+## The everyday readers
 
 | Object | What you get |
 | --- | --- |
 | `research.properties` | One row per portal listing: current interpretations, retained stored rooms, source text, pricing and location |
 | `research.review_queue` | Classification, offer, quantity and room questions, with flags and next actions |
 | `research.room_count_coverage` | Separate bedroom/bathroom evidence coverage by source, category, lifecycle and status |
+| `research.area_measurements` (015) | Individual current size claims, including held evidence and land/floor/scope distinctions |
 
 The properties view preserves the `property-research-v2` fields and adds useful
 source/location fields. `stored_bedrooms` and `stored_bathrooms` are available even
@@ -104,6 +105,7 @@ policy, not an attempt to make the schema browser look shorter.
 | `current_property_counts` | Accepted, unrevoked quantity claims still applicable to saved source |
 | `current_property_facts` | Applicable feature/offer assessment |
 | `current_property_rooms` | Applicable room assessment; it can explicitly retain unverified numbers |
+| `current_property_areas` (015) | Applicable area assessment matching both saved source and stored area values |
 | `property_classification_coverage` | Classification coverage by portal and status |
 | `comparable_rental_prices` | Quotes meeting the existing currency/cadence/basis criteria |
 | `rental_price_summary` | Grouped current comparable rental quotes |
@@ -165,3 +167,20 @@ consumers. A schema move does not reduce table size or fix duplicate physical ad
 Numbered migrations currently replay. Migration 014 preserves later-appended
 consumer columns rather than recreating an older shape. A checksummed migration
 ledger is a separate change that must cover all runners consistently.
+
+## Working with sizes (migration 015)
+
+```sql
+SELECT listing_id, supported_floor_area_sqm, floor_area_status,
+       supported_land_area_sqm, land_area_status, area_evidence
+FROM research.properties
+WHERE listing_status = 'ACTIVE';
+```
+
+The supported columns require a current assessment and a KNOWN final field status.
+The stored columns preserve prior numbers even when unsupported. Floor and land
+are different measures; do not add them. A site size for an apartment is not the
+apartment's floor area. Individual claim rows can be usable while the final field
+is ambiguous because another claim disagrees. Exact conversions remain in claim
+JSON; scalar storage rounds to two decimal places. These are advertised claims,
+not surveyed measurements.
