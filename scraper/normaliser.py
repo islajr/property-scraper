@@ -25,6 +25,7 @@ import config
 from scraper.models import RawListing, NormalisedListing
 from scraper.property_types import classify
 from scraper.room_counts import assess as assess_room_counts
+from scraper.area_measurements import assess as assess_areas
 
 log = logging.getLogger(__name__)
 
@@ -73,7 +74,10 @@ def normalise(raw: RawListing) -> NormalisedListing:
         room_metric_sources=raw.room_metric_sources,**asdict(property_classification)))
     bedrooms = room_counts['bedrooms']['value']
     bathrooms = room_counts['bathrooms']['value']
-    floor_area_sqm                 = parse_floor_area_sqm(raw.raw_floor_area)
+    areas = assess_areas(dict(source=raw.source,external_id=raw.external_id,title=raw.title,
+        description=raw.description,raw_floor_area=raw.raw_floor_area,raw_area_fields=raw.raw_area_fields,
+        **asdict(property_classification)))
+    floor_area_sqm = float(areas["floor_area_sqm"]["value"]) if areas["floor_area_sqm"]["value"] is not None else None
     floor_area_source              = "PORTAL" if floor_area_sqm is not None else "NONE"
     neighbourhood, nb_normalised   = normalise_neighbourhood(raw.raw_address)
     city                           = infer_city(raw.raw_address, raw.title)
@@ -103,6 +107,8 @@ def normalise(raw: RawListing) -> NormalisedListing:
         diaspora_targeted        = diaspora,
         raw_bedrooms=raw.raw_bedrooms,raw_bathrooms=raw.raw_bathrooms,
         room_metric_sources=raw.room_metric_sources,room_counts=room_counts,
+        raw_floor_area=raw.raw_floor_area,raw_area_fields=raw.raw_area_fields,area_data=areas,
+        land_area_sqm=float(areas["land_area_sqm"]["value"]) if areas["land_area_sqm"]["value"] is not None else None,
         **asdict(property_classification),
         **asdict(terms),
     )
