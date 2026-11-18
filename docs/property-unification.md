@@ -14,6 +14,7 @@ from different portals may describe the same building.
 | property_attachment, property_asset_scope, property_land_use | Separate facets; NULL means the evidence did not establish one |
 | bedrooms_per_dwelling | Accepted exact bedroom quantity when the accepted layouts agree; NULL for mixed, conflicting or absent evidence |
 | legacy_bedrooms | The old numeric scrape, retained for compatibility; not certified by this contract |
+| count_claims | All current extracted/reviewed quantity claims with ACCEPT/HOLD/REJECT/REVOKE state, evidence and observation ID; held quantities are not certified counts |
 | counts | Accepted quantities with entity, relationship, bounds, parent, offer and evidence; never one unqualified unit_count |
 | features | Advertiser claims, including explicit negatives and private/shared/unknown scope; absence means unknown |
 | offers, multiple_offers | Source-bound reviewed offer options and a flag that the headline price cannot represent every option |

@@ -102,6 +102,8 @@ def test_uncertain_plural_assets_are_excluded_from_single_unit_price_candidates(
     with db.conn.cursor() as c:
         c.execute('SELECT external_id,single_unit_price_candidate FROM raw_data.property_research_current WHERE external_id=ANY(%s)',([one.external_id,several.external_id],))
         assert dict(c.fetchall())=={one.external_id:True,several.external_id:False}
+        c.execute('SELECT count_claims FROM raw_data.property_research_current WHERE external_id=%s',(several.external_id,))
+        assert any(o['minimum']==4 and o['review_state']=='HOLD' for o in c.fetchone()[0])
 
 
 def test_old_checkpoint_classification_is_recomputed_on_observation(pricing_writer):
