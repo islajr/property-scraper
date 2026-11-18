@@ -46,14 +46,21 @@ def _basis(row,context=''):
         return 'ASSET_OR_UNIT_UNRESOLVED'
     if row.get('property_category')=='RESIDENTIAL' and row.get('property_type_family') in {'HOUSE','DUPLEX','BUNGALOW','APARTMENT','ROOM'}:
         return 'PER_DWELLING'
-    if row.get('property_category')=='RESIDENTIAL':return 'AS_ADVERTISED'
-    return 'ASSET_OR_UNIT_UNRESOLVED'
+    return 'AS_ADVERTISED'
 
 
 def _raw_claim(row,field):
     raw=row.get('raw_'+field)
     if raw is None or not raw.strip():return None
     text=raw.strip();noun=_NOUN[field]
+    if '|' in text:
+        parts=[_raw_claim({**row,'raw_'+field:part.strip()},field) for part in text.split('|') if part.strip()]
+        good=[p for p in parts if p and p['usable']]
+        if len(good)==len(parts) and good:
+            values={p['value'] for p in good}
+            return dict(value=next(iter(values)) if len(values)==1 else None,basis=_basis(row),usable=len(values)==1,
+                reason='consistent_primary_widgets' if len(values)==1 else 'conflicting_primary_widget_values',
+                evidence=dict(source='PORTAL_FIELD',text=raw,field='raw_'+field),values=sorted(values))
     match=re.fullmatch(rf'({_NUMBER})(?:\s*(?:{noun}))?',text,re.I)
     reverse=re.fullmatch(rf'(?:{noun})\s*[:\-]?\s*({_NUMBER})',text,re.I)
     evidence=dict(source='PORTAL_FIELD',text=raw,field='raw_'+field,method=(row.get('room_metric_sources') or {}).get(field))
@@ -101,6 +108,19 @@ def assess(row):
         if raw:claims[field].append(raw)
     assessment=property_counts.assess_counts(row.get('title'),row.get('description'),source=row.get('source'),
         external_id=row.get('external_id'),raw_type=row.get('property_type_raw'))
+    # A labelled primary title can state bedrooms even when adjectives or a
+    # missing form keep the older layout extractor from establishing a parent.
+    # Singular 'bed' is accepted only with an established dwelling context;
+    # plural 'beds' can describe furniture/sleeping capacity and remains held.
+    for c in profile['candidates']:
+        harmless={'BED_SHORTHAND_REQUIRES_CONTEXT'}
+        if c['source']!='TITLE' or c['quantity']['kind']!='EXACT' or set(c['review_flags'])-harmless:continue
+        if c['entity'] not in {'BEDROOM','BEDROOM_SHORTHAND'}:continue
+        if c['entity']=='BEDROOM_SHORTHAND' and (c['noun'].lower()!='bed' or _basis(row)!='PER_DWELLING'):continue
+        value=c['quantity']['minimum']
+        claims['bedrooms'].append(dict(value=value,basis=_basis(row),usable=1<=value<=20,
+            reason='explicit_primary_title' if 1<=value<=20 else 'unusual_quantity_requires_review',
+            evidence=dict(source='TITLE',start=c['start'],end=c['end'],text=c['text'])))
     for o in assessment['observations']:
         if o['entity']=='BEDROOM' and o['relationship']=='BEDROOMS_PER_DWELLING':
             exact=o['quantity']['kind']=='EXACT'
@@ -118,6 +138,7 @@ def assess(row):
         status='KNOWN' if len(values)==1 else 'AMBIGUOUS' if len(values)>1 else 'REVIEW_REQUIRED' if items else 'UNKNOWN'
         value=next(iter(values)) if status=='KNOWN' else None
         if len(values)>1 and len(parents)>1:status='MIXED_LAYOUT'
+        if any(c['reason']=='conflicting_primary_widget_values' for c in items):status='AMBIGUOUS';value=None
         if row.get('property_category')=='LAND':status='NOT_APPLICABLE';value=None
         elif row.get('property_type')=='ROOM':status='REVIEW_REQUIRED' if items else 'UNKNOWN';value=None
         elif alternatives:status='REVIEW_REQUIRED';value=None;warnings.append('offer_basis_unresolved')
