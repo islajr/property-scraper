@@ -39,7 +39,7 @@ def _number(value):
 
 def review_flags(row,assessment):
     """Review triggers, never proof of error or authorization to change a value."""
-    flags=[]
+    flags=list(assessment.get('candidate_review_flags',[]))
     context=('WHOLE_ASSET_OR_MULTIPLE_UNITS' if row.get('property_asset_scope') in
              {'WHOLE_BUILDING','MULTIPLE_UNITS'} else row.get('property_asset_scope') or 'UNRESOLVED')
     def add(field,code,value,priority):
@@ -120,6 +120,8 @@ def _bathroom_text(row):
             # A numbered list marker is not the bathroom quantity.
             if re.search(r'(?:^|\n)\s*\d+[.)]\s*$',before):flags.append('possible_list_number')
             claims.append(dict(value=value,basis=_basis(row,before+' '+after),usable=not flags,
+                qualified_per_dwelling=bool(re.search(r'\b(?:each|every)\s+(?:flat|apartment|unit|dwelling)\s+(?:(?:has|with|contains)\s+)?$',before,re.I)
+                    or re.match(r'\s*(?:per|in\s+each)\s+(?:flat|apartment|unit|dwelling)\b',after,re.I)),
                 reason='explicit_bathroom_wording' if not flags else ','.join(flags),
                 evidence=dict(source=source,start=m.start(),end=m.end(),text=m.group(),context=before+m.group()+after)))
     return claims
@@ -169,6 +171,12 @@ def assess(row):
     alternatives=profile['offer_alternative_hint']
     review=property_reviews.matching_review(row.get('source'),row.get('external_id'),row.get('property_type_raw'),row.get('title'),row.get('description'))
     alternatives=alternatives or bool(review and review.get('multiple_offers'))
+    title_layouts={c['quantity']['minimum'] for c in profile['candidates'] if c['source']=='TITLE'
+        and c['entity'] in {'BEDROOM','BEDROOM_SHORTHAND'} and c['quantity']['kind']=='EXACT'}
+    if len(title_layouts)>1:
+        for claim in claims['bathrooms']:
+            if claim['usable'] and not claim.get('qualified_per_dwelling'):
+                claim.update(usable=False,basis='ASSET_OR_UNIT_UNRESOLVED',reason='multiple_bedroom_layouts_bathroom_basis_unresolved')
     for field,items in claims.items():
         accepted=[c for c in items if c['usable'] and c['basis'] in {'PER_DWELLING','AS_ADVERTISED'}]
         values={c['value'] for c in accepted}
@@ -186,4 +194,13 @@ def assess(row):
         result[field]=dict(value=value,status=status,basis=('PER_DWELLING' if any(c['basis']=='PER_DWELLING' for c in accepted) else 'AS_ADVERTISED') if value is not None else 'UNRESOLVED',
             claims=items,warnings=warnings,next_action=None if status in {'KNOWN','NOT_APPLICABLE'} else
             'Inspect a labelled primary detail metric or explicit per-unit wording; keep toilets, BQ, host accommodation and separate offers distinct.')
-    return dict(rule_version=VERSION,source_hash=source_hash(row),extractor_sha256=extractor_hash(),**result)
+    candidate_flags=[]
+    bed,bath=(result[f]['value'] for f in ('bedrooms','bathrooms'))
+    if row.get('property_category')=='RESIDENTIAL' and bed and bath and min(bed,bath)>0 and all(result[f]['basis']=='PER_DWELLING' for f in ('bedrooms','bathrooms')):
+        if max(bed,bath)>=10 and max(bed,bath)>5*min(bed,bath):
+            field='bedrooms' if bed>bath else 'bathrooms';decision=result[field]
+            candidate_flags.append(dict(field=field,code='UNUSUAL_PRIMARY_ROOM_RATIO',value=dict(bedrooms=bed,bathrooms=bath),priority=1,asset_context='UNIT'))
+            decision.update(proposed_value=decision['value'],value=None,status='REVIEW_REQUIRED',
+                next_action='Verify the unusual primary room ratio and its unit basis; a labelled metric alone is insufficient for automatic acceptance.')
+            decision['warnings'].append('unusual_primary_room_ratio_requires_verification')
+    return dict(rule_version=VERSION,source_hash=source_hash(row),extractor_sha256=extractor_hash(),candidate_review_flags=candidate_flags,**result)

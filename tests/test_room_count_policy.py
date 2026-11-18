@@ -86,3 +86,29 @@ def test_equal_ordinary_counts_are_not_an_outlier_flag():
     after=proposal(row())
     assert after['room_count_data']['review_flags']==[]
     assert after['room_count_data']['review_priority']==3
+
+
+def test_unusual_primary_ratio_does_not_fill_a_questionable_bathroom_count():
+    before=row();before.update(bedrooms=22,bathrooms=None,title='Luxury 2 bedroom apartment')
+    observed=SimpleNamespace(raw_bedrooms='2',raw_bathrooms='12',room_metric_sources={'bedrooms':'PRIMARY_LABEL','bathrooms':'PRIMARY_LABEL'})
+    after=proposal(before,listing=observed)
+    assert after['bedrooms']==2 and after['bathrooms'] is None
+    assert after['room_count_data']['bathrooms']['status']=='REVIEW_REQUIRED'
+    assert after['room_count_data']['bathrooms']['proposed_value']==12
+    assert any(f['code']=='UNUSUAL_PRIMARY_ROOM_RATIO' for f in after['room_count_data']['review_flags'])
+
+
+def test_mixed_layout_primary_totals_do_not_replace_a_per_unit_bathroom_count():
+    before=row();before.update(title='Brand new 5 bedroom and 4 bedroom self compound terrace duplex and BQ',bedrooms=4,bathrooms=4)
+    observed=SimpleNamespace(raw_bedrooms='9',raw_bathrooms='10',room_metric_sources={'bedrooms':'PRIMARY_LABEL','bathrooms':'PRIMARY_LABEL'})
+    after=proposal(before,listing=observed)
+    assert (after['bedrooms'],after['bathrooms'])==(4,4)
+    assert after['room_count_data']['bathrooms']['status']=='UNVERIFIED'
+    assert 'multiple_bedroom_layouts_bathroom_basis_unresolved' in after['room_count_data']['bathrooms']['warnings']
+
+
+def test_same_bathroom_count_explicitly_stated_for_each_unit_can_remain_supported():
+    before=row();before.update(title='2 bedroom and 3 bedroom flats',description='Each flat has 3 bathrooms.',bathrooms=3)
+    after=proposal(before)
+    assert after['room_count_data']['bathrooms']['status']=='KNOWN'
+    assert after['room_count_data']['bathrooms']['value']==3
