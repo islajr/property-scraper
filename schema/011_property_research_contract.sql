@@ -17,6 +17,18 @@ WITH counts AS (
  WHERE a.rule_version='property-counts-v2'
  AND a.source_hash=raw_data.property_evidence_hash(s.title,s.description,s.property_type_raw)
  ORDER BY a.listing_id,a.id DESC
+), latest_decision AS (
+ SELECT DISTINCT ON (observation_id) * FROM raw_data.property_count_decisions
+ ORDER BY observation_id,id DESC
+), claims AS (
+ SELECT a.listing_id,jsonb_agg(jsonb_build_object(
+   'observation_id',o.id,'entity',o.counted_entity,'relationship',o.relationship,
+   'kind',o.quantity_kind,'minimum',o.quantity_min,'maximum',o.quantity_max,
+   'parent_key',o.parent_key,'offer_key',o.offer_key,'evidence',o.evidence,
+   'review_state',d.decision,'rule',o.rule,'review_flags',o.review_flags)
+   ORDER BY o.ordinal) AS observations
+ FROM assessment a JOIN raw_data.property_count_observations o ON o.assessment_id=a.id
+ JOIN latest_decision d ON d.observation_id=o.id GROUP BY a.listing_id
 )
 SELECT s.id AS listing_id,s.source,s.external_id,s.url,s.title,s.listing_status,
  'property-research-v1'::text AS contract_version,
@@ -39,9 +51,10 @@ SELECT s.id AS listing_id,s.source,s.external_id,s.url,s.title,s.listing_status,
    AND s.price_kobo>0 AND s.price_currency='NGN' AND s.price_basis='PROPERTY'
    AND (s.price_type='FOR_SALE' OR s.price_period_status='KNOWN')),false) AS single_unit_price_candidate,
  f.assessed_at AS facts_assessed_at,a.assessed_at AS counts_assessed_at,
- s.last_seen_at
+ s.last_seen_at,coalesce(claims.observations,'[]'::jsonb) AS count_claims
 FROM raw_data.scraped_listings s LEFT JOIN counts c ON c.listing_id=s.id
 LEFT JOIN assessment a ON a.listing_id=s.id
+LEFT JOIN claims ON claims.listing_id=s.id
 LEFT JOIN raw_data.current_property_facts f ON f.listing_id=s.id;
 
 CREATE OR REPLACE VIEW raw_data.property_review_queue AS
@@ -55,7 +68,7 @@ SELECT listing_id,source,external_id,url,property_type,property_type_status,
       WHEN property_type_status<>'CLASSIFIED' THEN 'Revisit the detail page; inspect breadcrumb, description and images for asset identity.'
       WHEN multiple_offers THEN 'Separate the offers; confirm each price, period, asset and ownership basis.'
       ELSE 'Review the attached count and source questions; record evidence before accepting a quantity.' END AS next_action,
- review_questions,count_questions
+ review_questions,count_questions,count_claims
 FROM raw_data.property_research_current
 WHERE NOT contract_current OR property_type_status<>'CLASSIFIED' OR multiple_offers
  OR jsonb_array_length(coalesce(review_questions,'[]'::jsonb))>0
