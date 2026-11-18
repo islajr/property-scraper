@@ -23,6 +23,19 @@ def test_primary_bedroom_bathroom_and_toilet_roles_are_distinct_and_order_indepe
     assert extract_room_metrics(soup,'propertypro')[0]['bathrooms'] is None
 
 
+def test_propertypro_metrics_beside_primary_price_and_conflicting_widgets():
+    soup=BeautifulSoup('''<div class="property-pricing"><div class="property-pros"><ul>
+    <li>3 Beds</li><li>5 Baths</li><li>6 Toilets</li></ul></div></div>
+    <div class="recommendations"><div class="property-pros"><ul><li>99 Beds</li></ul></div></div>''','html.parser')
+    values,sources=extract_room_metrics(soup,'propertypro')
+    assert values==dict(bedrooms='3 Beds',bathrooms='5 Baths')
+    soup.append(BeautifulSoup('<div class="property-contact-block"><div class="property-pros"><ul><li>4 Beds</li></ul></div></div>','html.parser'))
+    values,sources=extract_room_metrics(soup,'propertypro')
+    a=assess(row(raw_bedrooms=values['bedrooms'],raw_bathrooms=values['bathrooms'],room_metric_sources=sources))
+    assert a['bedrooms']['status']=='AMBIGUOUS' and a['bedrooms']['value'] is None
+    assert a['bathrooms']['value']==5
+
+
 def test_privateproperty_svg_roles_survive_reordering_and_different_counts():
     soup=BeautifulSoup(Path('tests/fixtures/privateproperty_listing_page.html').read_text(),'html.parser')
     items=soup.select('.property-info .property-benefit>li')

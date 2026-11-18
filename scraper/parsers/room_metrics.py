@@ -20,9 +20,8 @@ def extract_room_metrics(soup, source):
         if text and text not in values[role]:values[role].append(text)
         sources[role]=basis
     if source in ('propertypro','privateproperty'):
-        scope=soup.select_one('.property-contact-block .property-pros' if source=='propertypro'
-                              else '.property-info .property-benefit')
-        if scope:
+        scopes=soup.select('.property-pricing > .property-pros, .property-contact-block > .property-pros') if source=='propertypro' else soup.select('.property-info .property-benefit')[:1]
+        for scope in scopes:
             for item in (scope.select('ul > li') or scope.find_all('li',recursive=False)):
                 text=item.get_text(' ',strip=True)
                 roles=[role for role,pattern in _LABELS.items() if pattern.search(text)]
