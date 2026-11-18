@@ -131,8 +131,9 @@ def test_healthcheck_mismatched_identity_cannot_replace_classification(pricing_w
     old = item()
     db.upsert([old], {})
     before = get_row(db, old.external_id)
-    db.confirm_listing_active(before['id'], None, observed_quote=item(title='Hotel', property_type_raw='Hotel'))
-    assert get_row(db, old.external_id)['property_type'] == before['property_type']
+    with pytest.raises(ValueError):
+        db.confirm_listing_active(before['id'], None, observed_quote=item(title='Hotel', property_type_raw='Hotel'))
+    assert get_row(db, old.external_id) == before
     assert len(audits(db, before['id'])) == 1
 
 
