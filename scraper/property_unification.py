@@ -7,13 +7,13 @@ from pathlib import Path
 import tempfile
 from uuid import UUID
 from psycopg2.extras import Json, execute_values
-from scraper import property_counts, property_facts, property_types
+from scraper import property_counts, property_facts, property_types, room_counts, room_count_store
 from scraper.classification_artifact import database_fingerprint, classifier_fingerprint, ReviewError
 
 
 def fingerprint():
     return hashlib.sha256((classifier_fingerprint()+property_counts.extractor_hash()+
-        property_facts.extractor_hash()).encode()+Path(__file__).read_bytes()).hexdigest()
+        property_facts.extractor_hash()+room_counts.extractor_hash()).encode()+Path(__file__).read_bytes()+Path(room_count_store.__file__).read_bytes()).hexdigest()
 
 
 def proposal(row):
@@ -172,6 +172,8 @@ def apply_batch(conn, summary, records, run_id, *, write=False, max_records=100,
                         execute_values(cur,'''INSERT INTO raw_data.property_classification_history
                             (listing_id,run_id,origin,old_classification,new_classification,applied_row_version) VALUES %s''',
                             [(r['id'],run_id,'BACKFILL',Json(r['previous']),Json(p['classification']),versions[r['id']]) for r,p in changed])
+                    cur.execute('SELECT row_to_json(s),xmin::text FROM raw_data.scraped_listings s WHERE id=ANY(%s) ORDER BY id',([r['id'] for r,_ in eligible],))
+                    room_count_store.persist_many(cur,cur.fetchall(),run_id=run_id)
                     _store_counts(cur,eligible,run_id)
                     execute_values(cur,'''INSERT INTO raw_data.property_fact_assessments
                         (listing_id,source_hash,extractor_sha256,rule_version,run_id,facts) VALUES %s ON CONFLICT DO NOTHING''',
@@ -240,6 +242,10 @@ def reverse_batch(conn, original_run_id, run_id, *, write=False, max_records=100
                     if facts:safe=safe and facts[1]==original_run_id
                     outcome='REVERSED' if safe else 'CONCURRENT_CHANGE'
                     if safe and write:
+                        cur.execute('SELECT id FROM raw_data.property_fact_assessments WHERE listing_id=%s AND run_id=%s AND rule_version=%s ORDER BY id DESC LIMIT 1',(lid,original_run_id,room_counts.VERSION))
+                        room_audit=cur.fetchone()
+                        if room_audit and room_count_store.reverse(cur,room_audit[0],expected_run_id=original_run_id,run_id=run_id)!='REVERSED':
+                            raise ReviewError('Room evidence changed after unified apply')
                         before=history[2]
                         values={**before,'id':lid,'property_type_evidence':Json(before['property_type_evidence'])}
                         cur.execute('UPDATE raw_data.scraped_listings SET '+','.join(f'{k}=%({k})s' for k in property_types.FIELDS)+' WHERE id=%(id)s',values)
