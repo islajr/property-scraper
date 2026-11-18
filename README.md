@@ -6,7 +6,19 @@
 
 ## Introduction
 
-**Property Scraper** is an autonomous lightweight python-based data pipeline that extracts real property listing data from public Nigerian property portals, cleans and geocodes the data, and persists them to a PostgreSQL instance on Supabase on a weekly schedule. When Telegram credentials are configured, completed runs send a summary. Discovery is scheduled weekly and health checks daily through GitHub Actions.
+**Property Scraper** is an autonomous lightweight python-based data pipeline that extracts real property listing data from public Nigerian property portals, cleans and geocodes the data, and persists them to a PostgreSQL instance on Supabase on a weekly schedule. When Telegram credentials are configured, completed runs send a summary. The GitHub workflow definitions provide weekly discovery and daily health checks; actual enabled schedules and local timers are deployment state, described in the codebase guide.
+
+## Understand the project
+
+Start with [the conversational codebase guide](CODEBASE.md), then use
+[the architecture map](ARCHITECTURE.md) and [the database dictionary](docs/database.md)
+when you need to go deeper. The guides explain source evidence, field quality,
+consumer queries, operations, recovery and the next improvements.
+
+Migration 014 adds a small `research` schema for everyday analysis. Until installed,
+use `raw_data.property_research_current` and `raw_data.property_review_queue`.
+Read field statuses and review flags; a current assessment is not a certificate
+that every stored value is verified.
 
 ---
 
