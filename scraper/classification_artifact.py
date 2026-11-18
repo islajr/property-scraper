@@ -22,7 +22,8 @@ def database_fingerprint(conn):
 
 
 def classifier_fingerprint():
-    return hashlib.sha256(Path(property_types.__file__).read_bytes()).hexdigest()
+    from scraper.property_reviews import review_fingerprint
+    return hashlib.sha256(Path(property_types.__file__).read_bytes() + review_fingerprint()).hexdigest()
 
 
 def _validate_record(record, previous_id):

@@ -18,7 +18,8 @@ from scraper.classification_artifact import database_fingerprint, classifier_fin
 def proposal(row):
     """Recover from original evidence, never the previous canonical/garbled type."""
     return asdict(classify(row.get('property_type_raw'), row.get('title'),
-                           row.get('description'), row.get('property_type_raw_source')))
+                           row.get('description'), row.get('property_type_raw_source'),
+                           source=row.get('source'), external_id=row.get('external_id')))
 
 
 def preview(conn, output, *, source=None, status=None, after_id=0, limit=None, batch_size=500):

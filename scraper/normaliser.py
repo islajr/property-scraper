@@ -66,7 +66,7 @@ def normalise(raw: RawListing) -> NormalisedListing:
     price_type                     = parse_price_type(raw.raw_price_type, raw.title, raw.description)
     terms = parse_terms(raw.raw_price_text or raw.raw_price, price_type)
     property_classification        = classify(raw.property_type_raw, raw.title, raw.description,
-                                             raw.property_type_raw_source)
+                                             raw.property_type_raw_source, source=raw.source, external_id=raw.external_id)
     bedrooms                       = parse_integer(raw.raw_bedrooms)
     bathrooms                      = parse_integer(raw.raw_bathrooms)
     floor_area_sqm                 = parse_floor_area_sqm(raw.raw_floor_area)

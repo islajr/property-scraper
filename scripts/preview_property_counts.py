@@ -22,9 +22,9 @@ def preview(conn,output):
             temporary=Path(file.name)
             with conn.cursor(name='property_count_preview') as cur:
                 cur.itersize=500
-                cur.execute('SELECT id,source,listing_status,title,description,xmin::text FROM raw_data.scraped_listings ORDER BY id')
-                for lid,source,status,title,description,row_version in cur:
-                    result=assess_counts(title,description)
+                cur.execute('SELECT id,source,listing_status,title,description,xmin::text,external_id,property_type_raw FROM raw_data.scraped_listings ORDER BY id')
+                for lid,source,status,title,description,row_version,external_id,raw_type in cur:
+                    result=assess_counts(title,description,source=source,external_id=external_id,raw_type=raw_type)
                     counts['scanned']+=1
                     counts['with_accepted_counts']+=any(o['decision']=='ACCEPT' for o in result['observations'])
                     counts['with_held_counts']+=any(o['decision']=='HOLD' for o in result['observations'])

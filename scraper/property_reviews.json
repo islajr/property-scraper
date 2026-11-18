@@ -1,0 +1,576 @@
+[
+  {
+    "case_id": "R01",
+    "source": "propertypro",
+    "external_id": "5PFSK",
+    "evidence_sha256": "6d517c31b7696df72a3854eaf00888df09829dfd12aed49631e1558ff25eddda",
+    "reviewed_at": "2026-11-18",
+    "note": "Accepted by user on 2026-11-16: apartment and room definitions and group A interpretations; implementation remains separate.",
+    "classification": {
+      "property_type": "FLAT_APARTMENT"
+    },
+    "counts": [],
+    "questions": []
+  },
+  {
+    "case_id": "R02",
+    "source": "privateproperty",
+    "external_id": "0PDJQG",
+    "evidence_sha256": "f2d1a301de559571c5a2740e54a845d3c7cace468ce2f833d4a5ebe716db0ac3",
+    "reviewed_at": "2026-11-18",
+    "note": "Accepted by user on 2026-11-16: apartment and room definitions and group A interpretations; implementation remains separate.",
+    "classification": {
+      "property_type": "MINI_FLAT"
+    },
+    "counts": [],
+    "questions": []
+  },
+  {
+    "case_id": "R03",
+    "source": "privateproperty",
+    "external_id": "0PDJQE",
+    "evidence_sha256": "5812851d050e872fb87058bfae4f47bf05129a7b855de5673724de3f451e5ef3",
+    "reviewed_at": "2026-11-18",
+    "note": "Accepted by user on 2026-11-16: apartment and room definitions and group A interpretations; implementation remains separate.",
+    "classification": {
+      "property_type": "STUDIO"
+    },
+    "counts": [],
+    "questions": []
+  },
+  {
+    "case_id": "R04",
+    "source": "propertypro",
+    "external_id": "5JPNF",
+    "evidence_sha256": "2097932b3c52ee814ae2ace4246a3799a1e94cbd65b49a6f2a1ebe3c19213ce8",
+    "reviewed_at": "2026-11-18",
+    "note": "Accepted by user on 2026-11-16: apartment and room definitions and group A interpretations; implementation remains separate.",
+    "classification": {
+      "property_type": "SELF_CONTAINED"
+    },
+    "counts": [],
+    "questions": []
+  },
+  {
+    "case_id": "R05",
+    "source": "privateproperty",
+    "external_id": "2PDJVS",
+    "evidence_sha256": "fc335faf09ed33bc1ae78f1185c50b41a575991b019a8b6efc945d9f8093e447",
+    "reviewed_at": "2026-11-18",
+    "note": "Accepted by user on 2026-11-16: apartment and room definitions and group A interpretations; implementation remains separate.",
+    "classification": {
+      "property_type": "ROOM",
+      "property_asset_scope": "UNIT"
+    },
+    "counts": [],
+    "questions": []
+  },
+  {
+    "case_id": "R06",
+    "source": "propertypro",
+    "external_id": "6PDKL",
+    "evidence_sha256": "e47cbcbb1b31f1eaa5802de38789d1e370f70f77d39ca9e6a275fcfc5dde7f32",
+    "reviewed_at": "2026-11-18",
+    "note": "Accepted by user on 2026-11-16: bounded spelling/context interpretation. Counts require explicit evidence; outstanding scope questions remain tracked. No production change applied.",
+    "classification": {
+      "property_type": "MAISONETTE",
+      "property_asset_scope": "UNIT"
+    },
+    "counts": [],
+    "questions": []
+  },
+  {
+    "case_id": "R07",
+    "source": "propertypro",
+    "external_id": "2PKCB",
+    "evidence_sha256": "a34373a33c7e709e815ad7144fc1ac0f42ad860bb1ad5ca0939c2f23bb67d424",
+    "reviewed_at": "2026-11-18",
+    "note": "2026-11-17: clear type and scope in description -- MINIFLAT ('MINIFAT' being a spelling error) and FIVE UNITS.",
+    "classification": {
+      "property_type": "MINI_FLAT",
+      "property_asset_scope": "MULTIPLE_UNITS"
+    },
+    "counts": [
+      {
+        "entity": "DWELLING_UNIT",
+        "quantity": 5,
+        "relationship": "UNRESOLVED",
+        "parent_key": null
+      }
+    ],
+    "questions": []
+  },
+  {
+    "case_id": "R08",
+    "source": "propertypro",
+    "external_id": "9PMYD",
+    "evidence_sha256": "6097f696e32e2df99376ed599fa568b4b3b5dc2ff403404ed814bb78449972d3",
+    "reviewed_at": "2026-11-18",
+    "note": "Accepted by user on 2026-11-16: bounded spelling/context interpretation. Counts require explicit evidence; outstanding scope questions remain tracked. No production change applied.",
+    "classification": {
+      "property_type": "SELF_CONTAINED"
+    },
+    "counts": [],
+    "questions": []
+  },
+  {
+    "case_id": "R09",
+    "source": "privateproperty",
+    "external_id": "9PDKCY",
+    "evidence_sha256": "4ea0dd4c1656f213e492862ab13f14c90a95c683860699bad884c7002b9047d8",
+    "reviewed_at": "2026-11-18",
+    "note": "Accepted by user on 2026-11-16: bounded spelling/context interpretation. Counts require explicit evidence; outstanding scope questions remain tracked. No production change applied.",
+    "classification": {
+      "property_type": "FLAT_APARTMENT"
+    },
+    "counts": [],
+    "questions": []
+  },
+  {
+    "case_id": "R10",
+    "source": "propertypro",
+    "external_id": "0PMYZ",
+    "evidence_sha256": "259691c503f78d744872e6dd26ef374b7ee0710bae0b6e644267cdc6ff4829aa",
+    "reviewed_at": "2026-11-18",
+    "note": "Accepted by user on 2026-11-16: bounded spelling/context interpretation. Counts require explicit evidence; outstanding scope questions remain tracked. No production change applied.",
+    "classification": {
+      "property_type": "FLAT_APARTMENT"
+    },
+    "counts": [],
+    "questions": []
+  },
+  {
+    "case_id": "R11",
+    "source": "privateproperty",
+    "external_id": "4PDJVW",
+    "evidence_sha256": "1c8ba2c639992229b0f70317d44b740b5e9aab3bc9738aade009ca9daa1f203f",
+    "reviewed_at": "2026-11-18",
+    "note": "Accepted by user on 2026-11-16: bounded spelling/context interpretation. Counts require explicit evidence; outstanding scope questions remain tracked. No production change applied.",
+    "classification": {
+      "property_type": "SEMI_DETACHED_DUPLEX"
+    },
+    "counts": [],
+    "questions": []
+  },
+  {
+    "case_id": "R12",
+    "source": "propertypro",
+    "external_id": "1PXAE",
+    "evidence_sha256": "b93601ff130cc2092aa17d5ea8c7fc8ae0dbca9fb75008102d3dfc6bea912644",
+    "reviewed_at": "2026-11-18",
+    "note": "Accepted by user on 2026-11-16: bounded spelling/context interpretation. Counts require explicit evidence; outstanding scope questions remain tracked. No production change applied.",
+    "classification": {},
+    "counts": [],
+    "questions": []
+  },
+  {
+    "case_id": "R13",
+    "source": "nigeriapropertycentre",
+    "external_id": "3422175",
+    "evidence_sha256": "670f8dc30bad8a154397a0eb69b46930abbce65e9233d3df85dc4433f2fbe941",
+    "reviewed_at": "2026-11-18",
+    "note": "2026-11-17: 30sqm available shop space within a mall for RENT. intent is clearly commercial",
+    "classification": {
+      "property_type": "COMMERCIAL_SHOP"
+    },
+    "counts": [],
+    "questions": []
+  },
+  {
+    "case_id": "R14",
+    "source": "propertypro",
+    "external_id": "1PKBW",
+    "evidence_sha256": "141f322b959ff099663dc359387f23e53ffa265c040d17143082a76e52e79d6b",
+    "reviewed_at": "2026-11-18",
+    "note": "2026:11:17: one unit of a four bedroom terraced duplex. wording is clear and explicit",
+    "classification": {
+      "property_type": "TERRACED_DUPLEX",
+      "property_asset_scope": "UNIT"
+    },
+    "counts": [
+      {
+        "entity": "DWELLING_UNIT",
+        "quantity": 1,
+        "relationship": "OFFERED_ASSET",
+        "parent_key": null
+      },
+      {
+        "entity": "BEDROOM",
+        "quantity": 4,
+        "relationship": "BEDROOMS_PER_DWELLING",
+        "parent_key": "dwelling"
+      }
+    ],
+    "questions": []
+  },
+  {
+    "case_id": "R15",
+    "source": "propertypro",
+    "external_id": "9PKBW",
+    "evidence_sha256": "9286bb6fd7998684c55d7a0c0a23c13b3ab67f2f54023f3b19b86b26fd243bda",
+    "reviewed_at": "2026-11-18",
+    "note": "2026-11-17: explicit MULTIPLE_UNITS scope interpretation accepted; two of which are 2 bedrooms each and three of which are one bedroom each. i wonder how that is going to be stored.",
+    "classification": {
+      "property_type": "FLAT_APARTMENT",
+      "property_asset_scope": "MULTIPLE_UNITS"
+    },
+    "counts": [
+      {
+        "entity": "DWELLING_UNIT",
+        "quantity": 5,
+        "relationship": "CONTAINED_UNIT",
+        "parent_key": "listing_portfolio"
+      },
+      {
+        "entity": "DWELLING_UNIT",
+        "quantity": 2,
+        "relationship": "CONTAINED_UNIT",
+        "parent_key": "layout_2bed"
+      },
+      {
+        "entity": "BEDROOM",
+        "quantity": 2,
+        "relationship": "BEDROOMS_PER_DWELLING",
+        "parent_key": "layout_2bed"
+      },
+      {
+        "entity": "DWELLING_UNIT",
+        "quantity": 3,
+        "relationship": "CONTAINED_UNIT",
+        "parent_key": "layout_1bed"
+      },
+      {
+        "entity": "BEDROOM",
+        "quantity": 1,
+        "relationship": "BEDROOMS_PER_DWELLING",
+        "parent_key": "layout_1bed"
+      }
+    ],
+    "questions": []
+  },
+  {
+    "case_id": "R16",
+    "source": "privateproperty",
+    "external_id": "1PDKSR",
+    "evidence_sha256": "4f93979b4675ba351a95b5edaeff27a4359f63b6b0bc79505ea9ffc5f9ebf42e",
+    "reviewed_at": "2026-11-18",
+    "note": "2026-11-17: should be one unit of a flat apartment with three bedrooms; listing information does not suggest multiple units",
+    "classification": {
+      "property_type": "FLAT_APARTMENT",
+      "property_asset_scope": "UNIT"
+    },
+    "counts": [
+      {
+        "entity": "DWELLING_UNIT",
+        "quantity": 1,
+        "relationship": "OFFERED_ASSET",
+        "parent_key": null
+      },
+      {
+        "entity": "BEDROOM",
+        "quantity": 3,
+        "relationship": "BEDROOMS_PER_DWELLING",
+        "parent_key": "dwelling"
+      }
+    ],
+    "questions": []
+  },
+  {
+    "case_id": "R17",
+    "source": "privateproperty",
+    "external_id": "4PDLRQ",
+    "evidence_sha256": "e4c4160be120c81b32076b369d03d11da060b3bef288191b9cd04d7f2b588adb",
+    "reviewed_at": "2026-11-18",
+    "note": "2026-11-17: simple two bedroom apartment/flat; other available information isn't relevant to classification",
+    "classification": {
+      "property_type": "FLAT_APARTMENT",
+      "property_asset_scope": "UNIT"
+    },
+    "counts": [
+      {
+        "entity": "BEDROOM",
+        "quantity": 2,
+        "relationship": "BEDROOMS_PER_DWELLING",
+        "parent_key": "dwelling"
+      }
+    ],
+    "questions": []
+  },
+  {
+    "case_id": "R18",
+    "source": "propertypro",
+    "external_id": "4PPNG",
+    "evidence_sha256": "b0027d18cb0540f327a146fc8786e6fc016ba608a63db5c52bd2bbe335c4df37",
+    "reviewed_at": "2026-11-18",
+    "note": "2026-11-17: four units of three-bedroom flats available according to the description",
+    "classification": {
+      "property_type": "BLOCK_OF_FLATS",
+      "property_asset_scope": "WHOLE_BUILDING"
+    },
+    "counts": [
+      {
+        "entity": "DWELLING_UNIT",
+        "quantity": 4,
+        "relationship": "CONTAINED_UNIT",
+        "parent_key": "primary_building"
+      },
+      {
+        "entity": "BEDROOM",
+        "quantity": 3,
+        "relationship": "BEDROOMS_PER_DWELLING",
+        "parent_key": "dwelling"
+      }
+    ],
+    "questions": []
+  },
+  {
+    "case_id": "R19",
+    "source": "nigeriapropertycentre",
+    "external_id": "3685562",
+    "evidence_sha256": "4c26f8d9de165d3b335cb523eaeaccec22c0a03c0531c3e9414e5c034e5e65e7",
+    "reviewed_at": "2026-11-18",
+    "note": "2026-11-17: explicit WHOLE_BUILDING scope interpretation accepted; multiple flats with three bedrooms in each one",
+    "classification": {
+      "property_type": "BLOCK_OF_FLATS",
+      "property_asset_scope": "WHOLE_BUILDING"
+    },
+    "counts": [
+      {
+        "entity": "DWELLING_UNIT",
+        "quantity": 4,
+        "relationship": "CONTAINED_UNIT",
+        "parent_key": "primary_building"
+      },
+      {
+        "entity": "BEDROOM",
+        "quantity": 3,
+        "relationship": "BEDROOMS_PER_DWELLING",
+        "parent_key": "dwelling"
+      }
+    ],
+    "questions": []
+  },
+  {
+    "case_id": "R20",
+    "source": "nigeriapropertycentre",
+    "external_id": "2722598",
+    "evidence_sha256": "6cfc19b71b679086a1110321469cf6fab1f85ea3edeb9acd77c0a8539d1ea805",
+    "reviewed_at": "2026-11-18",
+    "note": "2026-11-17: explicit simple two bedroom apartment",
+    "classification": {
+      "property_type": "FLAT_APARTMENT",
+      "property_asset_scope": "UNIT"
+    },
+    "counts": [
+      {
+        "entity": "BEDROOM",
+        "quantity": 2,
+        "relationship": "BEDROOMS_PER_DWELLING",
+        "parent_key": "dwelling"
+      }
+    ],
+    "questions": []
+  },
+  {
+    "case_id": "R21",
+    "source": "nigeriapropertycentre",
+    "external_id": "3464033",
+    "evidence_sha256": "9613f65ecbc6417d8ea8b0939adaf2d633e46e41e89b4c8cb21f0d656537f2a1",
+    "reviewed_at": "2026-11-18",
+    "note": "2026-11-17: unclear from the description whether the bedroom count is per unit.",
+    "classification": {
+      "property_type": "FLAT_APARTMENT",
+      "property_asset_scope": null
+    },
+    "counts": [],
+    "questions": [
+      "Confirm whether two bedrooms applies to each unit; identify individual and bundle offers."
+    ],
+    "multiple_offers": true
+  },
+  {
+    "case_id": "R22",
+    "source": "nigeriapropertycentre",
+    "external_id": "3383969",
+    "evidence_sha256": "7787b88e778c05fcd8f64e3a2fac031edd27d5af4ed81ab7cb954ba1f415bcf3",
+    "reviewed_at": "2026-11-18",
+    "note": "2026-11-17: simple three bedroom flat/apartment for SALE",
+    "classification": {
+      "property_type": "FLAT_APARTMENT",
+      "property_asset_scope": "UNIT"
+    },
+    "counts": [
+      {
+        "entity": "BEDROOM",
+        "quantity": 3,
+        "relationship": "BEDROOMS_PER_DWELLING",
+        "parent_key": "dwelling"
+      }
+    ],
+    "questions": []
+  },
+  {
+    "case_id": "R23",
+    "source": "nigeriapropertycentre",
+    "external_id": "3422308",
+    "evidence_sha256": "6c22a13b952bec5ca6a70016466dc3cfcc41a8d2fb81f21f2032adad3e5b1db8",
+    "reviewed_at": "2026-11-18",
+    "note": "2026-11-17: property type should be a land.",
+    "classification": {
+      "property_type": "LAND"
+    },
+    "counts": [],
+    "questions": []
+  },
+  {
+    "case_id": "R24",
+    "source": "privateproperty",
+    "external_id": "2PDKUD",
+    "evidence_sha256": "78729e23156bc31b0163c82a67d2dec50917ad04501cda15ea689c1f71ad6811",
+    "reviewed_at": "2026-11-18",
+    "note": "2026-11-17: lead with maisonette type with three bedrooms as stated in the property features",
+    "classification": {
+      "property_type": "MAISONETTE",
+      "property_asset_scope": "UNIT"
+    },
+    "counts": [
+      {
+        "entity": "BEDROOM",
+        "quantity": 3,
+        "relationship": "BEDROOMS_PER_DWELLING",
+        "parent_key": "dwelling"
+      }
+    ],
+    "questions": []
+  },
+  {
+    "case_id": "R25",
+    "source": "privateproperty",
+    "external_id": "9PDLXS",
+    "evidence_sha256": "0c1f48e2255f5e73a4ce03c4ad96ab02c0c66410d89f466b167fc0565b4b8583",
+    "reviewed_at": "2026-11-18",
+    "note": "2026-11-17: various conflicting types like mini flat; studio; roomm and parlour. should lead with mini flat with one bedroom only.",
+    "classification": {
+      "property_type": "MINI_FLAT",
+      "property_asset_scope": "UNIT"
+    },
+    "counts": [
+      {
+        "entity": "BEDROOM",
+        "quantity": 1,
+        "relationship": "BEDROOMS_PER_DWELLING",
+        "parent_key": "dwelling"
+      }
+    ],
+    "questions": []
+  },
+  {
+    "case_id": "R26",
+    "source": "privateproperty",
+    "external_id": "6PDPUK",
+    "evidence_sha256": "e194b0d57b9d258510ea765189157a9816d8cdd972b101302b69d282c0f194b8",
+    "reviewed_at": "2026-11-18",
+    "note": "2026-11-17: seems like a bundle offer as noted. studio -- 8m and miniflat at 14m. i wonder how that will be stored (if it should be) or if it is even usable for any form of analysis",
+    "classification": {
+      "property_type": "FLAT_APARTMENT",
+      "property_asset_scope": null
+    },
+    "counts": [],
+    "questions": [
+      "Resolve saved studio/mini-flat prices (7m/13.5m) versus reviewer prices (8m/14m); confirm rental period."
+    ],
+    "multiple_offers": true,
+    "offers": [
+      {
+        "key": "studio",
+        "property_type": "STUDIO",
+        "saved_price_naira": 7000000,
+        "review_price_naira": 8000000,
+        "price_status": "CONFLICTING"
+      },
+      {
+        "key": "mini_flat",
+        "property_type": "MINI_FLAT",
+        "saved_price_naira": 13500000,
+        "review_price_naira": 14000000,
+        "price_status": "CONFLICTING"
+      }
+    ]
+  },
+  {
+    "case_id": "R27",
+    "source": "propertypro",
+    "external_id": "0PMZA",
+    "evidence_sha256": "9c65c84144feced171ba7c55ed7229410cbf5fb2a3db00b25cbf329cc746379c",
+    "reviewed_at": "2026-11-18",
+    "note": "2026-11-17: images from the listing depicts an office and should likely be treated as such",
+    "classification": {
+      "property_type": "OFFICE",
+      "property_asset_scope": null
+    },
+    "counts": [],
+    "questions": []
+  },
+  {
+    "case_id": "R28",
+    "source": "privateproperty",
+    "external_id": "6PDSYW",
+    "evidence_sha256": "8b2f27974e66724ccc775126fcf9c20a480041ae135295eae13b28f81c040b4e",
+    "reviewed_at": "2026-11-18",
+    "note": "2026-11-17: listing information looks like the whole hostel building is for sale as it emphasizes location and uses words like \"own\". since this is the case might scope be commercial as opposed to residential then?",
+    "classification": {
+      "property_type": "HOSTEL",
+      "property_asset_scope": null
+    },
+    "counts": [],
+    "questions": [
+      "Confirm investment share versus whole-hostel ownership and which of the three offers is advertised."
+    ],
+    "multiple_offers": true
+  },
+  {
+    "case_id": "R29",
+    "source": "nigeriapropertycentre",
+    "external_id": "3685549",
+    "evidence_sha256": "6372690fc35352f337996c31f4322d8136e0d04296fdaebb3cab38f9bd4ba709",
+    "reviewed_at": "2026-11-18",
+    "note": "2026-11-17: listing information suggests that the entire gas plant (and the land) is for sale. as such the type should probably be 'GAS PLANT' or something of the sort",
+    "classification": {
+      "property_type": "GAS_PLANT",
+      "property_asset_scope": null
+    },
+    "counts": [],
+    "questions": []
+  },
+  {
+    "case_id": "R30",
+    "source": "nigeriapropertycentre",
+    "external_id": "3716842",
+    "evidence_sha256": "0959bf84508efb639803b4ede410e5dce3fc26fbaf0a29707f2bbf07790c49ef",
+    "reviewed_at": "2026-11-18",
+    "note": "2026-11-17: looks like an event centre for rent with remuneration payable yearly.",
+    "classification": {
+      "property_type": "EVENT_VENUE",
+      "property_asset_scope": null
+    },
+    "counts": [],
+    "questions": []
+  },
+  {
+    "case_id": "R31",
+    "source": "privateproperty",
+    "external_id": "3PDNTE",
+    "evidence_sha256": "a943122e2749924aef7366b7b7ad284f1da442bd51873a5b5f8a21674d0ed5e6",
+    "reviewed_at": "2026-11-18",
+    "note": "2026-11-17: looks like a 3k sqm bare land being marketed on the premise of farming. but in itself still a bare land could be land with an agricultural scope or something.",
+    "classification": {
+      "property_type": "LAND",
+      "property_land_use": "AGRICULTURAL"
+    },
+    "counts": [],
+    "questions": [
+      "Confirm bare versus cultivated land and parcel area; saved text advertises acre/hectare options."
+    ],
+    "multiple_offers": true
+  }
+]

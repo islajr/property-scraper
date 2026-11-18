@@ -113,7 +113,7 @@ def _apply_one(cur, record, run_id, write):
             or _normalized(row) != _normalized(record['previous'])):
         return 'CONCURRENT_CHANGE', None
     new = asdict(classify(row.get('property_type_raw'), row.get('title'), row.get('description'),
-                          row.get('property_type_raw_source')))
+                          row.get('property_type_raw_source'), source=row.get('source'), external_id=row.get('external_id')))
     if decision_key(new) != decision_key(record['proposed']):
         return 'PROPOSAL_MISMATCH', None
     if decision_key(row) == decision_key(new):

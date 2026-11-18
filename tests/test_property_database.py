@@ -34,9 +34,12 @@ def test_sql_vocabulary_matches_shared_definitions_and_migration_reruns(pricing_
 def test_v2_registration_is_repeatable_and_preserves_v1_observations(pricing_writer):
     db = pricing_writer
     old = item(title='3 bedroom flat', property_type_raw=None)
-    old.property_type_version = 'property-types-v1'
     db.upsert([old], {})
+    with db.conn.cursor() as cur:
+        cur.execute("UPDATE raw_data.scraped_listings SET property_type_version='property-types-v1' WHERE external_id=%s", (old.external_id,))
+    db.conn.commit()
     before = get_row(db, old.external_id)
+    prior_audits = audits(db, before['id'])
     with db.conn.cursor() as cur:
         migration = Path('schema/008_property_classification_v2.sql').read_text()
         cur.execute(migration)
@@ -45,7 +48,7 @@ def test_v2_registration_is_repeatable_and_preserves_v1_observations(pricing_wri
         counts = dict(cur.fetchall())
         assert counts['property-types-v1'] == counts['property-types-v2'] == 36
     assert get_row(db, old.external_id) == before
-    assert audits(db, before['id'])[0][2]['property_type_version'] == 'property-types-v1'
+    assert audits(db, before['id']) == prior_audits
 
 
 def test_legacy_migration_preserves_old_labels_prices_dates_and_no_fake_evidence(pricing_writer):
