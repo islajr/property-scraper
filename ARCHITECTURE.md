@@ -49,14 +49,17 @@ checkpoints and side effects should remain explicit.
 The taxonomy identifies form and facets. Counts distinguish assets offered, units
 contained, per-dwelling layouts and availability. Features remain claims about
 amenities. Prices retain purpose, currency, cadence and basis. Rooms retain the
-stored number separately from its evidence and supporting candidate. Do not roll
+stored number separately from its evidence and supporting candidate. Areas keep
+land, floor and unspecified sizes separate, including units, scope and conflicts. Do not roll
 those dimensions into a long property-type label or a single generic quantity.
 
 The room-aware reader is `raw_data.property_research_current`, contract
 `property-research-v2`. Migration 014 adds the easier `research.properties`,
 `research.review_queue` and `research.room_count_coverage` entry points. Until
 014 is installed, use the existing raw_data readers. The aliases do not duplicate
-stored listings or solve cross-portal identity.
+stored listings or solve cross-portal identity. Migration 015 appends supported
+and retained area fields to `research.properties` and adds `research.area_measurements`
+for inspecting individual area claims. It reuses the existing fact history.
 
 A current interpretation is one that applies to the saved source. That is different
 from a recently fetched page and from a physically verified property fact. A

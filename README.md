@@ -373,7 +373,7 @@ The discovery pipeline uses two listing dataclasses:
 Key normalisation rules:
 
 - Normalised prices are stored as **kobo** (integer). ₦45,000,000 = `4_500_000_000`; plain numeric portal prices are interpreted as naira before conversion.
-- All floor areas are stored in **square metres**. Sqft inputs are converted automatically.
+- Areas are normalized to **square metres**, with land, floor and unspecified sizes kept separate. Read supported values and field statuses from `research.properties`; see [area extraction and repair](docs/property-areas.md).
 - `price_parse_failed = True` when a price is missing, blank, invalid, or explicitly non-NGN.
 
 Property types use a [versioned classifier and rollout contract](docs/property-types.md)
