@@ -54,7 +54,8 @@ types or numeric bedroom columns. It builds on the raw count profiler, then
 accepts only narrow relationships:
 
 - Explicit bedroom wording adjacent to a dwelling form or an explicit per-unit
-  qualifier can establish BEDROOMS_PER_DWELLING.
+  qualifier can establish BEDROOMS_PER_DWELLING. Explicit detached, semi-detached
+  and terraced modifiers between bedroom quantity and dwelling form are supported.
 - A singular block-of-flats or explicit building-contents phrase can establish
   contained dwelling quantities. It does not manufacture a building count of one.
 - A numeric quantity with explicit sold/rented/leased/taken-together wording can

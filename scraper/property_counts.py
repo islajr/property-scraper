@@ -8,6 +8,7 @@ from scraper import property_count_profile
 
 VERSION = 'property-counts-v2'
 _DWELLING = r'(?:mini[ -]*flats?|flats?|apartments?|houses?|duplex(?:es)?|bungalows?|maisonettes?)'
+_BEDROOM_DWELLING = rf'(?:(?:fully[ -]+)?(?:semi[ -]+detached|detached|terrac(?:e|ed|es))[ -]+)?{_DWELLING}'
 
 
 def source_hash(title, description, raw_type=None):
@@ -35,7 +36,7 @@ def _interpret(candidate, original):
             r'\b(?:features?|amenities|facilities|contact|other\s+properties|price)\s*:', before, re.I)):
         return entity, 'UNRESOLVED', None, 'description_identity_not_established'
     if entity == 'BEDROOM':
-        if re.match(rf'[ -]+{_DWELLING}\b|\s*(?:each|per\s+(?:unit|flat|dwelling))\b', after, re.I):
+        if re.match(rf'[ -]+{_BEDROOM_DWELLING}\b|\s*(?:each|per\s+(?:unit|flat|dwelling))\b', after, re.I):
             return entity, 'BEDROOMS_PER_DWELLING', 'dwelling', 'explicit_bedroom_layout'
     if entity == 'UNSPECIFIED_UNIT' and re.match(rf'\s+of\s+(?:(?:a|\d+)\s+)?(?:\d+[ -]*bedrooms?[ -]+)?{_DWELLING}\b', after, re.I):
         entity = 'DWELLING_UNIT'
