@@ -33,6 +33,7 @@ import config
 from scraper.pricing import QUOTE_FIELDS, PERIOD_FIELDS, quote_dict, classify_change, comparable
 from scraper.property_storage import ensure_classification, persist as persist_classification
 from scraper.property_count_store import persist_current as persist_property_facts
+from scraper.room_count_store import persist as persist_room_counts
 
 log = logging.getLogger(__name__)
 
@@ -503,6 +504,7 @@ class DatabaseWriter:
                         persist_classification(cur, listing_id, old, observed_quote, 'HEALTH_CHECK')
                         cur.execute('UPDATE raw_data.scraped_listings SET title=%s,description=%s WHERE id=%s',
                                     (observed_quote.title, observed_quote.description, listing_id))
+                        persist_room_counts(cur,listing_id,run_id=str(uuid4()),listing=observed_quote,previous=old)
                         persist_property_facts(self.conn, listing_id, run_id=str(uuid4()))
                 cur.execute("""UPDATE raw_data.scraped_listings
                     SET missed_run_count=0, last_health_check_at=%s, next_health_check_at=%s
@@ -579,6 +581,7 @@ class DatabaseWriter:
         if row and row[0] is not None:
             persist_classification(cur, row[0], None, listing, 'DISCOVERY',
                                    getattr(self, 'classification_run_id', None))
+            persist_room_counts(cur,row[0],run_id=getattr(self,'classification_run_id',None) or str(uuid4()),listing=listing)
             persist_property_facts(self.conn, row[0], run_id=getattr(self, 'classification_run_id', None) or str(uuid4()))
         return row[0] if row else None
 
@@ -594,6 +597,7 @@ class DatabaseWriter:
             geocoded=(geocoded OR %(geocoded)s), missed_run_count=0, listing_status='ACTIVE'
             WHERE source=%(source)s AND external_id=%(external_id)s""",
             {**listing.__dict__, 'now':now})
+        persist_room_counts(cur,old['id'],run_id=getattr(self,'classification_run_id',None) or str(uuid4()),listing=listing,previous=old)
         persist_property_facts(self.conn, old['id'], run_id=getattr(self, 'classification_run_id', None) or str(uuid4()))
         if old.get('listing_status') == 'REMOVED':
             self._insert_history_events([dict(listing_id=old['id'],event_type='RELISTED',

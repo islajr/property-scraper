@@ -1,5 +1,8 @@
 -- One listing per row. Counts and offers remain separate nested observations.
 BEGIN;
+DO $guard$ BEGIN
+ IF to_regclass('raw_data.current_property_rooms') IS NULL THEN
+ EXECUTE $legacy_views$
 CREATE OR REPLACE VIEW raw_data.property_research_current AS
 WITH counts AS (
  SELECT listing_id,jsonb_agg(jsonb_build_object(
@@ -73,4 +76,7 @@ FROM raw_data.property_research_current
 WHERE NOT contract_current OR property_type_status<>'CLASSIFIED' OR multiple_offers
  OR jsonb_array_length(coalesce(review_questions,'[]'::jsonb))>0
  OR jsonb_array_length(count_questions)>0;
+$legacy_views$;
+ END IF;
+END $guard$;
 COMMIT;
