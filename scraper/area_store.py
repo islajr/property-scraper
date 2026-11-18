@@ -33,7 +33,9 @@ def proposal(before,*,listing=None,previous=None):
                     and Decimal(c['sqm']).quantize(Decimal('.1'),rounding=ROUND_HALF_UP)==Decimal(str(value))
                     for c in assessment['claims']))
         if legacy_rounding and not matches:decision['legacy_rounding_match']=True
-        if value is not None and not (matches or legacy_rounding):decision['status']='UNVERIFIED'
+        if value is not None and not (matches or legacy_rounding):
+            decision['status']='UNVERIFIED'
+            decision['next_action']='Preserve the stored area; verify the conflicting or missing source claim, land/floor role and asset or per-unit basis before correction.'
         after[name]=None if value is None else str(value)
     prior=before.get('area_data') or {}
     if prior.get('source_hash')==assessment['source_hash'] and prior.get('extractor_sha256')==assessment['extractor_sha256']:
