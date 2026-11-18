@@ -191,11 +191,14 @@ Use these fields in `raw_data.property_research_current`:
 - `bedrooms_per_dwelling` and `bathrooms_per_dwelling`: supported exact quantities
   whose basis is an individual dwelling. A whole building or a shared room needs
   separate context; a count attached to that advert is not automatically per flat.
-- `bedrooms_as_advertised` and `bathrooms_as_advertised`: supported scalar claims,
-  with `bedrooms_basis`/`bathrooms_basis` stating whether the dwelling basis is
-  established or the count is only stated for the advertised asset.
+- `bedrooms_as_advertised` and `bathrooms_as_advertised`: stored scalar numbers,
+  including retained unverified values. Read their statuses alongside them.
+  `bedrooms_basis`/`bathrooms_basis` describe the extracted supporting claims,
+  not a certified basis for an unverified stored number.
 - `bedrooms_status` and `bathrooms_status`: KNOWN, UNKNOWN, AMBIGUOUS,
-  MIXED_LAYOUT, REVIEW_REQUIRED or NOT_APPLICABLE. PENDING means the saved source
+  MIXED_LAYOUT, REVIEW_REQUIRED, UNVERIFIED or NOT_APPLICABLE. UNVERIFIED means an
+  existing number was retained without sufficient consistent supporting evidence.
+  PENDING means the saved source
   needs reassessment. KNOWN means supported as advertised, not physically verified.
 - `room_count_evidence`: all contributing claims, held inputs, warnings and next
   actions. `room_counts_current` checks that source, interpretation, audit and
@@ -203,11 +206,26 @@ Use these fields in `raw_data.property_research_current`:
 - `legacy_bedrooms` and `legacy_bathrooms`: the first pre-repair values, kept for
   comparison. They do not become verified because they look plausible.
 
-The main `scraped_listings.bedrooms` and `.bathrooms` columns become supported
-values or NULL. Original numbers are retained in `room_count_legacy`, and each
-change has a before/after room assessment in `property_fact_assessments` under
+The historical backfill preserves every existing non-null number in the main
+`scraped_listings.bedrooms` and `.bathrooms` columns. A suspected parser defect
+is not proof that a particular number is wrong. Missing numbers may be filled
+from explicit supported evidence; existing numbers are corrected only after a
+fresh, unambiguous labelled primary metric supports the replacement. An omitted,
+malformed or conflicting field never clears an existing number. This applies to
+future discovery, health checks and bounded recovery as well as the backfill.
+
+Original numbers are retained in `room_count_legacy`, and each
+assessment has a before/after record in `property_fact_assessments` under
 rule `property-rooms-v1`. This adds no physical history tables. New listings have
 no invented historical values.
+
+Each field's evidence records `value` (the extracted supported candidate, if any),
+`stored_value`, `evidence_status`, `storage_action`, warnings and a next action.
+An unverified stored value can differ from a supported text candidate: that is a
+comparison to investigate, not permission to overwrite it. `room_counts_current`
+means this assessment matches the current saved source and numbers; it does not
+mean the numbers are verified. Consumers may retain unverified values or filter
+them explicitly. The per-dwelling fields expose only supported KNOWN claims.
 
 ### Repair and rollout
 
@@ -235,10 +253,11 @@ when asset context changes, and coordinate room reversal with their other change
 
 ### Recovering values that were never saved
 
-Most historical bathroom numbers have no retained labelled source. A NULL after
-repair is an explicit gap, not proof that the property has no bathroom. Keep
-coverage separate from property absence. Some current pages genuinely omit a
-bathroom value; do not fill it from bedrooms, toilets or an assumption of ensuite.
+Most historical bathroom numbers have no retained labelled source. Keep those
+numbers and mark their evidence UNVERIFIED while recovery proceeds. Existing
+NULLs remain explicit gaps unless evidence supplies a count; they do not mean
+that the property has no bathroom. Some current pages genuinely omit a bathroom
+value; omission cannot erase a saved count or establish a replacement.
 
 ```bash
 python -m scripts.refresh_room_counts --source propertypro --limit 25 \

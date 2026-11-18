@@ -1,8 +1,10 @@
 # Room-count audit and repair rehearsal — 18 November 2026
 
-This report records a production **read-only preview** and a repair rehearsal on
-a disposable local database. The room repair has **not been applied to
-production**. The current operating instructions are in
+This report records the revised count-preserving policy and its production
+**read-only preview**. The earlier proposal to clear unsupported existing numbers
+was rejected and withdrawn: a parser defect does not prove an individual stored
+number is wrong. The room repair has **not been applied to production**.
+The current operating instructions are in
 [property counts](../property-counts.md#bedrooms-and-bathrooms-evidence-backed-current-fields).
 
 ## What went wrong
@@ -17,7 +19,8 @@ The initial 28,955-row audit found 834 PropertyPro bedroom values of 1234 and
 1,274 bathroom values of 123. All 7,024 populated Private Property bathroom
 values equalled their bedroom values. Equality alone does not prove an individual
 count wrong: a property can have three bedrooms and three bathrooms. It does mean
-the affected fields cannot be certified from the old parser output alone.
+their supporting evidence needs checking. They must not be labelled incorrect
+or cleared merely because they came through the affected parser.
 
 Bounded live checks confirmed a PropertyPro primary widget showing four beds,
 four baths and five toilets. A land listing had no room widgets despite its old
@@ -27,30 +30,41 @@ These samples validate the mechanisms, not the accuracy of every listing.
 
 ## Production preview: what would change
 
-The read-only snapshot was taken at **2026-11-18 12:29:10 UTC**. Normal scraper
+The read-only snapshot was taken at **2026-11-18 13:20:01 UTC**. Normal scraper
 activity may change later preview totals.
 
 | Measure | Bedrooms | Bathrooms |
 | --- | ---: | ---: |
 | Listings scanned | 28,955 | 28,955 |
-| Numeric values that would change | 4,893 | 24,188 |
-| Supported scalar claims (KNOWN) | 21,986 | 242 |
-| UNKNOWN | 4,565 | 26,578 |
-| AMBIGUOUS | 102 | 2 |
-| REVIEW_REQUIRED | 212 | 44 |
+| Existing non-null numbers replaced or cleared | **0** | **0** |
+| Previously empty fields filled from explicit evidence | 729 | 7 |
+| Stored numbers with consistent supporting evidence (KNOWN) | 21,357 | 197 |
+| Existing numbers retained as UNVERIFIED | 4,164 | 24,181 |
+| UNKNOWN, with no stored number or supporting count | 1,750 | 2,939 |
+| AMBIGUOUS | 9 | 0 |
+| REVIEW_REQUIRED | 38 | 3 |
 | MIXED_LAYOUT | 1 | 0 |
-| NOT_APPLICABLE | 2,089 | 2,089 |
+| NOT_APPLICABLE, with no stored number | 1,636 | 1,635 |
 
-**Most bathroom changes replace unsupported numbers with NULL.** NULL means
-missing evidence, not no bathroom. These totals are evidence coverage, not an
-accuracy score or a claim that the other properties lack bathrooms. KNOWN means
-supported as advertised; the basis still distinguishes per-dwelling counts from
-counts stated for an advertised asset.
+**Every existing non-null bedroom and bathroom number is preserved.** UNVERIFIED
+means the retained number lacks sufficient consistent supporting evidence; it is
+not a claim that the number is wrong. Missing evidence never authorizes a deletion.
+The only numeric changes are fills of previously empty fields from explicit
+evidence. These totals describe evidence coverage, not an accuracy estimate.
+KNOWN means supported as advertised, not physically inspected. Basis still
+distinguishes per-dwelling claims from counts attached to the advertised asset.
 
-The repair preserves the first pre-repair numbers in `room_count_legacy`, exposes
-them through the research view and records immutable before/after evidence in
-the existing fact history. It does not infer bathrooms from bedrooms, toilets,
-ensuite wording or a typical layout. It does not rewrite prices or source text.
+Stored numbers remain available in the main columns and the research view;
+consumers choose whether to include UNVERIFIED values. Supported per-dwelling
+fields require KNOWN status. `room_count_legacy` retains the first pre-repair
+numbers, with immutable before/after evidence in existing fact history.
+Candidate counts, stored counts, evidence status and storage action are separate.
+The repair does not infer bathrooms from bedrooms, toilets, ensuite wording or a
+typical layout. It does not rewrite prices or source text.
+
+Future observations may correct an existing number only when a fresh,
+unambiguous labelled primary metric supports the replacement. Missing, malformed,
+conflicting, redirected or unavailable observations leave the stored number intact.
 
 The preview is informational (`apply_compatible=false`) because production did
 not yet have migration 012. Applying requires a fresh preview after that migration.
@@ -58,35 +72,41 @@ Private row-level artifacts remain outside Git under `.local/room-counts/`.
 
 Preview provenance:
 
-- Rules/repair fingerprint: `4e763b035033309d0886e43eeb614436632691c00f76e6746f1ff3fa90e22c2e`
-- Preview SHA-256: `0b3ad766769b3797a05a6cc9a6eaea3a53e0be7c15ae98194b18c11e0888e744`
+- Rules/repair fingerprint: `0655df91cc64e2a5adffaf3ec4f06a8f103643bf193453f8d70490fc6042434d`
+- Preview SHA-256: `d2b69040f2a4323f8a9d19223c8b1ffc490a2924a44c669783e0e9bdc7dbf991`
 
 ## Full-data rehearsal
 
-The disposable database was populated from the earlier production audit snapshot,
-then migrated and repaired using the same rule fingerprint. Its source snapshot
-differs from the production preview above: it had 22,022 supported bedroom counts
-and 4,844 numeric bedroom changes. Do not combine those coverage totals.
+All 687 tests pass against disposable local PostgreSQL. They cover preservation
+of plausible and unusual historic counts, missing new metrics, conflicting claims,
+evidence-backed corrections, raw-source identity, atomic failures, stale previews,
+reversal ownership, source freshness and recovery.
 
-The complete rehearsal finished in 247.2 seconds across 58 bounded batches:
+The revised full-data rehearsal completed in **260.6 seconds across 58 batches**
+on a separate disposable copy of the earlier audit snapshot:
 
+- No existing non-null bedroom or bathroom count changed.
+- All 28,955 first pre-repair bedroom/bathroom pairs were retained in legacy data.
 - All 28,955 listings had current room assessments and corresponding audit records.
-- All 28,955 original bedroom/bathroom pairs were retained.
 - Every protected non-room field remained unchanged across all 28,955 listings.
 - Retrying the completed operation attempted zero records.
 
+That older source snapshot supplied 725 empty bedroom fills, compared with 729
+in the fresher production preview. Both supplied 7 empty bathroom fills. Neither
+changed an existing non-null number. Do not combine their other coverage totals.
+
 The rehearsal report SHA-256 was
-`4d1bb1b691698bc321ea21f7eedaa454fb23334ca13bd4e4baf3565e94da0cec`.
-The local run ID was `5529ac30-327a-4bcc-97af-ce96724caff6`; it is not a
-production operation. Database integration tests separately cover source conflicts,
-atomic failures, stale previews, reversal ownership, source freshness and recovery.
+`574598c47568b800d7e2e09a4b864a1f5c74ee7683a43d65d5456b8379156f83`.
+The local run ID was `d46ac67c-8510-43f6-b27c-355c7ab03f89`; it is not a
+production operation. Older rehearsals of the withdrawn clearing policy are not
+validation of this revised policy.
 
 ## Deployment and the remaining recovery work
 
 Merge the reviewed PR into master before deployment. Pause writers, retain a
 private backup, install 012, make and inspect a fresh preview, apply a small canary,
 then use a new preview/run for the remaining inventory. Verify preservation,
-coverage, audit totals and completed retries before installing 013 to publish
+coverage, zero changes to existing non-null counts, audit totals and completed retries before installing 013 to publish
 `property-research-v2`. Resume writers from the merged code.
 
 The repair itself is bounded and rehearsed. Recovering every missing room count
@@ -95,7 +115,9 @@ The primary-page recovery command checks identity and source agreement, respects
 robot directives and coordinates traffic with health checks. Start with small
 batches, inspect the reports, then continue from the saved cursor. Changed source
 needs a full listing observation; conflicts need evidence review. Unavailable
-pages retain explicit unknown markers and their original values for comparison.
+pages retain their existing numbers with explicit evidence-quality markers.
+The current assessment can be fresh while a particular retained number is
+UNVERIFIED: assessment applicability is not verification of the number.
 
 The broader architecture guide, schema usability work and extraction of sqm
 measurements remain follow-up tasks after the room-count deployment.

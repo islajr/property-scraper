@@ -19,7 +19,7 @@ Unknown bathroom values must not be filled from bedroom quantities.
 | bedrooms_per_dwelling | Accepted exact bedroom quantity when the accepted layouts agree; NULL for mixed, conflicting or absent evidence |
 | legacy_bedrooms, legacy_bathrooms | First pre-repair numbers, retained for comparison; not certified |
 | bathrooms_per_dwelling | Supported exact bathroom quantity for a dwelling; toilets and ensuite wording do not supply a number |
-| bedrooms_as_advertised, bathrooms_as_advertised | Supported scalar claims; inspect the accompanying basis and status |
+| bedrooms_as_advertised, bathrooms_as_advertised | Stored numbers including retained UNVERIFIED values; use status and evidence to decide whether to include them |
 | bedrooms_status, bathrooms_status | Field-specific quality marker, including ambiguity, mixed layouts and missing evidence |
 | room_count_evidence, room_counts_current | Source-bound room claims, warnings and freshness |
 | count_claims | All current extracted/reviewed quantity claims with ACCEPT/HOLD/REJECT/REVOKE state, evidence and observation ID; held quantities are not certified counts |
@@ -55,6 +55,15 @@ The view exposes accepted source claims, not independently inspected property
 facts. It deliberately retains broad types such as HOUSE when no narrower form
 is established. Future health checks can improve evidence; they cannot establish
 facts that the advert does not disclose. Text-only rules do not inspect images.
+
+Existing bedroom/bathroom numbers are preserved during historical assessment.
+UNVERIFIED is an evidence-quality marker, not a claim that a number is wrong.
+The stored/as-advertised fields retain these numbers so consumers can decide
+whether to include them. Supported per-dwelling fields require KNOWN status.
+Corrections of existing numbers require a fresh, unambiguous labelled primary
+metric; missing or conflicting observations never clear a stored number.
+Room freshness and `contract_current` describe assessment applicability, not
+verification of each number. Inspect the individual room statuses explicitly.
 
 ## Reviewed examples
 
