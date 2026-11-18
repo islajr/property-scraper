@@ -2,12 +2,18 @@
 
 Counts describe different things: assets offered, units within a building,
 bedrooms per dwelling, and development availability. Never put those quantities
-in one unqualified unit_count field or add them together. The accepted review
-decisions are recorded in [PR #12](https://github.com/islajr/property-scraper/pull/12).
+in one unqualified unit_count field or add them together. The reviewed source notes are retained in the
+[review archive](archive/property-type-review-2026-11-14.csv).
 
 This guide consolidates the count profiling instructions and storage proposal.
 The dated [17 November profile](archive/property-count-profile-2026-11-17.md)
 remains an archived baseline, not the current operating manual.
+
+The current `property-counts-v2` assessor also uses source-bound review decisions
+and hashes the raw type alongside title/description. Migration 010 updates the
+current-count view accordingly; v1 observations remain immutable history.
+Discovery integration and bounded apply/reversal are documented in the
+[unified operations guide](property-unification.md).
 
 ## Storage contract
 
@@ -103,7 +109,7 @@ before any later correction run.
 ## Persistence and reversal API
 
 persist_assessment in scraper/property_count_store.py is an internal transactional
-API for future bounded rollout/observation callers. It requires the reviewed
+API used by bounded rollout and observation callers. It requires the reviewed
 source row version, source hash, extractor fingerprint, and a UUID run ID. It
 locks the source row, rejects stale source/rules, recomputes the decision from
 actual saved evidence, and inserts assessment, observations, and decisions in
@@ -116,17 +122,16 @@ review decisions, or cause a retried original assessment to resurrect counts.
 Decision insertions serialize on their assessment; SQL rejects update/delete of
 stored evidence and decisions.
 
-The current view compares the full title/description source hash with the listing.
+The v2 current view compares the raw label/title/description source hash with the listing.
 Changed evidence hides stale counts until reassessed. Price-only changes do not
 invalidate them. New decisions change visibility without deleting original claims.
 Manual corrections requiring different normalized fields need new evidence-bearing
 observations/assessment rules; a bare ACCEPT cannot bypass unresolved SQL fields.
 
-This PR deliberately has no production apply CLI, background queue, or discovery
-writer integration. The API is exercised only against disposable databases here.
-A later production caller needs a reviewed bounded selection, a run manifest,
-checkpoint/report reconciliation, and explicit operational verification. Merely
-deploying the schema does not populate counts or schedule that operation.
+The unified runner supplies frozen previews, bounded batches, manifests and durable
+receipts. Discovery and primary health checks also populate assessments. See the
+[operations guide](property-unification.md). Installing schema objects alone does
+not populate historic counts or complete a rollout.
 
 ## Query examples
 
@@ -151,45 +156,17 @@ sum mutually exclusive offers, mix availability with offered bundles, or join
 unidentified parent keys across listings. Research coverage must still include
 listings without accepted counts and report their unresolved reasons separately.
 
-## Latest extraction preview and verification
+## Deployment and verification
 
-The read-only 17 November 2026 snapshot at 22:41:47 UTC contained 28,955 listings.
-The initial rules proposed at least one accepted count in 12,734 listings:
-12,701 had supported bedroom-per-dwelling counts, nine had offered-asset counts,
-and 74 had contained-unit counts. These groups overlap. 15,991 listings had held
-claims, and 5,738 had no current pattern match. No production counts were stored.
+Apply numbered migrations in order before deploying callers. Migration 010
+registers v2 count freshness based on the raw type as well as title/description;
+v1 observations remain immutable history. Rule changes require fresh previews.
+The current production preview and rollout status are recorded separately; the
+[17 November profile](archive/property-count-profile-2026-11-17.md) is a historical
+baseline, not a claim that the database has been populated.
 
-The offered-quantity question remains open for 28,946 listings. This is a strict
-initial automatic extraction, not evidence that the rest lack counts or require
-individual manual inspection. Review recurring wording and missing patterns in
-batches. Preview ACCEPT means supported by the proposed rule, not independently
-verified property facts or permission to apply the complete report.
-
-All 563 tests passed, including disposable-database migration reruns, source
-preservation, idempotency, transaction rollback, stale-source/rule rejection,
-freshness, immutable history, SQL acceptance checks, and reversal that respects
-newer review decisions. Autocommit callers are rejected. The profiler's corrected
-numeric-boundary regression is backported to PR #14, whose 522 tests also passed.
-
-One preview regression caught 12 bedrooms being split into a false one-unit and
-two-bedroom interpretation. The fixed boundary and overlap flags prevent that
-promotion. The earlier raw unit/building-clue figure of 1,794 is superseded by
-1,744 in the refreshed candidate profile. Neither figure is a verified unit count.
-
-Final assessment preview SHA-256:
-`e74f544e3038b9036fabc53fd6975cdb4f192a5d6ceaecf151ff7ae05da7ed79`.
-Extractor SHA-256:
-`d7b5a89835c19bb781f73a6f4dfa01ab13fff910d613b7aa87533e8c53bf34be`.
-
-## Deployment and review
-
-Apply numbered migrations in order before a count-storage caller is deployed.
-009 depends on the existing raw_data listings schema, not classification-v2 rules.
-Count rule/version changes require fresh previews; preserve historical artifacts.
-This implementation builds on the profiler in PR #14, which should land first,
-then this branch can be rebased against master. Classification PR #13 is separate.
-
-Before a production rollout, review the proposed observations and relationships,
-especially offered/contained quantities, mixed layouts, source conflicts, and
-unsupported singular wording. Then prepare the bounded caller and observation
-integration. No production migration or count write is performed in this PR.
+Tests cover source/rule guards, insertion and resume, count entity/relationship
+acceptance, immutable audit evidence, source freshness, concurrent decisions,
+reversal ownership and batch failures. The unified runner also verifies SQL
+pagination so batches larger than 100 observations retain every returned ID and
+initial decision. No test uses production.

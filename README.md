@@ -677,6 +677,12 @@ do not mix its legacy prices with the new comparable rental views.
 
 ---
 
+## Unified property data
+
+Use `raw_data.property_research_current` for versioned types, evidence-backed
+counts, features, offer flags and explicit unresolved states. See
+[the consumer contract and rollout guide](docs/property-unification.md).
+
 ## Database schema
 
 All tables live in the `raw_data` schema in the database.
