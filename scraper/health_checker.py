@@ -27,7 +27,7 @@ main thread after the async fetch phase completes. The split is:
   Phase 1 — async HTTP  │ asyncio.gather over all candidates simultaneously
   Phase 2 — sync DB     │ serial loop: confirm_listing_removed / confirm_listing_active
 
-This keeps DatabaseWriter completely unchanged.
+Database writes keep their existing synchronous transaction boundaries.
 """
 
 from __future__ import annotations
@@ -43,6 +43,7 @@ from urllib.parse import urlparse
 
 import aiohttp
 from bs4 import BeautifulSoup
+from scraper.parsers.listing_identity import primary_identity_matches,same_portal_host
 from scraper import normaliser
 
 import config
@@ -385,8 +386,10 @@ class HealthChecker:
                         log.debug("[health_checker] 404 for %s", url)
                         return True, None
 
-                    if final_url != url and external_id not in final_url:
-                        log.debug("[health_checker] redirect stripped external_id: %s → %s",
+                    parser=self._parsers.get(source)
+                    if status==200 and final_url != url and not primary_identity_matches(parser,url,final_url=final_url,expected_id=external_id):
+                        if not same_portal_host(url,final_url):raise ValueError('Redirect changed the primary portal host')
+                        log.debug("[health_checker] redirect changed external_id: %s → %s",
                                   url, final_url)
                         return True, None
 
@@ -402,7 +405,11 @@ class HealthChecker:
                                 return True, None
 
                         # Listing is confirmed active — try to extract current price.
-                        observed_price = self._extract_observed_quote(body, url, source)
+                        primary_soup=BeautifulSoup(body,'html.parser')
+                        if not primary_identity_matches(parser,url,final_url=final_url,
+                                soup=primary_soup,expected_id=external_id):
+                            raise ValueError('Primary listing identity could not be verified')
+                        observed_price = self._extract_observed_quote(primary_soup, final_url, source)
                         return False, observed_price
 
                     # Force retry on other status codes (5xx, etc.) by raising
@@ -426,7 +433,7 @@ class HealthChecker:
 
         return False, None
 
-    def _extract_observed_quote(self, html: str, url: str,
+    def _extract_observed_quote(self, html: str | BeautifulSoup, url: str,
                                 source: str) -> Optional[NormalisedListing]:
         """
         Parse current price from listing page HTML using the portal's own parser
@@ -437,7 +444,8 @@ class HealthChecker:
         if parser is None:
             return None
         try:
-            soup = BeautifulSoup(html, "html.parser")
+            soup = html if isinstance(html,BeautifulSoup) else BeautifulSoup(html, "html.parser")
+            if not primary_identity_matches(parser,url,soup=soup):return None
             raw  = parser.parse_listing(soup, url)
             if raw is None:
                 return None
