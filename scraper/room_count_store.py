@@ -38,6 +38,12 @@ def proposal(before,*,listing=None,previous=None):
     assessment['review_priority']=min((f['priority'] for f in assessment['review_flags']),default=
         3 if any(assessment[f]['status']=='UNVERIFIED' for f in ('bedrooms','bathrooms')) else
         4 if any(assessment[f]['status'] not in {'KNOWN','NOT_APPLICABLE'} for f in ('bedrooms','bathrooms')) else 5)
+    prior=before.get('room_count_data') or {}
+    if all(prior.get(k)==assessment.get(k) for k in ('source_hash','extractor_sha256')):
+        for field in ('bedrooms','bathrooms'):
+            old=prior.get(field) or {};new=assessment[field]
+            if new['storage_action']=='PRESERVED' and {k:v for k,v in old.items() if k!='storage_action'}=={k:v for k,v in new.items() if k!='storage_action'}:
+                new['storage_action']=old.get('storage_action','PRESERVED')
     legacy=before.get('room_count_legacy')
     if legacy is None:
         origin=previous if previous is not None else before if listing is None else {}
@@ -47,12 +53,19 @@ def proposal(before,*,listing=None,previous=None):
         room_metric_sources=row.get('room_metric_sources') or {},room_count_data=assessment,room_count_legacy=legacy)
 
 
-def persist_many(cur,rows,*,run_id):
-    """Bulk historical repairs from already locked (row, xmin) pairs."""
+def persist_many(cur,rows,*,run_id,observations=None):
+    """Bulk repairs/observations from already locked (actual row, xmin) pairs.
+
+    Optional observed DTOs must match the saved portal identity. Callers validate
+    the primary page and source agreement before using this room-only API.
+    """
     import hashlib,json
     run_id=str(UUID(str(run_id)));changes=[];results={}
     for before,version in rows:
-        after=proposal(before)
+        observed=(observations or {}).get(before['id'])
+        if observed is not None and (observed.source,observed.external_id)!=(before['source'],before['external_id']):
+            raise ValueError('Observed portal identity differs from the saved listing')
+        after=proposal(before,listing=observed,previous=before if observed is not None else None)
         if all(before.get(k)==v for k,v in after.items()):results[before['id']]=dict(outcome='UNCHANGED');continue
         changes.append((before,version,after))
     if not changes:return results
