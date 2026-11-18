@@ -10,7 +10,7 @@ part. We now need to distinguish what an agent wrote, what a parser extracted,
 what the rules concluded, what a person reviewed, and what an application is
 allowed to assume. Keeping those layers visible is what makes the data useful.
 
-This guide was checked against the code on 18 November 2026. Operational counts
+This guide was checked against the code on 19 November 2026. Operational counts
 change as discovery and verification run. Read the coverage views for current
 figures; a dated audit report is a snapshot, not today's live database.
 
@@ -84,6 +84,13 @@ card or a page-wide feature list is not evidence for the advertised property.
 identifies labels/schema properties or recognized icons, and excludes toilets.
 An unknown icon shape is a gap to investigate, not a reason to guess by position.
 
+[listing_identity.py](scraper/parsers/listing_identity.py) checks the requested,
+redirected and canonical listing identity. An ID occurring inside a longer ID or
+only in a query parameter is not a match. A renamed URL with the same ID remains
+usable, and its current URL supplies parsing context. Health treats foreign-host
+or canonical conflicts as errors rather than accepting another advert's data.
+The writer rejects a foreign `(source, external_id)` observation before any write.
+
 Pagination stops after enough consecutive known listings. This keeps ordinary
 discovery cheap, but it is not a complete rescrape of every listing. Changing a
 parser does not automatically repair all old rows.
@@ -145,7 +152,13 @@ someone verified the property's position or found its parcel boundary. That
 matters for valuation and spatial studies: many adverts can share one centroid.
 The geocoder does not establish land size or measure building footprints.
 
-### 4. The writer commits a coherent observation
+Location refresh is currently partial. Discovery can refresh coordinates while
+retaining older address/neighbourhood/city labels; full health observations do
+not refresh every location field. A fresh room assessment therefore does not
+certify location freshness. A useful next change is to refresh and version those
+fields together, with review when a portal ID appears to have been reused.
+
+### 4. The writer commits changes and their history together
 
 [db_writer.py](scraper/db_writer.py) coordinates inserts, discovery updates and
 identity-matched health observations. It works with dedicated stores:
@@ -154,6 +167,7 @@ identity-matched health observations. It works with dedicated stores:
 | --- | --- |
 | `property_storage.py` | Canonical classification and before/after classification history |
 | `room_count_store.py` | Stored rooms, raw metrics, evidence, retained originals and room audit |
+| `area_store.py` | Land/floor claims, supported gap fills, retained originals and area audit |
 | `property_count_store.py` | Quantity assessments, observations, decisions and feature/offer assessments |
 | `pricing.py` and the writer | Quote interpretation, comparison and pricing/lifecycle events |
 
@@ -375,7 +389,10 @@ For prices, keep sale, rent and short-let purposes separate. A quote per month,
 night, year, person or square metre is not interchangeable with a property-level
 sale amount. Even a `single_unit_price_candidate` still needs relevant field
 quality, location, period and comparable-asset checks. Never divide a bundle price
-by a count until that relationship is established.
+by a count until that relationship is established. A supported three-bedroom
+layout inside a block does not establish that the asking price buys one flat.
+For a simple unit-price cohort, require unit scope and a suitable price basis;
+review whole-building and bundle offers separately.
 
 `raw_data.comparable_rental_prices`, `rental_price_summary` and
 `rental_pricing_coverage` support current rental comparisons. The legacy
@@ -520,6 +537,12 @@ finished. Avoid manually running an old preview against newly changed rules.
 
 These are recommendations, not claims that the work is already implemented.
 
+One existing collection-policy gap deserves explicit attention: normal discovery's
+`BaseParser._robots_allowed` currently contains a bypass and returns true. The
+controlled verification uses its own robots checks. Consolidate effective policy
+checks across discovery, health and recovery before widening collection; do not
+assume the method name proves that a gate is active.
+
 1. **Measure field coverage continuously.** Track evidence-supported values,
    unresolved reasons, source age and verified outliers by portal and asset class.
    A rising row count is not a data-quality metric. Retain observed/attempt times
@@ -534,6 +557,9 @@ These are recommendations, not claims that the work is already implemented.
    versions and timestamps make decisions reproducible. Add a bounded retention
    policy for compressed primary-page snapshots where worthwhile; avoid an endless
    pile of unlabelled HTML or repeated report copies on a nearly full disk.
+   Keep an observation ID across quote, room, area and classification facts, so a
+   study can align facts from the same page version rather than mixing a newer
+   room count with an older retained quote.
 3. **Introduce a real migration ledger.** Record a checksum and installation time
    once per migration, then update every local/cloud entry point consistently.
    Do not bolt a ledger onto just one runner while the others still replay SQL.
