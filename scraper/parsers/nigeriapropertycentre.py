@@ -16,6 +16,7 @@ from bs4 import BeautifulSoup
 
 from scraper.models import RawListing
 from scraper.parsers.base_parser import BaseParser
+from scraper.parsers.room_metrics import extract_room_metrics
 
 log = logging.getLogger(__name__)
 
@@ -90,17 +91,7 @@ class NigeriaPropertyCentreParser(BaseParser):
         raw_price = raw_price_text
         raw_price_currency = ""
 
-        raw_bedrooms_val    = _text(soup, BEDROOMS_SELECTOR_VAL)
-        raw_bedrooms_name   = next_sibling_text(soup, BEDROOMS_SELECTOR_VAL) if raw_bedrooms_val is not None else None
-        if raw_bedrooms_val is None:
-            raw_bedrooms_val = self._find_feature_value(soup, "Bedrooms")
-            raw_bedrooms_name = " Bedrooms" if raw_bedrooms_val else None
-
-        raw_bathrooms_val   = _text(soup, BATHROOMS_SELECTOR_VAL)
-        raw_bathrooms_name  = next_sibling_text(soup, BATHROOMS_SELECTOR_VAL) if raw_bathrooms_val is not None else None
-        if raw_bathrooms_val is None:
-            raw_bathrooms_val = self._find_feature_value(soup, "Bathrooms")
-            raw_bathrooms_name = " Bathrooms" if raw_bathrooms_val else None
+        metrics,metric_sources = extract_room_metrics(soup,self.source)
 
         raw_address         = _text(soup, ADDRESS_SELECTOR)
         if not raw_address:
@@ -156,8 +147,9 @@ class NigeriaPropertyCentreParser(BaseParser):
             raw_price         = raw_price_currency + raw_price,
             raw_price_type    = raw_price_type,
             raw_price_text    = raw_price_text,
-            raw_bedrooms      = raw_bedrooms_val + raw_bedrooms_name if raw_bedrooms_name is not None else None,
-            raw_bathrooms     = raw_bathrooms_val + raw_bathrooms_name if raw_bathrooms_name is not None else None,
+            room_metric_sources = metric_sources,
+            raw_bedrooms      = metrics['bedrooms'],
+            raw_bathrooms     = metrics['bathrooms'],
             raw_address       = raw_address,
             raw_floor_area    = None,
             description       = description,

@@ -353,6 +353,8 @@ class TestNormaliseEndToEnd:
         """Mirrors a NPC rent listing (Ajah, 2-bed apartment)."""
         raw = make_raw(
             external_id       = "3364115",
+            title             = "2 Bedroom Flat for Rent",
+            description       = "Spacious 2 bedroom apartment.",
             source            = "nigeriapropertycentre",
             raw_price         = "₦4,000,000per annum",
             raw_price_type    = "FOR_RENT",

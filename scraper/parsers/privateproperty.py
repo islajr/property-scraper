@@ -16,6 +16,7 @@ from bs4 import BeautifulSoup
 
 from scraper.models import RawListing
 from scraper.parsers.base_parser import BaseParser
+from scraper.parsers.room_metrics import extract_room_metrics
 
 log = logging.getLogger(__name__)
 
@@ -75,13 +76,8 @@ class PrivatePropertyParser(BaseParser):
         raw_price_text = quote_element.get_text(" ", strip=True)[:1000]
         raw_price = raw_price_text
 
-        raw_bedrooms    = _text(soup, BEDROOMS_SELECTOR)
-        if raw_bedrooms is None:
-            raw_bedrooms = self._find_feature_by_text(soup, ["bed", "bedroom"])
-
-        raw_bathrooms   = _text(soup, BATHROOMS_SELECTOR)
-        if raw_bathrooms is None:
-            raw_bathrooms = self._find_feature_by_text(soup, ["bath", "bathroom"])
+        metrics,metric_sources = extract_room_metrics(soup,self.source)
+        raw_bedrooms,raw_bathrooms = metrics['bedrooms'],metrics['bathrooms']
 
         raw_address     = _text(soup, ADDRESS_SELECTOR)
         if not raw_address:
@@ -131,6 +127,7 @@ class PrivatePropertyParser(BaseParser):
             raw_price         = raw_price,
             raw_price_type    = raw_price_type,
             raw_price_text    = raw_price_text,
+            room_metric_sources = metric_sources,
             raw_bedrooms      = raw_bedrooms,
             raw_bathrooms     = raw_bathrooms,
             raw_address       = raw_address,

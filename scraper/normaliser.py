@@ -24,6 +24,7 @@ from typing import Optional, Tuple
 import config
 from scraper.models import RawListing, NormalisedListing
 from scraper.property_types import classify
+from scraper.room_counts import assess as assess_room_counts
 
 log = logging.getLogger(__name__)
 
@@ -67,8 +68,11 @@ def normalise(raw: RawListing) -> NormalisedListing:
     terms = parse_terms(raw.raw_price_text or raw.raw_price, price_type)
     property_classification        = classify(raw.property_type_raw, raw.title, raw.description,
                                              raw.property_type_raw_source, source=raw.source, external_id=raw.external_id)
-    bedrooms                       = parse_integer(raw.raw_bedrooms)
-    bathrooms                      = parse_integer(raw.raw_bathrooms)
+    room_counts = assess_room_counts(dict(source=raw.source,external_id=raw.external_id,title=raw.title,
+        description=raw.description,raw_bedrooms=raw.raw_bedrooms,raw_bathrooms=raw.raw_bathrooms,
+        room_metric_sources=raw.room_metric_sources,**asdict(property_classification)))
+    bedrooms = room_counts['bedrooms']['value']
+    bathrooms = room_counts['bathrooms']['value']
     floor_area_sqm                 = parse_floor_area_sqm(raw.raw_floor_area)
     floor_area_source              = "PORTAL" if floor_area_sqm is not None else "NONE"
     neighbourhood, nb_normalised   = normalise_neighbourhood(raw.raw_address)
@@ -97,6 +101,8 @@ def normalise(raw: RawListing) -> NormalisedListing:
         geocoded                 = False,
         agent_name               = raw.agent_name,
         diaspora_targeted        = diaspora,
+        raw_bedrooms=raw.raw_bedrooms,raw_bathrooms=raw.raw_bathrooms,
+        room_metric_sources=raw.room_metric_sources,room_counts=room_counts,
         **asdict(property_classification),
         **asdict(terms),
     )
@@ -144,11 +150,11 @@ def parse_floor_area_sqm(raw: Optional[str]) -> Optional[float]:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def parse_integer(raw: Optional[str]) -> Optional[int]:
-    """Extract first integer from a string like '3 Bedrooms' → 3."""
+    """Parse one whole integer/label; reject ranges, mixed values and unrelated text."""
     if not raw:
         return None
-    m = re.search(r'\d+', raw)
-    return int(m.group()) if m else None
+    m = re.fullmatch(r'\s*(\d+)(?:\s*(?:bedrooms?|beds?|bathrooms?|baths?|toilets?))?\s*', raw, re.I)
+    return int(m.group(1)) if m else None
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
