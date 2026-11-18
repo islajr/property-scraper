@@ -151,6 +151,36 @@ def test_recovery_targets_missing_bedrooms_even_when_bathrooms_are_supported(pri
     assert get_row(db,item.external_id)==before  # Default recovery is observation-only.
 
 
+def test_batched_primary_observations_keep_actual_before_evidence_and_retry_cleanly(pricing_writer):
+    from scraper.room_count_store import persist_many
+    db=pricing_writer;item,before=historical(db)
+    observed=listing(title='3 bedroom flat',raw_bedrooms='3 Bedrooms',raw_bathrooms='2 Bathrooms')
+    observed.external_id=item.external_id;run=uuid4()
+    with db.conn.cursor() as c:
+        c.execute('SELECT row_to_json(s),xmin::text FROM raw_data.scraped_listings s WHERE id=%s FOR UPDATE',(before['id'],));row,version=c.fetchone()
+        result=persist_many(c,[(row,version)],run_id=run,observations={row['id']:observed})
+        assert result[row['id']]['outcome']=='APPLIED'
+        c.execute('SELECT facts FROM raw_data.property_fact_assessments WHERE id=%s',(result[row['id']]['assessment_id'],));facts=c.fetchone()[0]
+        assert facts['before']['raw_bathrooms'] is None and facts['after']['raw_bathrooms']=='2 Bathrooms'
+    db.conn.commit();after=get_row(db,item.external_id)
+    assert (after['bedrooms'],after['bathrooms'])==(3,2)
+    assert after['room_count_legacy']==dict(bedrooms=1234,bathrooms=123)
+    with db.conn.cursor() as c:
+        c.execute('SELECT row_to_json(s),xmin::text FROM raw_data.scraped_listings s WHERE id=%s FOR UPDATE',(before['id'],));row,version=c.fetchone()
+        result=persist_many(c,[(row,version)],run_id=uuid4(),observations={row['id']:observed})
+        assert result[row['id']]['outcome']=='UNCHANGED'
+
+
+def test_batched_observations_reject_mismatched_portal_identity(pricing_writer):
+    from scraper.room_count_store import persist_many
+    db=pricing_writer;item,before=historical(db)
+    wrong=listing()
+    with db.conn.cursor() as c:
+        c.execute('SELECT row_to_json(s),xmin::text FROM raw_data.scraped_listings s WHERE id=%s FOR UPDATE',(before['id'],));row,version=c.fetchone()
+        with pytest.raises(ValueError):persist_many(c,[(row,version)],run_id=uuid4(),observations={row['id']:wrong})
+    assert get_row(db,item.external_id)==before
+
+
 @pytest.mark.parametrize('later_edit',[False,True])
 def test_reversal_respects_later_edits_and_prevents_resurrection(pricing_writer,tmp_path,later_edit):
     db=pricing_writer;item,before=historical(db);db.conn.rollback();path=tmp_path/'reverse.jsonl';preview(db.conn,path)

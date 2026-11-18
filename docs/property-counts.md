@@ -186,6 +186,16 @@ source-bound reviews where they establish the quantity. Toilets, ensuite wording
 room capacity, BQ accommodation and bedrooms do not manufacture bathroom totals.
 Source conflicts stay unresolved; mixed layouts retain their component claims.
 
+Primary labels are still advertiser claims. If a residential per-dwelling pair
+contains a count of at least ten that exceeds five times the other count, the
+larger candidate requires review rather than an automatic fill or correction.
+The explicit candidate and `UNUSUAL_PRIMARY_ROOM_RATIO` flag remain visible;
+existing numbers are preserved. This threshold prompts verification, not a
+conclusion that the advert is false. Likewise, a title describing different
+bedroom layouts cannot establish that a single bathroom widget applies to each
+dwelling. Bathroom totals remain held unless the source explicitly qualifies
+the number for each unit. Never divide an aggregate widget by the unit count.
+
 Use these fields in `raw_data.property_research_current`:
 
 - `bedrooms_per_dwelling` and `bathrooms_per_dwelling`: supported exact quantities
@@ -275,6 +285,14 @@ redirected and incomplete pages stay unresolved. Use a new report path and its
 When operating from a worktree, set PROPERTY_SCRAPER_LOCK_DIR to the production
 checkout's `.local/locks` so recovery and health checks share the same host lock.
 This is bounded recovery tooling, not an unattended retry scheduler.
+
+Room-only observation callers may use `room_count_store.persist_many` with an
+`observations` mapping to batch writes while retaining each actual saved before
+state and immutable audit. They must lock/check source rows and validate page
+identity and source agreement first. The API rejects mismatched portal identities;
+changed-source observations still require a full listing transaction. Repeated
+identical observations retain the original storage-action record and emit no
+additional audit solely because an earlier fill/correction is now unchanged.
 
 ### Turning the verification backlog into usable data
 
