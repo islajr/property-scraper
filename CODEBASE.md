@@ -239,7 +239,11 @@ proof of correctness, but a selector defect is not proof they are wrong either.
 The historical backfill preserved every existing non-null bedroom/bathroom value.
 It filled previously empty fields only where explicit evidence supplied a count.
 Future corrections require a fresh, unambiguous primary metric. Missing or
-conflicting observations do not erase a stored number. The first pre-repair pair
+conflicting observations do not erase a stored number. PropertyPro can also supply positive structured room counts on pages without
+visible widgets. The residence name must match the canonical-URL-bound primary
+advert; zero defaults and related residences do not become metrics.
+
+The first pre-repair pair
 remains in `room_count_legacy`; each assessment retains before/after evidence.
 
 For each field, distinguish the stored number from the extracted candidate, its
@@ -258,6 +262,28 @@ bathroom total applies to every dwelling.
 Do not infer bathrooms from bedroom counts, toilet counts, ensuite wording or a
 typical layout. Keep confidence separate for each field: a missing bathroom does
 not invalidate a supported bedroom or canonical form.
+
+A retained number and a supported wording claim are also different things. A saved
+title might explicitly say three bedrooms while the legacy column still holds
+1,234. The column stays unverified until an audited correction is justified;
+the separately retained candidate can still be a supported claim about the advert.
+The ordinary per-dwelling columns use the stricter stored-number policy. If a study
+intentionally analyzes source wording, inspect that evidence separately:
+
+```sql
+SELECT listing_id, stored_bedrooms, bedrooms_status,
+       (room_count_evidence->'bedrooms'->>'value')::integer AS source_bedroom_claim,
+       room_count_evidence->'bedrooms'->'claims' AS supporting_claims
+FROM research.properties
+WHERE room_counts_current
+  AND room_count_evidence->'bedrooms'->>'evidence_status' = 'KNOWN'
+  AND room_count_evidence->'bedrooms'->>'basis' = 'PER_DWELLING';
+```
+
+Report that method as source-supported claims, keep the retained column/status
+alongside it, and check source age. This query neither changes stored values nor
+certifies a physical inspection. Do not use an unresolved or mixed-layout candidate
+as an unqualified unit count.
 
 ### Features, offers and human review
 
@@ -403,6 +429,21 @@ files during the November rollout. Decompress a copy before using a tool that
 expects the original JSONL bytes; preserve the recorded uncompressed checksum.
 Editable worksheets are separate from those frozen artifacts.
 
+### Getting a current room worksheet
+
+Run [export_room_review.py](scripts/export_room_review.py) with an ignored output
+directory, as shown in [the room guide](docs/property-counts.md#export-a-current-room-worksheet).
+It reads the current consumer contract and writes separate full, exceptional and
+100-plus CSVs. Optional verification logs distinguish inaccessible pages, changed
+assets, supported candidates and pages that still omit the quantity. Missing logs
+are not evidence that a listing was never visited.
+
+Each export has a unique name and a `current.json` pointer. Your older review notes
+remain in their original file. Check the snapshot date and source hash before
+acting on an old row. The blank review columns collect checked values and evidence;
+editing them does not write to production. A decision still needs a source-bound,
+audited repair. Work on the exceptional active listings first, then by action code.
+
 ### Current operational handoff
 
 At 14:24 UTC on 18 November 2026, merged PR #17 had been deployed and verified
@@ -483,7 +524,11 @@ These are recommendations, not claims that the work is already implemented.
    unresolved reasons, source age and verified outliers by portal and asset class.
    A rising row count is not a data-quality metric. Retain observed/attempt times
    separately from assessment time; an inaccessible page does not establish a
-   removal, and a matching hash does not establish a recent fetch. Alert on sudden parser coverage
+   removal, and a matching hash does not establish a recent fetch. Normal health
+   selection requires feed absence: it is not a periodic census of every active URL.
+   Choose a discovery/census schedule deliberately, and persist fetch-attempt and
+   successful-observation times independently of interpretation changes.
+   Alert on sudden parser coverage
    drops and selector drift, using genuinely different fixture values.
 2. **Retain compact observation evidence.** Raw strings, source spans, extraction
    versions and timestamps make decisions reproducible. Add a bounded retention

@@ -12,7 +12,7 @@ of unique physical properties or completed transactions.
 ```mermaid
 flowchart TD
     P[Primary listing pages] --> R[Portal parsers: raw strings and identity]
-    R --> N[Normaliser: pricing, type and room interpretation]
+    R --> N[Normaliser: pricing, type, room and area interpretation]
     N --> G[Discovery geocoder: neighbourhood coordinates]
     G --> W[Transactional writer and evidence stores]
     N --> W
@@ -37,9 +37,9 @@ checkpoints and side effects should remain explicit.
 | Layer | Main files | Responsibility |
 | --- | --- | --- |
 | Extraction | `scraper/parsers/`, `models.py` | Read the primary listing, keep raw fields and metric provenance |
-| Interpretation | `normaliser.py`, `pricing.py`, `property_types.py`, `property_counts.py`, `room_counts.py`, `property_facts.py` | Produce typed claims with basis, status, evidence and unresolved questions |
+| Interpretation | `normaliser.py`, `pricing.py`, `property_types.py`, `property_counts.py`, `room_counts.py`, `area_measurements.py`, `property_facts.py` | Produce typed claims with basis, status, evidence and unresolved questions |
 | Reviewed cases | `property_reviews.py`, `property_reviews.json` | Apply identity- and exact-source-bound human decisions |
-| Persistence | `db_writer.py`, the classification/count/room stores | Commit saved state and its audit together |
+| Persistence | `db_writer.py`, the classification/count/room/area stores | Commit saved state and its audit together |
 | Current readers | Numbered SQL migrations | Expose applicable interpretations and retained values without erasing history |
 | Operations | `orchestrator.py`, `health_checker.py`, repair/recovery modules and scripts | Bound work, coordinate traffic, resume interrupted runs and report outcomes |
 | Presentation | Telemetry scripts, `templates/`, generated `web/` | Static operational dashboard; not the research contract |

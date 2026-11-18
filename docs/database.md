@@ -70,7 +70,7 @@ preserving the original observation and who made the decision.
 
 | Physical table in `raw_data` | Why it exists |
 | --- | --- |
-| `property_fact_assessments` | Feature/offer and room assessments, distinguished by `rule_version` |
+| `property_fact_assessments` | Feature/offer, room and area assessments, distinguished by `rule_version` |
 | `property_fact_revocations` | Append-only assessment retractions |
 
 Rooms reuse this history rather than adding another set of physical audit tables.
