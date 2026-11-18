@@ -4,7 +4,9 @@ No positional assignments, page-wide number search or toilet-to-bathroom mapping
 Unknown icon shapes deliberately return no metric rather than guessing a role.
 """
 import hashlib
+import json
 import re
+from urllib.parse import urlsplit
 
 _ICONS = {
     '6aae5d27c41e0304a9b756f9ed3aecd208dea59c572e4b2b3015a94ceb7b5e49': 'bedrooms',
@@ -64,4 +66,49 @@ def extract_room_metrics(soup, source):
             text=item.get_text(' ',strip=True)
             roles=[role for role,pattern in _LABELS.items() if pattern.search(text)]
             if len(roles)==1:add(roles[0],text,'PRIMARY_LABEL')
+    if source=='propertypro':
+        for role,text in _primary_schema_rooms(soup):add(role,text,'PRIMARY_SCHEMA_PROPERTY')
     return {role:' | '.join(items) if items else None for role,items in values.items()},sources
+
+
+def _primary_schema_rooms(soup):
+    """PropertyPro's widget-free pages retain primary residence JSON-LD.
+
+    Require a canonical-URL-matched RealEstateListing and an exactly matching
+    residence name. Ignore zero defaults, related residences and malformed JSON.
+    JSON-LD's broad residence type is not property-classification evidence.
+    """
+    canonical=soup.select_one('link[rel="canonical"][href]')
+    if canonical is None:return []
+    def identity(url):
+        try:
+            parsed=urlsplit(url)
+            if parsed.scheme not in {'http','https'} or parsed.hostname not in {'propertypro.ng','www.propertypro.ng'}:return None
+            if not parsed.path.startswith('/property/'):return None
+            return parsed.hostname.removeprefix('www.'),parsed.path.rstrip('/')
+        except (ValueError,TypeError):return None
+    target=identity(canonical['href'])
+    if target is None:return []
+    nodes=[]
+    def collect(value):
+        if isinstance(value,list):
+            for item in value:collect(item)
+        elif isinstance(value,dict):
+            nodes.append(value)
+            if '@graph' in value:collect(value['@graph'])
+    for tag in soup.select('script[type="application/ld+json"]'):
+        try:collect(json.loads(tag.string or tag.get_text()))
+        except (ValueError,TypeError,RecursionError):continue
+    def types(node):
+        value=node.get('@type');return [t for t in (value if isinstance(value,list) else [value]) if isinstance(t,str)]
+    names={n['name'] for n in nodes if 'RealEstateListing' in types(n) and
+           identity(n.get('url'))==target and isinstance(n.get('name'),str) and n['name'].strip()}
+    result=[]
+    for node in nodes:
+        if not any(t in {'SingleFamilyResidence','Apartment','House','Residence'} for t in types(node)):continue
+        if not isinstance(node.get('name'),str) or node['name'] not in names:continue
+        for role,key in (('bedrooms','numberOfBedrooms'),('bathrooms','numberOfBathroomsTotal')):
+            value=node.get(key)
+            if type(value) is int and value>0:result.append((role,str(value)))
+            elif isinstance(value,str) and re.fullmatch(r'[1-9]\d*',value.strip()):result.append((role,value.strip()))
+    return result
