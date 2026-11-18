@@ -1,1027 +1,489 @@
-# PS-0 PropertyScraper — Codebase Reference
-
-> How every file works, what connects to what, and why.
->
-> This document covers the complete scraper application: all modules, data flow, database schema, configuration, testing, and operational behaviour. Read it once and you will be able to debug, extend, or fix any part of the system.
-
----
-
-## Contents
-
-1. [What This Application Does](#1-what-this-application-does)
-2. [Configuration](#2-configuration-configpy)
-3. [Data Models](#3-data-models-scrapermodelspy)
-4. [Parsers](#4-parsers-scraperparsers)
-5. [Normaliser](#5-normaliser-scrapernormaliserpy)
-6. [Geocoder](#6-geocoder-scrapergeocoderpy)
-7. [Database](#7-database-scraperdb_writerpy--schema)
-8. [Orchestrator](#8-orchestrator-scraperorchestatorpy)
-9. [Notifier](#9-notifier-scrapernotifierpy)
-10. [State Checkpointing](#10-state-checkpointing-scrapercheckpointpy)
-11. [Tests](#11-tests-tests)
-12. [Running the Scraper](#12-running-the-scraper-runsh)
-13. [Full Data Flow](#13-full-data-flow--one-run)
-14. [Debugging](#14-debugging--what-goes-wrong-and-where)
-15. [Ongoing Maintenance](#15-ongoing-maintenance)
-16. [Market Analysis & Snapshots](#16-market-analysis--snapshots)
-
----
-## 1. What This Application Does
-
-PropertyScraper (PS-0) is a data pipeline with two primary run modes:
-
-1. **Discovery Runs (Weekly)**: Wires parsers → normaliser → geocoder → db_writer → notifier to ingest new listings from Nigerian property portals and update existing active listings.
-2. **Health Check Runs (Daily)**: Fetches and verifies individual URLs of active feed-absent listings using a voluntary cohort schedule (Adaptive Cooldown) and daily queue caps to confirm removals and price adjustments. It runs in micro-batches (committing results incrementally to PostgreSQL) and is protected by an early-exit timing guard to allow frequent scheduling triggers.
-
-There is no web server, no API, no user interface. It is an autonomous batch script that runs on GitHub Actions (routing requests through a residential proxy tunnel) or directly on local machines.
-
-### The seven stages of every Discovery Run
-
-| Stage | What happens |
-|---|---|
-| 1. Fetch snapshot | Read all currently ACTIVE listings from the DB into memory |
-| 2. Scrape portals | Fetch search result pages and individual listing pages from the active portals |
-| 3. Normalise | Convert raw strings (`"₦45M"`, `"3 Beds"`) into typed Python values |
-| 4. Geocode | Attach lat/lng coordinates to each listing via neighbourhood name lookup |
-| 5. Upsert | Insert new listings, update existing ones, increment missed_run_count, emit history events |
-| 6. Run log | Write one row per portal to `scrape_runs` to record what happened |
-| 7. Notify | Send a Telegram message with counts and status for each portal |
-
-### The file structure
-
-```
-property-scraper/
-├── config.py                   ← All configuration (env vars, constants)
-├── conftest.py                 ← Root pytest path fix
-├── pytest.ini                  ← pytest settings
-├── run.sh                      ← Execution wrapper script (runs discovery or health-checks)
-├── start_tunnel.py             ← Local residential proxy tunnel daemon (ngrok + local HTTP proxy)
-├── rebuild_snapshots.py        ← Rebuilds weekly snapshot aggregation tables for market reports
-├── .env                        ← Local credentials (never commit)
-│
-├── scraper/                    ← The application
-│   ├── models.py               ← RawListing and NormalisedListing dataclasses
-│   ├── orchestrator.py         ← Main entry point — parses args, selects mode, runs pipeline
-│   ├── normaliser.py           ← String → typed value conversion
-│   ├── geocoder.py             ← Neighbourhood → lat/lng (Nominatim + cache)
-│   ├── db_writer.py            ← All database reads and writes
-│   ├── health_checker.py       ← Async URL verification and cohort engine (Health Check mode)
-│   ├── checkpoint.py           ← State persistence engine (.scraper_checkpoint.json)
-│   ├── notifier.py             ← Telegram notification triggers
-│   └── parsers/
-│       ├── base_parser.py      ← Shared HTTP + pagination infrastructure
-│       ├── propertypro.py      ← PropertyPro.ng parser
-│       ├── privateproperty.py  ← PrivateProperty.ng parser
-│       └── nigeriapropertycentre.py ← NigeriaPropertyCentre.ng parser
-│
-├── schema/
-│   ├── 001_raw_data_schema.sql ← Database tables, indexes — run once
-│   ├── 002_add_health_check_at.sql ← Adds health check tracking timestamp to schema
-│   └── 003_add_next_health_check_at.sql ← Adds pre-calculated next check timestamp to schema
-│
-└── tests/
-    ├── conftest.py             ← Shared test helpers and factories
-    ├── fixtures/               ← Saved HTML pages from each portal
-    ├── test_parsers.py
-    ├── test_normaliser.py
-    ├── test_geocoder.py
-    ├── test_db_writer.py
-    ├── test_pipeline.py
-    ├── test_checkpoint.py      ← Tests for state serialization & expiration
-    ├── test_integration_checkpoint.py ← Offline integration tests for checkpoint resume
-    └── test_health_checker.py  ← Tests for micro-batched health check & domain semaphores
-```
-
----
-
-## 2. Configuration (`config.py`)
-
-`config.py` is loaded by every other module. It is always the first import. It reads environment variables and defines all constants that control scraper behaviour.
-
-### Environment variables
-
-| Variable | Purpose |
-|---|---|
-| `DATABASE_URL` | Supabase PostgreSQL connection string. Required — app crashes immediately if missing. |
-| `TELEGRAM_BOT_TOKEN` | Token for the Telegram bot that sends run summaries. Optional — skips notification if absent. |
-| `TELEGRAM_CHAT_ID` | The chat/channel ID the bot posts to. Optional. |
-
-In local development these come from the `.env` file. In GitHub Actions they are injected as repository secrets. `python-dotenv` loads `.env` automatically on startup; in Actions `.env` does not exist and the variables are already in the environment.
-
-### Behaviour constants
-
-| Constant | Default | Purpose |
-|---|---|---|
-| `REQUEST_DELAY_MIN` / `MAX` | 2 / 3s | Delay range between requests |
-| `MAX_RETRIES` | 3 | HTTP retry limits |
-| `RETRY_BACKOFF_BASE` | 2.0 | Exponential backoff sleep base |
-| `REQUEST_TIMEOUT` | 15 | Timeout in seconds |
-| `MAX_CONSECUTIVE_FAILURES` | 5 | consecutive errors before aborting |
-| `PAGINATION_STOP_AFTER_KNOWN` | 15 | Duplicate stop check range |
-| `SUSPECTED_SOLD_MIN_DAYS` | 30 | Day range for transaction flag |
-| `HEALTH_CHECK_INTERVAL_DAYS` | 2 | Adaptive cooldown check interval |
-| `HEALTH_CHECK_LIMIT` | 1000 | Max listings checked per run |
-| `HEALTH_CHECK_BATCH_SIZE` | 50 | Micro-batch size for resilient DB commits |
-| `HEALTH_CHECK_CONCURRENCY` | 10 | Max global HTTP socket concurrency for health checks |
-| `HEALTH_CHECK_PER_DOMAIN_CONCURRENCY` | 3 | Max concurrent HTTP requests per portal domain |
-| `HEALTH_CHECK_MAX_BACKOFF_DELAY` | 30.0 | Upper sleep cap (seconds) for exponential backoff retries |
-| `HEALTH_CHECK_RUN_INTERVAL_HOURS` | 22 | Daily timing guard limit |
-| `UPSERT_BATCH_SIZE` | 200 | DB bulk batch size |
-
-`CANONICAL_NEIGHBOURHOODS` is a hardcoded list of ~100 neighbourhood names (Lagos + Abuja + Port Harcourt). The normaliser uses it for fuzzy matching — raw addresses like `"Lekki Ph1, Lagos"` get matched back to the canonical `"Lekki Phase 1"`. This list is shared with the P0 synthetic data generator.
-
----
-
-
-## 3. Data Models (`scraper/models.py`)
-
-There are exactly two data objects in this application. Everything flows through them.
-
-### RawListing
-
-A `RawListing` is what a parser produces. Every field is either a string or `None` — no interpretation, no conversion, no typing. It is a direct mirror of what was in the HTML.
-
-```python
-RawListing(
-    external_id       = '7NUGY',                                    # ID from the portal URL
-    source            = 'propertypro',                              # which portal
-    url               = 'https://...',
-    title             = 'Newly Furnished 3 Bedroom Luxury Apartment',
-    raw_price         = '₦75,000,000/year',                         # raw string, not parsed
-    raw_price_type    = 'FOR_RENT',                                  # raw string
-    raw_bedrooms      = '3 Beds',                                   # raw string
-    raw_bathrooms     = '3 Baths',
-    raw_address       = 'Old Ikoyi Ikoyi Lagos',
-    raw_floor_area    = None,                                        # not stated on this listing
-    description       = 'Spacious luxury...',
-    property_type_raw = 'Flat / Apartment',
-    agent_name        = 'First Colony Real Estate',
-)
-```
-
-### NormalisedListing
-
-A `NormalisedListing` is what the normaliser produces from a `RawListing`. Every field is typed. This is what gets written to the database.
-
-Key rules enforced at this stage:
-
-- All prices are stored as **kobo** (int). ₦45,000,000 = `4_500_000_000`. Never floats, never naira.
-- All floor areas are stored in **square metres** (float). Sqft inputs are converted.
-- `price_parse_failed = True` when a `raw_price` string exists but cannot be interpreted.
-- `geocoded` starts as `False` — set to `True` by the geocoder stage.
-- `first_seen_at`, `last_seen_at`, `listing_status`, `suspected_sold`, `missed_run_count` are lifecycle fields set by `db_writer`, not the normaliser.
-
-### Why two separate objects?
-
-This separation is intentional. A parser produces a `RawListing` from HTML. The normaliser converts it to a `NormalisedListing`. If the parser breaks, it only affects that portal. If the normaliser breaks, it affects all portals but leaves the parser logic intact.
-
-More importantly: you can test the normaliser with no parsers, no network, no database. You just construct a `RawListing` by hand and pass it in.
-
----
-
-## 4. Parsers (`scraper/parsers/`)
-
-The parsers are responsible for fetching HTML from portal websites and extracting `RawListing`s from it. There are five files: one shared base class and one subclass per portal.
-
-### `base_parser.py` — Shared infrastructure
-
-`BaseParser` provides everything the portal subclasses need except the actual HTML extraction logic. When you call `parser.scrape()`, this is what runs:
-
-```python
-def scrape(self) -> List[RawListing]:
-    while current_url:
-        html = self._get(current_url)               # fetch search results page
-        soup = BeautifulSoup(html)
-        listing_urls = self.get_listing_urls(soup)  # ← subclass implements this
-
-        for url in listing_urls:
-            ext_id = self._extract_external_id(url)
-            if (source, ext_id) in active_listings: # already in DB
-                consecutive_known += 1
-                if consecutive_known >= PAGINATION_STOP_AFTER_KNOWN:
-                    return results                  # ← early exit
-                continue
-
-            self._polite_delay()                    # random 2–5s sleep
-
-            if not self._robots_allowed(url):       # robots.txt check
-                continue
-
-            html    = self._get(url)                # fetch individual listing
-            soup    = BeautifulSoup(html)
-            listing = self.parse_listing(soup, url) # ← subclass implements this
-            results.append(listing)
-
-        page_number  += 1
-        current_url   = self.next_page_url(...)     # ← subclass implements this
-```
-
-**What BaseParser handles for you:**
-
-- `requests.Session` with browser-like `User-Agent` and `Accept` headers
-- `robots.txt` compliance — fetched at `__init__` time and checked before each listing fetch
-- Retry logic — 3 retries with exponential backoff (2s, 4s, 8s) on 429 or timeout
-- Random delay between requests — 2 to 5 seconds, uniform distribution
-- Pagination short-circuit — stops when `PAGINATION_STOP_AFTER_KNOWN` consecutive listings are already in the DB
-- Logging — all fetches, retries, and errors are logged with the portal name as prefix
-
-> **robots.txt note:** The robots.txt checker calls `can_fetch(self.HEADERS['User-Agent'], url)` — **not** `can_fetch('*', url)`. Passing `'*'` is a bug: Python's `RobotFileParser` treats `'*'` as a literal agent name, causing `Disallow: /*type=*` patterns to incorrectly block all URLs. Using the actual `User-Agent` string queries the `User-agent: *` block correctly.
-
-**What each subclass must implement:**
-
-| Name | What it does |
-|---|---|
-| `source` (attr) | String ID: `'propertypro'`, `'privateproperty'`, etc. Used as the dedup key. |
-| `base_url` (attr) | Portal root: `'https://propertypro.ng'` |
-| `search_url` (attr) | Starting search page URL |
-| `get_listing_urls(soup)` | Returns a list of listing page URLs from a search results page soup |
-| `parse_listing(soup, url)` | Returns a `RawListing` from a single listing page soup, or `None` on failure |
-| `next_page_url(base, page_n)` | Returns the URL for page N, or `None` when pages are exhausted |
-
-### The three portal parsers
- 
-#### `propertypro.py`
-- Uses `requests` + `BeautifulSoup` (server-rendered HTML)
-- Listing cards on search page: `.pl-title`
-- External ID: alphanumeric suffix in URL (e.g. `'7NUGY'` from `/property/...-7NUGY`)
-- Price: `.property-pricing>.pricing>h2>strong`. Fallback checks for spans containing currency symbols (`₦`, `$`, `USD`) and numbers.
-- Beds/baths: `.property-contact-block>.property-pros ul li`. Fallback calls helper `_find_feature_by_text` searching for `'bed'` / `'bath'` keywords.
-- Address: `.content-block>p`. Fallback searches paragraphs for city names/location tokens.
-- Agent: `#sidebar .flex-grow-1>a>h4`. Fallback scans parent sidebar tags for agency/owner profiles.
- 
-#### `privateproperty.py`
-- Uses `requests` + `BeautifulSoup` (server-rendered HTML)
-- Domain: `privateproperty.ng` — **not** `www.privateproperty.com.ng` (that redirects to 404)
-- Listing cards on search page: `.similar-listings-info`
-- Price: `.property-info .price>strong`. Fallback scans page for currency symbols.
-- Address / property type: `.property-info>p` / `.property-info>h1`. Fallback searches paragraph text for city tokens.
-- Beds/baths: `.property-info .property-benefit>li`. Fallback calls helper `_find_feature_by_text` searching for `'bed'` / `'bath'` keywords.
-- Agent: `.sidebar-main .marketed-by a.media>img`
- 
-#### `nigeriapropertycentre.py`
-- Uses `requests` + `BeautifulSoup` (server-rendered HTML)
-- Listing cards on search page: matches listing ID pattern inside `article` tags (robust against card changes).
-- Price: `span.property-details-price` (falls back to searching classless spans with currency symbols).
-- Address: `div.col-sm-8.f15.property-details address` (falls back to text adjacent to map pin icons).
-- Beds/baths: extracts from structured `itemprop` list in `div.wp-block-footer` (falls back to flex grid containers via helper `_find_feature_value`).
-- Description: `div.tab-content` (falls back to text under the `'About this property'` heading).
-- Agent: `div.panel-body a strong` (falls back to matching both `/agents/` and `/property-owners/` URL profiles).
-
-<!-- #### `jiji.py`
-
-> Jiji is different from the other three portals. Its pages are JavaScript-rendered, meaning the listing content is injected by JS after the initial HTML loads. `requests.get()` returns a mostly empty page. Jiji requires Playwright (a headless browser) to execute the JavaScript and produce the full DOM.
-
-- Uses Playwright sync API — launches a headless Chromium browser
-- `wait_until='networkidle'` — waits for all JS to finish executing before parsing
-- The browser context is reused across all pages in a single run
-- `_parse_listing()` still accepts a `BeautifulSoup` object — testable without Playwright
-- Price: `div.qa-advert-price-view-title`
-- Attributes (type, beds, baths): `div.b-advert-icon-attribute` — repeated element, positional
-- Address: `div.b-advert-info-statistics--region`
-- Description: `div.qa-advert-description` — `qa-` prefix means it's a stable test hook
-- Agent: `div.b-seller-block__name` -->
-
-### Selector constants
-
-Every parser stores its CSS selectors as module-level constants at the top of the file. When a portal changes its HTML, you update one constant, save a new fixture HTML, and run the parser tests. You never need to read through `parse_listing()` to find where selectors are used.
-
-```python
-# Example from propertypro.py
-LISTING_CARD_SELECTOR = 'div.col-md-3'
-PRICE_SELECTOR        = 'div.pricing'
-BEDROOMS_SELECTOR     = 'div.property-pros li:nth-child(1)'
-BATHROOMS_SELECTOR    = 'div.property-pros li:nth-child(2)'
-ADDRESS_SELECTOR      = 'div.content-block p'
-```
-
----
-
-## 5. Normaliser (`scraper/normaliser.py`)
-
-The normaliser takes a `RawListing` (all strings) and returns a `NormalisedListing` (typed). It has no side effects — no network calls, no database. It is a set of pure functions.
-
-The public entry point is `normalise(raw: RawListing) -> NormalisedListing`. Internally it calls eight helpers:
-
-### `parse_price(raw_price: str) → (int | None, bool)`
-
-Returns `(price_kobo, parse_failed)`. Handles all common Nigerian price formats:
-
-| Input | Output (kobo) |
-|---|---|
-| `'₦45,000,000'` | `4_500_000_000` |
-| `'45M'` | `4_500_000_000` |
-| `'45.5M'` | `4_550_000_000` |
-| `'1.5B'` | `150_000_000_000` |
-| `'45 million'` | `4_500_000_000` |
-| `'₦75,000,000/year'` | `7_500_000_000` |
-| `'₦4,000,000per annum'` | `400_000_000` |
-| `'4500000000'` (>10B → already kobo) | `4_500_000_000` |
-| `None` / `''` / `'Price on Request'` | `(None, True)` — `parse_failed=True` |
-
-The already-kobo heuristic: if the raw numeric value exceeds `10_000_000_000` (₦10B), it is assumed to already be in kobo. This handles cases where a portal stores prices as kobo internally.
-
-### `parse_floor_area_sqm(raw: str) → float | None`
-
-Converts any floor area string to square metres. Handles: `sqm`, `sq.m`, `m²`, `sqft`, `sq. ft`. Sqft values are multiplied by `0.0929`. Returns `None` if no area is found.
-
-### `parse_integer(raw: str) → int | None`
-
-Extracts the first integer from a string. `'3 Bedrooms'` → `3`. `'4 bed'` → `4`. `'Studio'` → `None`.
-
-### `parse_price_type(raw_type, title, description) → str | None`
-
-Classifies as `FOR_SALE` or `FOR_RENT` by scanning all three fields for keywords. Rent keywords: `rent`, `per year`, `per annum`, `p.a.`, `lease`, `to let`. Sale keywords: `sale`, `for sale`, `outright`, `buy`, `purchase`. Returns `None` if no keywords found (ambiguous).
-
-### `normalise_property_type(raw: str) → str | None`
-
-Maps raw portal property type strings to canonical enum values using `PROPERTY_TYPE_MAP`. Falls back to partial matching (if `'duplex'` appears anywhere in the string → `DETACHED_DUPLEX`). Unknown types are stored as uppercased underscored versions of the raw string.
-
-### `normalise_neighbourhood(raw_address: str) → (str, bool)`
- 
-Returns `(neighbourhood_name, was_normalised)`. Implements a cascading 4-tier matching strategy:
- 
-1. **Cleaned Exact Match**: Substring search ignoring punctuation/spacing (e.g. `'Lekki Phase 1, Lagos'` matches `'Lekki Phase 1'`).
-2. **Noise-Insensitive Substring Match**: Strips common suffix/prefix terms (like `'estate'`, `'extension'`, `'phase'`, `'road'`, `'street'`, `'layout'`, `'close'`, `'court'`) from both sides before matching (e.g. matching `'Victory Park'` to canonical `'Victory Park Estate'`).
-3. **Chunk-Level Noise-Free Fuzzy Match**: Splits address on delimiters (comma, slash) and fuzzy-matches segments against canonical list.
-4. **Word-Level Fuzzy Match Fallback**: Compares individual words (length >= 4) using `difflib.SequenceMatcher` with a threshold of 0.85 to capture spelling/transcription variations and typos (e.g. resolving `'Gwarimpa'` to `'Gwarinpa'`, or `'Mabuchi'` to `'Mabushi'`).
-
-```
-'Lekki Phase 1, Lagos'       → ('Lekki Phase 1', True)
-'Lekki Ph1, Lagos'           → ('Lekki Phase 1', True)   # fuzzy matched
-'Gwarimpa, Abuja'            → ('Gwarinpa', True)        # typo fuzzy resolved
-'Some New Estate, Ogun'      → ('Some New Estate, Ogun', False)  # stored raw
+# Getting to know property-scraper
+
+This is the guide to read when you want to understand what this project does,
+follow a questionable value back to its source, or change something without
+breaking the projects that use its data. Start here; the smaller domain guides
+linked below contain the detailed rules and operating commands.
+
+The project has grown into a data pipeline. Fetching a page is only the first
+part. We now need to distinguish what an agent wrote, what a parser extracted,
+what the rules concluded, what a person reviewed, and what an application is
+allowed to assume. Keeping those layers visible is what makes the data useful.
+
+This guide was checked against the code on 18 November 2026. Operational counts
+change as discovery and verification run. Read the coverage views for current
+figures; a dated audit report is a snapshot, not today's live database.
+
+## Read the project in this order
+
+If you have an hour, read the example below, the pipeline walkthrough, the database
+section and the operating notes. Then follow one parser through `normalise()` and
+`DatabaseWriter`. You do not need to understand every audit table first.
+
+For a shorter orientation, read [ARCHITECTURE.md](ARCHITECTURE.md). For the full
+database dictionary, read [docs/database.md](docs/database.md). The maintained
+rule/operations guides are:
+
+- [Property types](docs/property-types.md): forms, facets, aliases and unresolved types.
+- [Property counts](docs/property-counts.md): units, layouts, room evidence and verification.
+- [Unified consumer contract](docs/property-unification.md): the supported research reader.
+- [Pricing](README.md#rental-prices-and-billing-periods): quote units and comparable rental data.
+
+Files under `docs/archive/` explain past proposals and snapshots. They remain
+useful evidence, but the current guides and installed schema determine behavior.
+The user's original review CSV is historical input; editing it is not a database
+update. Runtime reviewed decisions live in `scraper/property_reviews.json`.
+
+## One advert, several different facts
+
+Suppose an agent advertises a block containing four flats, each with three
+bedrooms and two bathrooms, and mentions a swimming pool. Here is how to think
+about the result:
+
+| Question | What the structured data should say |
+| --- | --- |
+| What is the advertised form? | `BLOCK_OF_FLATS` |
+| What is its scope? | A whole building, where the source establishes that scope |
+| What does it contain? | Four dwelling units, with a contained-unit relationship |
+| What is each dwelling's layout? | Three bedrooms and two bathrooms, because the wording explicitly says each flat |
+| What feature is advertised? | A pool claim, with ownership/shared scope left unknown unless stated |
+| How many assets does one price buy? | A separate offer question; do not infer it from the number of flats |
+
+This is why the type should not become `FOUR_UNITS_OF_THREE_BEDROOM_WITH_POOL`.
+Type, quantity, layout, amenity, offer and price basis are different dimensions.
+A broad type can be accurate while one of those other dimensions remains unknown.
+
+Also, one row is a **portal listing**. Two portals can advertise the same physical
+property, and one advert can describe several units. The database currently does
+not claim to have solved physical-property identity across portals.
+
+## What happens during discovery
+
+The entry point is [scraper/orchestrator.py](scraper/orchestrator.py). Discovery
+loads the active inventory, asks each enabled portal for recent listings, turns
+raw strings into structured data, attaches approximate location coordinates, and
+writes observations to PostgreSQL. Per-portal failures are isolated so one broken
+portal does not discard the other portals' results.
+
+### 1. Portal code reads the page
+
+The enabled parsers are PropertyPro, Private Property and Nigeria Property Centre.
+A Jiji parser exists, but it is disabled in the orchestrator. Its browser dependency
+is not needed by the three enabled parsers, although `run.sh` currently installs
+Chromium as part of its general setup.
+
+[BaseParser](scraper/parsers/base_parser.py) supplies a requests session, robot
+policy handling, delay/retry behavior and feed pagination. Each portal module
+knows its listing URLs and HTML layout. The parser returns a `RawListing` from
+[models.py](scraper/models.py): source identity, title, description, raw price,
+raw type, raw room strings, raw area and other source fields.
+
+Keep field extraction tied to the primary listing. A number in a related-property
+card or a page-wide feature list is not evidence for the advertised property.
+[room_metrics.py](scraper/parsers/room_metrics.py) scopes bedroom/bathroom widgets,
+identifies labels/schema properties or recognized icons, and excludes toilets.
+An unknown icon shape is a gap to investigate, not a reason to guess by position.
+
+Pagination stops after enough consecutive known listings. This keeps ordinary
+discovery cheap, but it is not a complete rescrape of every listing. Changing a
+parser does not automatically repair all old rows.
+
+### 2. Normalisation interprets raw strings
+
+[normaliser.py](scraper/normaliser.py) creates a `NormalisedListing`. It calls the
+pricing, property-type and room assessors rather than treating every field as an
+isolated integer conversion. It also normalizes neighbourhood labels, infers a
+city from text and detects the diaspora-marketing flag.
+
+Prices are integer **kobo**. NGN 45 million is 4,500,000,000 kobo. The quote's
+purpose, period, period count, currency and basis travel with the amount. A bare
+amount is insufficient to compare a monthly flat, a daily short let and a sale.
+
+`neighbourhood` is the resulting name. `neighbourhood_normalised` is a boolean
+saying whether it matched the canonical vocabulary; it is not another name field.
+Unknown values remain explicit. An unknown quantity does not become one or zero.
+
+### 3. Geocoding supplies an approximate area location
+
+[geocoder.py](scraper/geocoder.py) looks up a neighbourhood/city pair through
+Nominatim and caches successful coordinates in memory and `geocode_cache`.
+The configured contact email goes in the user agent. The code delays uncached
+requests and reuses cached results.
+
+These are usually neighbourhood-level coordinates. `geocoded=True` does not mean
+someone verified the property's position or found its parcel boundary. That
+matters for valuation and spatial studies: many adverts can share one centroid.
+The geocoder does not establish land size or measure building footprints.
+
+### 4. The writer commits a coherent observation
+
+[db_writer.py](scraper/db_writer.py) coordinates inserts, discovery updates and
+identity-matched health observations. It works with dedicated stores:
+
+| Module | What it owns |
+| --- | --- |
+| `property_storage.py` | Canonical classification and before/after classification history |
+| `room_count_store.py` | Stored rooms, raw metrics, evidence, retained originals and room audit |
+| `property_count_store.py` | Quantity assessments, observations, decisions and feature/offer assessments |
+| `pricing.py` and the writer | Quote interpretation, comparison and pricing/lifecycle events |
+
+The stores are real database writers too; it is inaccurate to say every SQL write
+lives in `db_writer.py`. Their APIs generally use the caller's transaction. A
+listing update and its evidence should commit together, or roll back together.
+
+Discovery deduplicates input by `(source, external_id)` before writing, and the
+database has the same unique key. An existing removed advert can be relisted;
+that is different from inserting a second row for the same portal identity.
+Absence from a successfully scraped feed increments a missed-run counter. It
+does not establish that the advert was removed or the property was sold.
+
+## What happens during a health check
+
+[health_checker.py](scraper/health_checker.py) fetches saved listing URLs. Network
+requests run concurrently; database writes run on the main thread after each
+micro-batch. Current defaults are 50 listings per batch, ten concurrent requests
+in total and three per portal, with two-to-five-second jitter and bounded retries.
+These are configuration values, not promises of a fixed completion time.
+
+The normal candidate queue contains active, feed-absent listings whose next check
+is due. Its age cohorts are 1.9, 6.8 and 13.8 days; the normal run cap is 1,000.
+An additional run-interval guard can make an hourly trigger exit without work.
+Confirming an advert active resets its missed count. It needs to be missed by
+discovery again before entering the ordinary queue.
+
+This distinction is easy to miss: **an hourly timer does not mean every listing
+is verified hourly, or even that every trigger makes portal requests**. `--all`
+bypasses the normal queue restrictions and timing guard, so reserve it for a
+reviewed operation rather than a routine debugging command.
+
+A successful identity-matched observation refreshes source/classification and
+room/count/feature evidence in the existing transaction. A price-only repair does
+not pretend to be a new property observation. A removal event is evidence about
+the advert's availability, not proof of a completed sale, rent or transaction date.
+`suspected_sold` is a heuristic, not a transaction record.
+
+`first_seen_at` is when this pipeline first saw the advert. `last_seen_at` tracks
+discovery observations. `last_health_check_at` tracks health checks. None is an
+independently verified construction date, agent publication date or sale date.
+
+## How the interpretation modules fit together
+
+### Forms and facets
+
+[property_types.py](scraper/property_types.py) defines `property-types-v3`, its
+39 canonical forms and the matching rules. Classification is I/O-free: it can be
+exercised with a string and a fixture without making requests or database writes.
+Specific phrases, source context, negations, ancillary buildings, alternate offers
+and reviewed cases affect the decision. Raw labels are retained separately.
+
+Read `property_type_status` alongside the canonical value. `CLASSIFIED` means the
+rules have adequate source evidence for that form. `INSUFFICIENT_EVIDENCE`,
+`AMBIGUOUS` and `UNSUPPORTED` explain different gaps. `LEGACY_UNREVIEWED` is for
+old input/checkpoints; the completed historical rollout removed that state from
+production listings. Canonical type codes are not arbitrary cleaned source text.
+
+The family/category/facets answer broader or independent questions. For example,
+a maisonette remains a form, bedrooms remain a layout, a cinema is a feature, and
+a home office does not silently add a bedroom. A self-contained advert is not
+forced into a bedroom count unless its wording supplies that count.
+
+### Quantities and layout claims
+
+[property_count_profile.py](scraper/property_count_profile.py) finds literal
+quantity phrases and context. [property_counts.py](scraper/property_counts.py)
+turns eligible phrases into normalized claims and proposed decisions under
+`property-counts-v2`.
+
+An observation records its entity, relationship, exact/range bounds, parent and
+offer references, rule, evidence and review flags. The decision is separate:
+ACCEPT, HOLD, REJECT or REVOKE. Two units contained in a building are different
+from two buildings offered together or two units still available in a development.
+Do not sum them into one unqualified `unit_count`.
+
+### Bedrooms and bathrooms
+
+[room_counts.py](scraper/room_counts.py) reconciles separate primary metrics,
+explicit source wording and applicable layout reviews. Legacy numbers are not
+proof of correctness, but a selector defect is not proof they are wrong either.
+
+The historical backfill preserved every existing non-null bedroom/bathroom value.
+It filled previously empty fields only where explicit evidence supplied a count.
+Future corrections require a fresh, unambiguous primary metric. Missing or
+conflicting observations do not erase a stored number. The first pre-repair pair
+remains in `room_count_legacy`; each assessment retains before/after evidence.
+
+For each field, distinguish the stored number from the extracted candidate, its
+status and its basis. `KNOWN` means supported as advertised, not independently
+physically inspected. `UNVERIFIED` means a retained number lacks sufficient
+consistent supporting evidence. UNKNOWN, AMBIGUOUS, MIXED_LAYOUT, REVIEW_REQUIRED,
+NOT_APPLICABLE and PENDING describe other evidence or freshness conditions.
+
+Review flags explicitly call out 100+ counts, other large counts, possible joined
+digits, unexplained zeroes, negatives, room counts on land, unusual ratios and
+source conflicts. They are not confirmed-error totals. A hotel-wide quantity
+needs a different basis from bedrooms per flat. A labelled widget still needs
+scope/range validation; different bedroom layouts do not establish that a single
+bathroom total applies to every dwelling.
+
+Do not infer bathrooms from bedroom counts, toilet counts, ensuite wording or a
+typical layout. Keep confidence separate for each field: a missing bathroom does
+not invalidate a supported bedroom or canonical form.
+
+### Features, offers and human review
+
+[property_facts.py](scraper/property_facts.py) extracts feature claims, explicit
+negatives, scope and offer questions. `current_property_facts` concerns that fact
+kind; later room assessment rows do not overwrite feature interpretations simply
+because they share a history table.
+
+[property_reviews.py](scraper/property_reviews.py) reads the reviewed-case registry.
+A decision binds portal identity to an exact raw-label/title/description hash.
+That prevents a review of one saved advert from silently approving a changed
+version. The original CSV remains evidence of the discussion, not an executable
+spreadsheet whose edited cells automatically change production.
+
+## Find your way around the database
+
+PostgreSQL calls a namespace a schema. `raw_data` currently holds operational
+listing state, derived evidence and audit bookkeeping. Its name does not mean
+every column contains untouched portal text. A view is a saved query; it does not
+store another full copy of every property.
+
+Migration 014 introduces the smaller `research` schema. Until it is installed,
+use `raw_data.property_research_current` and `raw_data.property_review_queue`.
+After installation, everyday entry points are:
+
+| Object | Start here when you want to… |
+| --- | --- |
+| `research.properties` | Read one row per listing, interpretations, retained counts, source text and location |
+| `research.review_queue` | Investigate outstanding questions and explicit room flags |
+| `research.room_count_coverage` | Measure support and gaps by field, portal, category and lifecycle |
+
+The 17 physical tables have different jobs. `scraped_listings` is current state.
+Vocabulary tables constrain canonical forms. Count assessments/observations/
+decisions preserve structured claims and review actions. Fact assessments retain
+features/offers and room evidence. Classification/pricing/lifecycle histories
+explain changes. Operation manifests and receipts make repairs resumable. The
+geocode cache and scrape-run log support operations.
+
+See [the database dictionary](docs/database.md) before querying an unfamiliar
+table. Do not delete an audit table because it resembles another one. Moving
+objects to separate `audit`/`ops` schemas would require dependency, permission and
+migration changes; the consumer views and object descriptions are the safe first
+cleanup. Migration 014 does not move or duplicate listing data or grant anonymous
+access. Its views use the caller's existing underlying privileges.
+
+### Fresh source is different from fresh data and correct data
+
+The current views compare evidence hashes with saved source text and context.
+Changing the source hides stale interpretations until reassessment. A price-only
+change need not invalidate unrelated text evidence. Reversal appends history
+rather than erasing the fact that an earlier decision existed.
+
+`contract_current` describes applicability of the interpretation contract. It is
+not a claim that every bedroom, bathroom, feature, coordinate and price is verified.
+A current assessment can correctly say that a stored bathroom count is unverified.
+Also, a source hash can still match an advert last fetched months ago. Check age
+and lifecycle separately from interpretation freshness.
+
+## Give dependent projects an explicit data contract
+
+Use the research reader instead of rediscovering rules from raw source labels.
+The current room-aware contract is `property-research-v2`. State the version,
+filters, extraction date and unresolved coverage in an analysis or export.
+
+For example, bedroom-dependent work can select supported per-dwelling bedrooms
+without requiring a supported bathroom:
+
+```sql
+SELECT listing_id, source, property_type, city, neighbourhood,
+       bedrooms_per_dwelling, bathrooms_status,
+       price_kobo, price_type, price_period, price_period_count
+FROM research.properties
+WHERE contract_current
+  AND listing_status = 'ACTIVE'
+  AND property_type_status = 'CLASSIFIED'
+  AND bedrooms_status = 'KNOWN'
+  AND bedrooms_per_dwelling IS NOT NULL;
 ```
 
-### `infer_city(raw_address, title) → str | None`
-
-Regex patterns check for city-identifying words in the address and title. Lagos is identified by: Lagos, Lekki, Victoria Island, Ikoyi, Ikeja, Surulere, Yaba. Abuja by: Abuja, FCT, Maitama, Asokoro, Wuse, Garki, Gwarinpa.
-
-### `is_diaspora_targeted(description) → bool`
-
-Regex scan against description for keywords: `diaspora`, `forex accepted`, `payment in USD`, `suitable for returnees`, `dollar-denominated`, `expatriate`. Returns `False` if description is `None`.
-
----
-
-## 6. Geocoder (`scraper/geocoder.py`)
-
-The geocoder takes a list of `NormalisedListing`s and returns the same list with `lat`/`lng` fields populated. It uses Nominatim (OpenStreetMap) — completely free, no API key, no credit card.
-
-### Two-layer cache
-
-The geocoder never sends the same `(neighbourhood, city)` pair to the API twice. It has two cache layers:
-
-| Layer | Where |
-|---|---|
-| Memory cache | Python `dict` in the `Geocoder` instance |
-| DB cache | `raw_data.geocode_cache` table in Supabase |
-
-At `Geocoder.__init__()`, the entire `geocode_cache` table is loaded into the memory dict. After that, all cache checks are in-memory (microseconds). New results are saved to both layers.
-
-After 4–6 weeks of running, you have ~80 unique `(neighbourhood, city)` pairs in the cache. Every run after that makes **zero** Nominatim API calls. The rate limit (1 request/second) is irrelevant at this scale.
-
-### Cache key
-
-The key is `(neighbourhood.lower(), city.lower())` — lowercased to handle inconsistent capitalisation from portals. `'Lekki Phase 1'` and `'LEKKI PHASE 1'` hit the same cache entry.
-
-### Error handling
-
-Every Nominatim failure is handled gracefully. Network error: listing is marked `geocoded=False`, run continues. Empty API response: same. DB save failure: the in-memory cache still has the result, and the listing is still geocoded — only persistence fails.
-
-### Nominatim fair-use requirements
-
-> Nominatim requires: (1) max 1 request/second — enforced by `time.sleep(1.1)` before every call. (2) A descriptive `User-Agent` identifying your application. The `NOMINATIM_AGENT` constant in `geocoder.py` contains a placeholder email — **update it to a real contact before production**. Violating fair-use results in your IP being blocked by OSM.
-
----
-
-## 7. Database (`scraper/db_writer.py` + `schema/`)
-
-### Schema overview
-
-All tables live in the `raw_data` schema on Supabase. The scraper never touches any other schema.
-
-| Table | Purpose |
-|---|---|
-| `raw_data.scraped_listings` | One row per listing — current state only. `UNIQUE(source, external_id)`. |
-| `raw_data.listing_history` | One row per event (`LISTED`, `PRICE_CHANGE`, `REMOVED`). Foreign key to `scraped_listings`. |
-| `raw_data.geocode_cache` | Persistent `(neighbourhood, city)` → `(lat, lng)`. `PRIMARY KEY` on both columns. |
-| `raw_data.scrape_runs` | One row per portal per run — operational log with counts and status. |
-
-### `scraped_listings` — the main table
-
-This is the current state of all listings. It does not store history — that goes in `listing_history`. Key design decisions:
-
-- **`UNIQUE(source, external_id)`:** prevents duplicates. `source='propertypro'`, `external_id='7NUGY'` can only exist once.
-- **`price_kobo BIGINT`:** all monetary values stored as kobo. ₦45,000,000 = `4_500_000_000`. No floats, no naira.
-- **`listing_status`:** `'ACTIVE'` or `'REMOVED'`. Only `ACTIVE` listings are included in the `active_listings` snapshot at run start.
-- **`missed_run_count`:** incremented each Discovery Run the listing is absent. Reset to 0 when seen again. If > 0, listing becomes recruited for URL verification via health checker.
-- **`suspected_sold`:** `True` when the health checker confirms a listing is removed, provided it was active for ≥30 days with a downward price change in its history.
-
-### DatabaseWriter methods
-
-| Method | What it does |
-|---|---|
-| `fetch_active_listings()` | Returns `{(source, ext_id): price_kobo}` for all `ACTIVE` listings. Called once at run start. |
-| `upsert(listings, active, scraped_sources)` | Core write method. Routes each listing to `_insert_new` or `_update_existing`. Detects price changes. Increments `missed_run_count` for feed-absent listings belonging to successfully scraped portals. Returns stats dict. |
-| `write_run_log(stats, duration)` | Writes one row per portal to `scrape_runs`. |
-| `fetch_geocode_cache()` | Loads all rows from `geocode_cache` into a dict. Called by `Geocoder.__init__()`. |
-| `save_geocode_cache(nb, city, lat, lng)` | Inserts a new geocode result. `ON CONFLICT DO NOTHING` — idempotent. |
-| `fetch_listings_for_health_check(force_all)` | Returns active listings due for check based on pre-calculated `next_health_check_at < NOW()`. Limits by `HEALTH_CHECK_LIMIT`. Sorted by relative Overdue Ratio descending to prevent queue starvation. Bypasses constraints if `force_all=True`. |
-| `fetch_last_successful_run(source)` | Queries the `raw_data.scrape_runs` table to find the timestamp of the last successful execution of the source (e.g. `'health_check'`). |
-| `confirm_listing_removed(listing_id, first_seen)` | Sets status to `'REMOVED'`, clears `next_health_check_at` to `NULL`, checks and marks `suspected_sold`, and logs a `REMOVED` history event. |
-| `confirm_listing_active(listing_id, first_seen, observed_price)` | Resets `missed_run_count` to 0, computes and stores `next_health_check_at` based on cohort age, and updates `last_health_check_at`. Logs `PRICE_CHANGE` event if price has adjusted. |
-
-
-### The upsert logic in detail
-
-`upsert()` is the core write method. Here is exactly what it does:
-
-```python
-for listing in listings:
-    key = (listing.source, listing.external_id)
-
-    if key in active_listings:
-        # Listing already exists — update last_seen_at and mutable fields
-        _update_existing(listing)
-        stats['updated'] += 1
-
-        # Detect price change
-        if listing.price_kobo != active_listings[key]:
-            emit history event: PRICE_CHANGE
-            stats['price_changes'] += 1
-    else:
-        # New listing
-        _insert_new(listing)   # ON CONFLICT DO NOTHING
-        emit history event: LISTED
-        stats['new'] += 1
-
-# After all listings processed:
-missing = active_listings.keys() - seen_this_run
-if scraped_sources is not None:
-    missing = {k for k in missing if k[0] in scraped_sources}
-
-for (source, ext_id) in missing:
-    increment missed_run_count
-    # Note: listing_status remains ACTIVE. The health checker will pick this up.
-```
-
-### The `suspected_sold` signal
-
-A listing flagged as `suspected_sold` is the application's best guess that a real transaction occurred. The criteria are evaluated exclusively by the health checker when a listing is confirmed removed:
-
-- The listing must have been active for at least 30 days (`SUSPECTED_SOLD_MIN_DAYS`).
-- There must be at least one `PRICE_CHANGE` event in history where `new_value < old_value` (price reduction).
-- The listing must then be confirmed removed by individual URL check (404/redirect/removal phrase).
-
-This is a proxy signal — not a confirmed sale. Its purpose is to generate pseudo-transaction data for AVM training.
-
----
-
-## 8. Orchestrator (`scraper/orchestrator.py`)
-
-The orchestrator is the main entry point. It parses CLI arguments to configure the execution mode (Discovery vs. Health Check) and wires all stages together in sequence.
-
-* **CLI filtering**: It supports the `--portals` flag to limit scraping to a comma-separated subset of sources (e.g., `--portals=privateproperty,nigeriapropertycentre`).
-* It does not contain database business logic itself — it only handles orchestration sequence, CLI routing, and isolates errors at the portal level.
-
-### Sequence (Discovery Mode)
-
-```python
-def run():
-    db       = DatabaseWriter(config.DATABASE_URL)
-    geocoder = Geocoder(db)                      # ← loads geocode cache from DB
-
-    active_listings = db.fetch_active_listings() # ← snapshot before scraping
-
-    all_raw = []
-    for parser in [PropertyProParser, PrivatePropertyParser,
-                   NigeriaPropertyCentreParser]:
-        try:
-            raw = parser(active_listings).scrape()  # ← each portal independent
-            all_raw.extend(raw)
-        except Exception:
-            log.error(...)                           # ← portal failure does NOT stop others
-
-    normalised = [normaliser.normalise(r) for r in all_raw]
-    normalised = geocoder.enrich(normalised)
-    stats      = db.upsert(normalised, active_listings)
-
-    db.write_run_log(run_stats, duration)
-    notifier.send_summary(stats, run_stats, duration)
-```
-
-### Sequence (Health Check Mode)
-
-```python
-def run_health_checks(force_all=False):
-    # 1. Pre-flight check: is database host reachable?
-    if not check_database_dns(config.DATABASE_URL):
-        return  # Exit cleanly if offline
-
-    db = DatabaseWriter(config.DATABASE_URL)
-
-    # 2. Timing Guard: skip if ran in the last 22 hours
-    if not force_all:
-        last_run = db.fetch_last_successful_run("health_check")
-        if last_run and elapsed_hours < 22:
-            return  # Exit early
-
-    checker = HealthChecker(db)
-    stats = checker.run(force_all=force_all)
-
-    # 3. Log results to scrape_runs table
-    db.write_run_log({"health_check": {...}}, duration)
-
-    # 4. Notify via Telegram
-    notifier.send_health_check_summary(stats)
-```
-
-
-### Error isolation
-
-Each portal is wrapped in its own `try/except`. If PropertyPro fails (403, timeout, selector change), the other three portals still run. The failed portal is logged and recorded in `scrape_runs` with status `FAILED`. The Telegram message shows ❌ for that portal.
-
-A single broken parser never takes down the entire run.
-
----
-
-## 9. Notifier (`scraper/notifier.py`)
-
-The notifier sends a Telegram message at the end of every run. It uses a direct HTTP `POST` to the Telegram Bot API — no library needed.
-
-* **Discovery runs**: The message contains: per-portal status icons (✅/⚠️/❌), new/updated/suspected_sold counts per portal, geocoding success rate, price parse success rate, total run duration.
-* **Health check runs**: `send_health_check_summary(stats)` sends checking counts (checked, confirmed active, confirmed removed, price changes, errors).
-* **Error reports**: `send_error()` is called by the orchestrator when it catches a critical crash. It sends a short message with the exception text.
-
-If `TELEGRAM_BOT_TOKEN` or `TELEGRAM_CHAT_ID` are not set, it logs a warning and skips — it does not crash the run.
-
----
-
-## 10. State Checkpointing (`scraper/checkpoint.py`)
-
-`checkpoint.py` provides execution state persistence so that interrupted runs (due to PC sleep, power cuts, or runner timeouts) can resume seamlessly without duplicating work.
-
-### Functions
-
-* `save_checkpoint(state: Dict)`: Writes state to a temporary file (`.scraper_checkpoint.json.tmp`) and renames it atomically to `.scraper_checkpoint.json`. Stamped with a `saved_at` UTC timestamp.
-* `load_checkpoint() -> Optional[Dict]`: Reads `.scraper_checkpoint.json`. If the checkpoint is missing, corrupted, or older than 24 hours (`CHECKPOINT_MAX_AGE_HOURS`), it returns `None` (ignoring stale state).
-* `clear_checkpoint()`: Deletes `.scraper_checkpoint.json` once a run completes cleanly.
-
-### Recursive Datetime Serialization
-Database rows retrieved during health checks contain Python `datetime` objects. To prevent JSON serialization crashes (`TypeError: Object of type datetime is not JSON serializable`), `checkpoint.py` uses recursive serialization helpers:
-* `_serialize_state(obj)`: Recursively walks data structures. Converts `datetime` instances into ISO-8601 string dictionaries: `{"__datetime__": "2026-07-20T21:00:00+00:00"}`.
-* `_deserialize_state(obj)`: Reconstructs ISO-8601 string dictionaries back into Python `datetime` instances upon load.
-
----
-
-## 11. Tests (`tests/`)
-
-### Philosophy
-
-Every test is fully offline. There are no live network calls, no real database connections. Portals are tested against saved HTML fixtures. The geocoder is tested against a mocked `requests.Session`. The database writer is tested against a mocked `psycopg2` connection.
-
-### Test files
-
-| File | What it tests |
-|---|---|
-| `test_parsers.py` | Each parser's `parse_listing()` against saved HTML fixtures. Asserts specific field values. |
-| `test_normaliser.py` | Unit tests for each normaliser helper function + end-to-end `normalise()` tests with `RawListing` inputs |
-| `test_geocoder.py` | Cache init, cache hits, API call behaviour, error handling, batch behaviour |
-| `test_db_writer.py` | Upsert routing (new vs existing), price change detection, `suspected_sold` logic |
-| `test_pipeline.py` | Parser → normalise → geocode chain without any live calls |
-| `test_checkpoint.py` | Unit tests for checkpoint saving, loading, expiration, and recursive datetime serialization |
-| `test_integration_checkpoint.py` | Offline integration tests verifying discovery and health-check orchestrator resume logic |
-| `test_health_checker.py` | Micro-batched async execution, per-domain semaphores, backoff capping, and graduated log levels |
-
-### `conftest.py` files
-
-There are two `conftest.py` files:
-
-- **Root `conftest.py`:** adds the project root to `sys.path` so that `from scraper.models import ...` works regardless of which directory you run pytest from.
-- **`tests/conftest.py`:** shared factories (`make_raw()`, `make_normalised()`), mock helpers (`mock_db()`, `mock_nominatim()`), and the `load_fixture()` function.
-
-### HTML fixtures
-
-`tests/fixtures/` contains saved HTML pages from each portal. These are committed to the repo. When a portal changes its HTML and a selector breaks:
-
-1. Run the scraper — it will return 0 listings for that portal and log the issue
-2. Open the live portal listing in your browser, save the page source as UTF-8 HTML
-3. Replace the file in `tests/fixtures/`
-4. Run `pytest tests/test_parsers.py` — the failing test tells you exactly which field selector needs updating
-5. Update the relevant `SELECTOR` constant in the parser file
-6. Run pytest again to confirm
-
-### Running tests
+For a cautious study, inspect/exclude relevant outstanding review flags too.
+Bathroom-dependent work needs a bathroom status/basis filter of its own. Do not
+drop whole listings from every analysis merely because one field lacks support.
+Retained unverified numbers are available as `stored_bedrooms` and
+`stored_bathrooms`; exploratory work can include them with disclosed assumptions
+and compare results with the supported subset.
+
+For prices, keep sale, rent and short-let purposes separate. A quote per month,
+night, year, person or square metre is not interchangeable with a property-level
+sale amount. Even a `single_unit_price_candidate` still needs relevant field
+quality, location, period and comparable-asset checks. Never divide a bundle price
+by a count until that relationship is established.
+
+`raw_data.comparable_rental_prices`, `rental_price_summary` and
+`rental_pricing_coverage` support current rental comparisons. The legacy
+`rebuild_snapshots.py` command is deliberately disabled because its old historical
+series mixed incompatible quote units. It does not rebuild trustworthy history
+from today's listings, and existing historical tables are not silently rewritten.
+
+## Operate the project without guessing
+
+### Normal runs
+
+From the repository root, with the intended environment configured:
 
 ```bash
-pytest                                                          # all tests
-pytest tests/test_normaliser.py                                 # normaliser only — fastest, pure logic
-pytest tests/test_parsers.py                                    # parser selectors + fixture parsing
-pytest tests/test_geocoder.py                                   # geocode cache and API mocking
-pytest tests/test_db_writer.py                                  # upsert and business logic
-pytest tests/test_pipeline.py                                   # full parser→normalise→geocode chain
-
-# Run a single class
-pytest tests/test_parsers.py::TestPropertyProParser -v
-
-# Run a single test
-pytest tests/test_parsers.py::TestPropertyProParser::test_price_raw -v
+python -m scraper.orchestrator                 # Discovery
+python -m scraper.orchestrator --health-check  # Normal health queue
+./run.sh --preview                            # Local static dashboard preview
 ```
 
----
+`run.sh` also initializes Python/dependencies, loads `.env`, installs browser
+assets and replays the numbered SQL files. The GitHub scraper workflows replay
+SQL too. Running a read-only preview command is different: it does not migrate
+the schema or repair production data.
 
-## 11. Running the Scraper (`run.sh`)
+Telegram summaries are sent by normal orchestration when credentials are set.
+The targeted production room verification operation uses the merged stores/writer
+directly and does not send notifications or mark unavailable adverts removed.
 
-`run.sh` is the execution wrapper script. It sets up the environment and runs the pipeline in the selected mode.
+### Checkpoints and repair artifacts
 
-### Running commands:
-* **Discovery Mode**: `./run.sh`
-* **Health Check Mode**: `./run.sh --health-check` (only checks listings due based on adaptive cooldown)
-* **Force Health Check**: `./run.sh --health-check --all` (force-checks all active listings immediately, bypassing cohort cooldown constraints)
+The ordinary discovery/health checkpoint is `.scraper_checkpoint.json`, with a
+mode and timestamp; it expires after 24 hours. It helps resume interrupted work,
+but is not a historical source archive or evidence that every write committed.
 
-### What `run.sh` does:
-1. Check `.env` exists and `DATABASE_URL` is set
-2. Initialise pyenv so `python3.12` is on `PATH` (pyenv shims are not active in scripts by default)
-3. Walk `python3.12` → `python3.11` → `python3.10` → `python3` and pick the first found
-4. Create `.venv/` if it does not exist
-5. If `.venv/` was built against a different Python version, delete and rebuild it
-6. `pip install -r requirements.txt`
-7. `playwright install chromium` (no-op if already cached)
-8. Apply schema to Supabase (idempotent — `IF NOT EXISTS` guards everywhere)
-9. `python3 -m scraper.orchestrator "$@"` (passes arguments to the orchestrator)
-10. Print summary with run duration; on failure, print last 30 lines of `scraper.log`
+Controlled repair tools use frozen reports, target/rule/source fingerprints, UUID
+run manifests and durable per-listing receipts. Keep the exact original release,
+artifact and run selection when resuming. A new rule or selection needs a new
+reviewed artifact/run. A completed retry attempts zero rows. Reversal protects
+later edits and does not remove audit history.
 
-### The `.env` file
+Use the [unified operations guide](docs/property-unification.md) for the combined
+runner and [room operations](docs/property-counts.md) for room preview/apply/
+reversal and primary-page verification. The rental recovery subsystem has its own
+policy, SQLite progress ledger, budgets and timers in the recovery modules/scripts;
+it is not the same checkpoint or the room-repair receipt mechanism.
 
-`.env` sits in the project root and is never committed to git. It provides the secrets that `config.py` reads:
+Private reports belong under ignored `.local/`. Source snapshots may contain
+publicly advertised contact details; keep artifacts private and out of PR bodies.
+Some completed generated JSONL reports were archived as verified `.jsonl.gz`
+files during the November rollout. Decompress a copy before using a tool that
+expects the original JSONL bytes; preserve the recorded uncompressed checksum.
+Editable worksheets are separate from those frozen artifacts.
 
-```
-DATABASE_URL=postgresql://postgres.[project-id]:[password]@...
-TELEGRAM_BOT_TOKEN=1234567890:ABCDEF...
-TELEGRAM_CHAT_ID=123456789
-```
+### Current operational handoff
 
----
+At 14:24 UTC on 18 November 2026, merged PR #17 had been deployed and verified
+across 28,955 listings. All original non-null room values and protected non-room
+fields survived the backfill; 729 bedroom gaps and seven bathroom gaps were filled.
+The v2 reader and all room assessments were current. That is the preservation
+baseline; later primary observations can legitimately correct supported values.
 
-## 12. Full Data Flow — Discovery Run
+The first live verification batch attempted 96 listings. Its canary exposed
+additional ratio/layout validation gates, so expansion was paused for a tested
+follow-up. Live verification progress, actual updates and unresolved outcomes are
+recorded in private artifacts referenced by:
 
-```
-./run.sh
-└─ python3 -m scraper.orchestrator
+- `.local/room-counts/active-rollout.json`: backup, canary, full repair and verification.
+- `.local/room-counts/active-verification.json`: the initial primary verification pass.
+- `.local/room-counts/ops/`: archived operation helpers and their checksums.
 
-   ├─ config.py loads .env → DATABASE_URL, TELEGRAM_*, constants
+Do not mistake an initial preview or pilot for applied production improvements.
+For the latest field coverage, query the coverage view rather than adding dated
+report figures together. The original raw-type review CSV remains unchanged.
 
-   ├─ DatabaseWriter connects to Supabase
-   │   └─ SELECT all ACTIVE listings → active_listings dict
+The local `scraper-health.timer` was active before rollout and was temporarily
+paused for the coordinated operation; restore it after verification. GitHub health
+and discovery workflows were already manually disabled when inspected. Preserve
+that pre-existing state unless deliberately changing the deployment schedule.
+CI remains enabled. A workflow file containing a cron schedule does not establish
+that the workflow is enabled or that a particular run succeeded.
 
-   ├─ Geocoder
-   │   └─ SELECT all geocode_cache rows → memory_cache dict
+## Change the code with evidence
 
-   ├─ PropertyProParser(active_listings).scrape()
-   │   ├─ GET /property-for-sale?per_page=24 (search page)
-   │   ├─ BeautifulSoup → get_listing_urls() (div.col-md-3)
-   │   └─ for each URL:
-   │       ├─ check active_listings → skip if known
-   │       ├─ sleep 2–5s
-   │       ├─ GET listing URL
-   │       └─ parse_listing() → RawListing
+Start with one failing or incomplete source example. Identify whether the problem
+is extraction, interpretation, persistence, freshness or a consumer assumption.
+Changing a selector cannot repair a database update path that never writes that
+field, and cleaning database values cannot stop a broken parser from adding more.
 
-   ├─ (same for PrivateProperty, NigeriaPropertyCentre)
+For a portal change, save a representative HTML fixture, isolate the primary
+listing region, and test missing fields and unrelated-card contamination. Use
+different bedroom, bathroom and toilet values in tests: equal fixtures concealed
+the original first-widget defect. Include conflict, range and malformed cases.
 
-   ├─ normaliser.normalise(raw) for each RawListing
-   │   ├─ parse_price()               '₦75M/year'          → 7_500_000_000
-   │   ├─ parse_price_type()                               → 'FOR_RENT'
-   │   ├─ parse_integer()             '3 Beds'             → 3
-   │   ├─ normalise_property_type()   'Flat / Apartment'   → 'FLAT_APARTMENT'
-   │   ├─ normalise_neighbourhood()   'Old Ikoyi Ikoyi Lagos' → 'Ikoyi'
-   │   ├─ infer_city()                                     → 'LAGOS'
-   │   └─ is_diaspora_targeted()                           → False
+For a rule change, add the example to the relevant pure assessor tests. Keep the
+source wording, ambiguity and expected status visible. A simple alias belongs in
+the taxonomy; a source-bound human decision belongs in the reviewed registry;
+a feature is not a new property type. Rule bytes enter repair fingerprints, so
+regenerate previews after changing interpretation code.
 
-   ├─ geocoder.enrich(normalised)
-   │   └─ for each listing:
-   │       ├─ check memory_cache → (lat, lng) if hit
-   │       └─ cache miss: GET nominatim.openstreetmap.org → save to both caches
+For persistence changes, use a disposable local PostgreSQL database. Test the
+meaningful invariant: original values survive, before/after evidence is accurate,
+stale source is rejected, failures roll back and retries/reversal respect ownership.
+Do not rely only on a mock asserting that a SQL string was called.
 
-   ├─ db.upsert(normalised, active_listings)
-   │   ├─ new:     INSERT → emit LISTED history event
-   │   ├─ existing: UPDATE last_seen_at, price → emit PRICE_CHANGE if changed
-   │   └─ missing: increment missed_run_count
-
-   ├─ db.write_run_log(stats, duration)
-   │   └─ INSERT INTO raw_data.scrape_runs (one row per portal)
-
-   └─ notifier.send_summary()
-       └─ POST https://api.telegram.org/bot.../sendMessage
-```
-
-## 12.1. Full Data Flow — Health Check Run
-
-```
-./run.sh --health-check
-└─ python3 -m scraper.orchestrator --health-check
-
-   ├─ check_database_dns() (Pre-flight network check)
-   │  └─ If offline -> log warning and exit cleanly
-
-   ├─ DatabaseWriter checks timing guard:
-   │  └─ SELECT run_at FROM scrape_runs WHERE source = 'health_check' AND status = 'SUCCESS'
-   │  └─ If elapsed < 22 hours (and force_all is False) -> log skip and exit early
-
-   ├─ DatabaseWriter fetches candidate listings:
-   │  └─ SELECT listings where status = 'ACTIVE' and missed_run_count > 0 and (next_health_check_at IS NULL or next_health_check_at < NOW())
-   │     ordered by relative Overdue Ratio DESC (to avoid starvation), last_check ASC
-   │     capped by LIMIT 1000 (HEALTH_CHECK_LIMIT)
-
-   ├─ Orchestrator slices candidate list into batches (HEALTH_CHECK_BATCH_SIZE, e.g. 50)
-   │
-   ├─ For each micro-batch (processed sequentially):
-   │   │
-   │   ├─ HealthChecker runs async network verification (Phase 1):
-   │   │   ├─ Opens aiohttp.ClientSession
-   │   │   ├─ Fans out requests using Semaphore (default 50 concurrency)
-   │   │   ├─ For each candidate URL in the current batch:
-   │   │   │   ├─ Apply delay jitter
-   │   │   │   ├─ GET listing URL
-   │   │   │   ├─ If 404 / redirect / deletion phrase -> is_removed = True
-   │   │   │   ├─ If 200 -> extract price
-   │   │   │   └─ If network timeout/error -> preserve ACTIVE state
-   │   │
-   │   └─ DatabaseWriter writes batch checks immediately (Phase 2):
-   │       ├─ If is_removed = True:
-   │       │   ├─ UPDATE status to 'REMOVED', set next_health_check_at = NULL, evaluate suspected_sold
-   │       │   └─ INSERT history event: REMOVED
-   │       └─ If is_removed = False:
-   │           ├─ Reset missed_run_count = 0, calculate and set next_health_check_at (cohort age interval), stamp last check time
-   │           └─ If price changed -> UPDATE price_kobo and INSERT event: PRICE_CHANGE
-   │
-   ├─ db.write_run_log() (Writes source='health_check' SUCCESS log)
-   │
-   └─ notifier.send_health_check_summary(stats)
+```bash
+# Point BOTH variables at a disposable local test database before pytest.
+export TEST_DATABASE_URL='postgresql:///property_scraper_test?host=127.0.0.1'
+DATABASE_URL="$TEST_DATABASE_URL" python -m pytest tests -q
 ```
 
+CI uses Python 3.12 and PostgreSQL 16. Database fixtures apply migrations. Never
+point them at production: some tests deliberately alter/drop schema objects.
+Offline parser/assessor tests do not need production access. Use conventional,
+incremental commits and PRs targeting `master`, then deploy reviewed merged code.
 
----
+Migrations currently replay in filename order rather than using a checksummed
+migration ledger. Older view introductions must preserve columns appended later;
+011 and 014 contain guards for this. Test replay as well as a clean installation.
+Installing schema alone does not backfill historical records or prove a rollout
+finished. Avoid manually running an old preview against newly changed rules.
 
-## 13. Debugging — What Goes Wrong and Where
+## Where to improve next
 
-This section details common operational errors, structural failures, and the exact classes, methods, and code boundaries that enable or resolve them.
+These are recommendations, not claims that the work is already implemented.
 
----
+1. **Measure field coverage continuously.** Track evidence-supported values,
+   unresolved reasons, source age and verified outliers by portal and asset class.
+   A rising row count is not a data-quality metric. Alert on sudden parser coverage
+   drops and selector drift, using genuinely different fixture values.
+2. **Retain compact observation evidence.** Raw strings, source spans, extraction
+   versions and timestamps make decisions reproducible. Add a bounded retention
+   policy for compressed primary-page snapshots where worthwhile; avoid an endless
+   pile of unlabelled HTML or repeated report copies on a nearly full disk.
+3. **Introduce a real migration ledger.** Record a checksum and installation time
+   once per migration, then update every local/cloud entry point consistently.
+   Do not bolt a ledger onto just one runner while the others still replay SQL.
+4. **Batch verified observations.** Network concurrency alone does not remove
+   database round-trip costs. Use the guarded bulk room API for unchanged-source
+   observations, preserve real before states and individual audits, and keep full
+   source refreshes transactional. Bound retries, requests, time and concurrency.
+5. **Cache fingerprints per frozen operation.** Current assessors repeatedly read
+   rule/registry bytes. An immutable release can compute those once. Keep invalidation
+   explicit so a long-lived process cannot silently apply changed rules.
+6. **Treat physical-property matching as a separate model.** Start with candidate
+   links using location, form/layout, source timing and appropriate image/address
+   evidence. Keep uncertain links reversible. Never merge adverts merely because
+   their titles, bedroom counts or neighbourhoods match; blocks and units complicate
+   identity. Keep asking-price history separate from physical-property history.
+7. **Separate area roles and quote bases.** Existing `floor_area_sqm` extraction is
+   narrow and does not establish that every number is floor area. The requested
+   text/primary-field sqm work must retain land, floor and unspecified-size claims,
+   their units and conflicts. A price per sqm is not a property size. Do not assume
+   a universal sqm size for an unspecified plot.
+8. **Profile storage and queries before adding infrastructure.** Keep one current
+   listing store with indexed identities and append-only evidence. Audit/history
+   retention needs a deliberate policy. Use EXPLAIN on actual consumer queries;
+   add indexes or materialized exports when measurements justify them. Moving
+   tables between schemas changes organization, not their physical storage cost.
+9. **Make every monitoring surface honest about fallbacks.** The telemetry/dashboard
+   path has legacy fallback/sample values. It is an operational display, not the
+   research source of truth. Label missing/stale metrics explicitly before treating
+   its cards as authoritative measurements. The database contract and dated reports
+   are the evidence for this rollout.
+10. **Keep operations understandable.** One deployment state, resumable run IDs,
+    visible budgets and a short maintained handoff beat many competing cron jobs.
+    Scope changes and unavailable evidence should produce explicit next actions,
+    not quiet guesses or unexplained NULLs.
 
-### 13.1. Portal Returns 0 Listings (Discovery Mode)
-
-* **Symptom**: Running a discovery cycle (via `run.sh` or `orchestrator.py`) finishes with 0 ingested items for a specific portal, logging a warnings trend.
-* **Likely Causes & Code Solutions**:
-  1. **HTML Selector Drift**: The target portal has modified its CSS/HTML layout.
-     * *Responsible Classes*: Subclasses of `BaseParser` (e.g. `NigeriaPropertyCentreParser`, `PropertyProParser`, `PrivatePropertyParser` in `scraper/parsers/`).
-     * *Methods Affected*: `get_listing_urls(self, soup)` (failing to extract URLs from listing lists) and `parse_listing(self, soup, url)` (returning `None` because primary fields like price or address fail to match).
-     * *Diagnosis Procedure*: Execute the debug script `diagnose.py` with the portal target URL. It downloads the server-side HTML to a local file (`debug.html`) so you can test new selector configurations.
-     * *Failsafe Mechanism*: The parsers use search-based helper methods (`_find_feature_value` and `_find_feature_by_text`) that fall back to keyword scanning across siblings and parent grids when static CSS selectors fail.
-  2. **403 Forbidden / Cloud Subnet Blocks**: Portals deploy anti-bot protections (like Cloudflare or AWS WAF) blocking cloud ranges (e.g. GitHub Actions runners) and commercial VPN exits.
-     * *Responsible Code*: `scraper/parsers/base_parser.py` inside `BaseParser._http_get()`.
-     * *Fix Implementation*: Discovery runs must route through the proxy client configuration `proxies = {'http': PROXY_URL, 'https': PROXY_URL}` loaded from `config.PROXY_URL`. Ensure the local proxy tunnel `start_tunnel.py` is running and authenticated.
-  3. **robots.txt Wildcard Blocks**: `BaseParser._can_fetch()` checks permissions against portal policies.
-     * *Responsible Class*: `urllib.robotparser.RobotFileParser`.
-     * *Resolution*: Ensure the check is executed using the specific scraper User-Agent string instead of a generic wildcard (`*`): `self.robot_parser.can_fetch(HEADERS['User-Agent'], url)`. This avoids false-positive blocks since portals often block wildcard bots while permitting verified agents.
-
----
-
-### 13.2. ngrok Tunnel Connection Drops (`ProxyError`)
-
-* **Symptom**: Logs show `requests.exceptions.ProxyError` or `urllib3.exceptions.MaxRetryError` terminating a scraping run.
-* **Cause**: Network firewalls or ISPs triggering TCP Resets (`RST` packets) or terminating ngrok connections during deep packet inspection.
-* **Code Mechanism**:
-  * *Affected Class/Method*: `BaseParser._http_get(self, url, headers)` handles outgoing HTTP connections.
-  * *Retry Architecture*: Requests are wrapped in a retry handler configured by `MAX_RETRIES` (default: 3) and `RETRY_BACKOFF_BASE` (default: 2.0). It catches `ProxyError` and exponential-sleeps to recover from brief drops:
-    ```python
-    try:
-        response = self.session.get(url, proxies=self.proxies, timeout=REQUEST_TIMEOUT)
-    except (requests.exceptions.ProxyError, requests.exceptions.ConnectionError):
-        # wait (base ** retry_attempt) seconds and retry
-    ```
-  * *Tunnel Action*: If drops are persistent, edit the ngrok command in `start_tunnel.py` to change region flags (e.g. from `us` to `eu` or `ap`).
-
----
-
-### 13.3. systemd Tunnel Output Logs Frozen
-
-* **Symptom**: Checking proxy logs via `journalctl --user -u scraper-tunnel.service -f` shows no output.
-* **Cause**: Python buffers standard output by default when stdout/stderr is redirected to non-interactive journals.
-* **Solution**:
-  * *Affected Service File*: `/etc/systemd/user/scraper-tunnel.service`.
-  * *Implementation*: Ensure the service definition includes `Environment=PYTHONUNBUFFERED=1` inside the `[Service]` block to force immediate stream flushing.
-
----
-
-### 13.4. Health Check Exits Instantly Without Checking Listings
-
-* **Symptom**: Running `./run.sh --health-check` completes in under 2 seconds without executing HTTP requests.
-* **Cause**: The application-level Timing Guard blocks redundant checks to avoid scraping detection.
-* **Code Mechanism**:
-  * *Affected Class*: `DatabaseWriter` in `scraper/db_writer.py`.
-  * *Method Enforcing Guard*: `db.check_health_run_allowed(self)` queries `scrape_runs` for the last successful health check run:
-    ```sql
-    SELECT run_at FROM raw_data.scrape_runs 
-    WHERE source = 'health_check' AND status = 'SUCCESS' 
-    ORDER BY run_at DESC LIMIT 1
-    ```
-    If `NOW() - run_at` is less than `22 hours` (`config.HEALTH_CHECK_RUN_INTERVAL_HOURS`), it returns `False`, causing the orchestrator to exit early.
-  * *Bypass Flag*: Run with `--force` or `--all` flags. This configures `orchestrator.py` to pass `force_all=True` to the database writer, bypassing the timing check entirely.
-
----
-
-### 13.5. Health Check Exits with "Pre-flight network check failed"
-
-* **Symptom**: Console logs show `[ERROR] Pre-flight network check failed. Exiting.`
-* **Cause**: The runner has no internet connectivity or DNS resolution is failing.
-* **Code Mechanism**:
-  * *Affected File/Function*: `scraper/orchestrator.py` inside `check_database_dns()`.
-  * *Underlying Method*:
-    ```python
-    import socket
-    def check_database_dns():
-        # extracts host from DATABASE_URL
-        socket.gethostbyname(db_host)
-    ```
-  * *Purpose*: Exits cleanly before initiating database pools, preventing loud stack traces (`psycopg2.OperationalError`) from triggering pager duties when the host network is offline.
-
----
-
-### 13.6. `ModuleNotFoundError: No module named 'scraper'`
-
-* **Symptom**: Running tests or launching the pipeline throws a import path exception.
-* **Cause**: The Python runtime's search path (`sys.path`) does not include the project root folder.
-* **Code Resolution**:
-  * *Affected Configurations*: `pytest.ini` and `conftest.py` in the root folder.
-  * *Implementation*: Root-level `conftest.py` adds the absolute path of the project to `sys.path` on test startup. Always run commands from the project root directory (e.g. `python3 -m scraper.orchestrator` instead of executing `python scraper/orchestrator.py`).
-
----
-
-### 13.7. `psycopg2-binary` Build Failures on Python 3.13
-
-* **Symptom**: Virtualenv setup (`pip install -r requirements.txt`) fails when compiling `psycopg2`.
-* **Cause**: Pre-compiled wheels for version `2.9.9` do not support Python 3.13, causing it to fall back to compilation which requires local PostgreSQL development headers (`libpq-dev`).
-* **Resolution**:
-  * Use Python 3.12 (standard target defined in `.python-version`).
-  * Alternatively, upgrade to `psycopg2-binary==2.9.10` in `requirements.txt` which contains pre-compiled Python 3.13 wheels.
-
----
-
-### 13.8. `TypeError: argument of type 'module' is not iterable`
-
-* **Symptom**: Pipeline startup crashes with a type exception on parser instantiation.
-* **Cause**: Passing the `config.py` module to a parser constructor instead of the active listings cache.
-* **Code Mechanism**:
-  * *Affected Classes*: `BaseParser` subclasses (which accept `active_listings: dict` in their `__init__` constructor).
-  * *Method Fix*: In `scraper/orchestrator.py`, ensure the instantiation passes the active listings fetched from the database:
-    ```python
-    active_listings = db.fetch_active_listings()
-    parser = NigeriaPropertyCentreParser(active_listings)
-    ```
-
----
-
-### 13.9. Geocoder Always Returns `geocoded=False`
-
-* **Symptom**: All listings processed show `geocoded = False` in the database.
-* **Cause**: OpenStreetMap Nominatim blocks requests without valid User-Agents or contact emails.
-* **Code Mechanism**:
-  * *Affected Class/Method*: `Geocoder` in `scraper/geocoder.py` inside `geocode(self, neighbourhood, city)`.
-  * *API Compliance*: Ensure `NOMINATIM_AGENT` is configured with a valid email (read from `NOMINATIM_CONTACT_EMAIL` in `config.py`).
-  * *Rate Limiting*: Nominatim requires a strict 1.0 second delay between requests. The geocoder enforces this via `time.sleep(1.1)` for cache misses. On a fresh database, matching 80 neighbourhoods will take ~90 seconds. Subsequent cycles read coordinates instantly from `raw_data.geocode_cache` (loaded into memory at geocoder startup).
-
----
-
-## 14. Ongoing Maintenance
-
-This section outlines standard procedures for maintaining the scraper's parsing layers, adding coverage domains, and extending normalisation dictionaries.
-
----
-
-### 14.1. Repairing Selector Drift
-
-When a portal alters its layout, search or detail parsers will fail, resulting in 0 listings processed or empty database records.
-
-1. **Identify the Failure**: Review the Telegram notification or pipeline execution logs to identify the failing portal (e.g. `nigeriapropertycentre`).
-2. **Retrieve the Live HTML**: Locate a live listing URL from the portal and execute the diagnosis script to fetch its raw markup:
-   ```bash
-   .venv/bin/python diagnose.py "https://nigeriapropertycentre.com/..."
-   ```
-   This writes the server-rendered HTML payload directly to `debug.html`.
-3. **Map the New Layout**: Open `debug.html` alongside browser DevTools and determine the updated CSS query paths.
-4. **Update the Parser Constants**: Modify the uppercase CSS selector constants defined at the top of the portal's parser script (e.g. `scraper/parsers/nigeriapropertycentre.py`):
-   ```python
-   # Example: Update PRICE_SELECTOR if it changed from span.property-details-price
-   PRICE_SELECTOR = 'div.listing-price-container span.price'
-   ```
-5. **Update local Fixtures**: Save the updated listing HTML source into the tests directory to serve as the new fixture for regression testing:
-   * Target Path: `tests/fixtures/<portal>_listing_page.html` (or `tests/fixtures/nigeriapropertycentre_listing_page.html`).
-6. **Execute Unit Tests**: Run pytest to verify the parser extracts all attributes (price, address, beds, bathrooms, agent) without errors:
-   ```bash
-   pytest tests/test_parsers.py::TestNigeriaPropertyCentreParser -v
-   ```
-7. **Deploy**: Stage and commit the selector changes and updated HTML fixtures to the git repository.
-
----
-
-### 14.2. Adding a New Portal Parser
-
-To ingest listings from a new source, subclass the base scraping class and register it in the orchestrator:
-
-1. **Subclass the Base Parser**: Create a new parser module under `scraper/parsers/newportal.py`. Inherit from `BaseParser` (defined in `scraper/parsers/base_parser.py`) and override the required properties and methods:
-   * `source` (str): Unique identifier for deduplication (e.g. `'jiji'`).
-   * `base_url` (str): Root domain of the portal.
-   * `search_url` (str): Entry search results page URL.
-   * `get_listing_urls(self, soup)`: Extracts detail page URLs from search results page parsed via `BeautifulSoup`.
-   * `parse_listing(self, soup, url)`: Parses the detail page's `BeautifulSoup` document and returns a `RawListing` object (or `None` on unrecoverable extraction failure).
-   * `next_page_url(self, base_url, page_number)`: Returns the string URL for page number N, or `None` if pages are exhausted.
-2. **Register the Parser**: Open `scraper/orchestrator.py` and import the new parser class. Register it in the `PARSERS` execution list inside `run_discovery()`:
-   ```python
-   from scraper.parsers.newportal import NewPortalParser
-   # Added to discovery pipeline parsers array
-   parsers = [
-       NigeriaPropertyCentreParser(active_listings),
-       PropertyProParser(active_listings),
-       PrivatePropertyParser(active_listings),
-       NewPortalParser(active_listings)
-   ]
-   ```
-3. **Write Regression Tests**:
-   * Save a sample listing page source to `tests/fixtures/newportal_listing.html`.
-   * Open `tests/test_parsers.py` and implement a unit test class `TestNewPortalParser` verifying successful extraction.
-
----
-
-### 14.3. Refreshing the Canonical Neighbourhood List
-
-1. **Add Canonical Entries**: Open `config.py` and append new locations to the `CANONICAL_NEIGHBOURHOODS` list. Use the standard canonical casing (e.g., `'Abraham Adesanya'`, `'Orchid'`).
-2. **Propagate to Synthetic Pipeline**: Ensure the new values are mirrored in the P0 synthetic data generator definitions to maintain alignment.
-3. **Database Normalisation Re-run**: Any newly added canonical entry will be picked up by the normaliser cascading matcher (`scraper/normaliser.py`). On the next scraper run, any matching raw listings will automatically normalise and have their coordinates populated by the geocoder.
-
----
-
-## 15. Market Analysis & Snapshots
-
-The market aggregation engine acts as a standalone reporting layer, translating raw listings into weekly time-series datasets to track metrics over time.
-
-### 15.1. Timeline Calculations (`rebuild_snapshots.py`)
-
-The script `rebuild_snapshots.py` processes raw listings to construct snapshots:
-1. **Find Timeline Start**: Queries the oldest record date:
-   ```sql
-   SELECT MIN(first_seen_at) FROM raw_data.scraped_listings;
-   ```
-2. **Align to Calendar Weeks**: Calculates the Monday date of that oldest week using `timedelta(days=date.weekday())`. It then generates a sequence of weekly brackets up to the most recent completed Sunday.
-3. **Load Ground Truth into Memory**:
-   * Fetches all normalised listings (`neighbourhood_normalised = True`) to load metadata (`id`, `city`, `neighbourhood`, `first_seen_at`, `last_seen_at`, `listing_status`, `price_kobo`).
-   * Fetches the entire `listing_history` of type `PRICE_CHANGE` (reconstructing price changes) and groups them by `listing_id` in memory to prevent repeated query latency.
-
----
-
-### 15.2. Pure Python Percentile Interpolation
-
-To calculate price percentiles (p25, median, p75, p90) without requiring third-party library installations (like `numpy` or `scipy`), `rebuild_snapshots.py` implements a linear interpolation percentile function:
-```python
-def calculate_percentile(sorted_data, pct):
-    if not sorted_data:
-        return None
-    n = len(sorted_data)
-    idx = (pct / 100.0) * (n - 1)
-    low = int(idx)
-    high = min(n - 1, low + 1)
-    weight = idx - low
-    return float(sorted_data[low] * (1.0 - weight) + sorted_data[high] * weight)
-```
-This ensures standard mathematical percentile alignment while keeping the script lightweight and runnable in any default virtual environment.
-
----
-
-### 15.3. Reconstructing Historical Pricing
-
-When calculating metrics for a past week, using the listing's current `price_kobo` would bias historical percentiles if a price change occurred. The reconstruction algorithm traces backwards:
-```python
-# Reconstruct listing price as of target week's w_end
-price = item["price_kobo"]
-history = history_by_listing.get(lid, [])
-for ev in history:
-    if ev["event_date"] > w_end:
-        if ev["old_value"] is not None:
-            price = ev["old_value"]
-```
-* **Event Scopes**: For each active listing during the target week, the loop traces chronological price changes in reverse, restoring the value to the price that was active at the end of that week.
-
----
-
-### 15.4. Exclusions and Noise Filters
-
-* **Unnormalised Listings**: Excluded since raw addresses cannot be confidently grouped.
-* **Low-Sample Filter**: Any neighbourhood-week where `active_listing_count <= 1` is skipped. This stops lone properties (which could have pricing errors or be unrepresentative) from skewing percentiles, preserving database integrity.
-
----
-
-### 15.5. Idempotent Batched Insertion
-
-* **Deterministic Primary Key**: Key `id` is computed using an MD5 hash of the concatenated variables:
-  `hashlib.md5(f"{neighbourhood}{snapshot_week_date_string}".encode()).hexdigest()`
-* **Upsert Guard**: Insertion is run via `cur.executemany` with a batch size of 200, protected by an `ON CONFLICT (id) DO NOTHING` constraint. This prevents duplication when re-running migrations.
-
----
