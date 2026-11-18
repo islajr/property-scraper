@@ -1,7 +1,7 @@
 """Preserve stored areas and audit every source-bound interpretation atomically."""
 import hashlib
 import json
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from uuid import UUID
 from psycopg2.extras import Json,execute_values
 from scraper import area_measurements
@@ -18,12 +18,22 @@ def proposal(before,*,listing=None,previous=None):
     for name in ('floor_area_sqm','land_area_sqm'):
         decision=assessment[name];old=before.get(name);candidate=decision['value']
         value=candidate if old is None else old
-        decision.update(evidence_status=decision['status'],stored_value=None if value is None else str(value),
+        decision.update(evidence_status=decision['status'],stored_value=None if value is None else format(Decimal(str(value)),'.2f'),
                         storage_action='FILLED_FROM_EVIDENCE' if old is None and candidate is not None else 'PRESERVED')
         # Existing values survive absent, changed or conflicting adverts. No
         # automatic correction is authorized by merely rerunning a text parser.
-        if value is not None and (candidate is None or abs(Decimal(str(value))-Decimal(candidate))>Decimal('.10')):
-            decision['status']='UNVERIFIED'
+        matches=value is not None and candidate is not None and Decimal(str(value))==Decimal(candidate)
+        # Tolerance is only for the old one-decimal sqft floor conversion. It
+        # must not hide real changes in newly collected floor or land sizes.
+        legacy=before.get('area_legacy')
+        origin=before if legacy is None else legacy
+        legacy_rounding=(name=='floor_area_sqm' and value is not None and candidate is not None
+            and origin.get(name) is not None and Decimal(str(origin[name]))==Decimal(str(value))
+            and any(c['role']=='FLOOR' and c['usable'] and area_measurements._factor(c['original_unit'])==Decimal('0.09290304')
+                    and Decimal(c['sqm']).quantize(Decimal('.1'),rounding=ROUND_HALF_UP)==Decimal(str(value))
+                    for c in assessment['claims']))
+        if legacy_rounding and not matches:decision['legacy_rounding_match']=True
+        if value is not None and not (matches or legacy_rounding):decision['status']='UNVERIFIED'
         after[name]=None if value is None else str(value)
     prior=before.get('area_data') or {}
     if prior.get('source_hash')==assessment['source_hash'] and prior.get('extractor_sha256')==assessment['extractor_sha256']:

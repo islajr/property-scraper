@@ -70,7 +70,7 @@ def _claims(text, origin, row, role=None, trusted=True):
         if re.search(r'(?:₦|NGN|USD|\$|price\s*[:=]?)\s*$',before,re.I) or re.match(r'\s*(?:/|per\b)',after,re.I):reasons.append('price_rate_not_asset_area')
         if re.search(r'(?:/|per\s*)$',before,re.I):reasons.append('price_rate_not_asset_area')
         if re.search(r'\b(?:other properties|also available|we (?:also )?have|various locations|our (?:listings|properties)|nearby|neighbouring)\b',local,re.I):reasons.append('other_offer_or_location')
-        if re.search(r'\b(?:pool|cinema|home office|balcony|garage|bq|boys.? quarters?|terrace garden)\s*(?:area|size)?\s*[:=]?\s*$',local,re.I):reasons.append('ancillary_feature_area')
+        if re.search(r'\b(?:pool|cinema|home office|balcony|garage|bq|boys.? quarters?|staff quarters?|terrace garden)\s*(?:(?:floor|internal|covered)\s*)?(?:area|size|space)?\s*[:=]?\s*$',local,re.I):reasons.append('ancillary_feature_area')
         if re.search(r'\b(?:not|no|formerly|previously|was|hypothetical|example)\b',local,re.I):reasons.append('negated_historical_or_example_area')
         if not trusted:reasons.append('source_scope_unverified')
         if sqm<=0 or sqm>Decimal('1000000000000'):reasons.append('nonpositive_or_exceptional_area')

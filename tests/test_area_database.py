@@ -93,3 +93,10 @@ def test_area_audit_is_rolled_back_with_transaction(pricing_writer):
     db.conn.rollback();assert get_row(db,item.external_id)==before
     with db.conn.cursor() as c:
         c.execute('SELECT count(*) FROM raw_data.property_fact_assessments WHERE run_id=%s',(str(run),));assert c.fetchone()==(0,)
+
+
+def test_first_retry_after_land_fill_is_a_true_noop(pricing_writer):
+    db=pricing_writer;item=listing(raw_floor_area=None,title='House on 600sqm')
+    db.upsert([item],{});before=get_row(db,item.external_id)
+    with db.conn.cursor() as c:assert persist(c,before['id'],run_id=uuid4())['outcome']=='UNCHANGED'
+    assert get_row(db,item.external_id)==before

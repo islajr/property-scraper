@@ -123,8 +123,8 @@ mean the advert contains no clues. Unsupported spellings and formats need review
 [area_store.py](scraper/area_store.py) fills missing supported land/floor fields and
 preserves existing non-null areas. It keeps a first legacy snapshot and an audit
 in the existing fact-assessment table. A new advert that contradicts an old area
-marks it unverified; it does not overwrite it. Legacy sqft conversion differences
-within 0.10 sqm are tolerated when matching an existing value. The original claim
+marks it unverified; it does not overwrite it. Only a retained legacy floor value that equals the old one-decimal sqft conversion
+can use a rounding match. New floor and land values require exact scalar agreement. The original claim
 still carries the exact conversion and the stored scalar uses two decimal places.
 
 After migration 015, use `research.properties.supported_floor_area_sqm` and
