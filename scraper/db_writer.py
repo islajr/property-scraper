@@ -500,6 +500,8 @@ class DatabaseWriter:
                 old = self._load_pricing(cur, listing_id=listing_id)
                 event = None
                 if old is not None:
+                    if observed_quote is not None and (observed_quote.source,observed_quote.external_id)!=(old.get('source'),old.get('external_id')):
+                        raise ValueError('Observed portal identity differs from the saved listing')
                     if observed_quote is not None:
                         new = quote_dict(observed_quote)
                     elif observed_price_kobo is not None:

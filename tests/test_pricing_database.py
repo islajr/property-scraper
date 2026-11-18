@@ -74,7 +74,7 @@ def test_healthcheck_enriches_legacy_unknown_without_price_reduction(pricing_wri
 def test_rejected_quote_preserves_previous_quote_but_confirms_activity(pricing_writer):
     db=pricing_writer;old=listing();db.upsert([old],{})
     row=get_row(db,old.external_id)
-    new=listing('USD 50 per night')
+    new=listing('USD 50 per night');new.external_id=old.external_id
     db.confirm_listing_active(row['id'],None,observed_quote=new)
     after=get_row(db,old.external_id)
     assert quote_dict(after)==quote_dict(row)

@@ -27,6 +27,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from scraper.models import RawListing
+from scraper.parsers.listing_identity import primary_identity_matches
 import config
 
 log = logging.getLogger(__name__)
@@ -186,11 +187,16 @@ class BaseParser(ABC):
                         consecutive_failures += 1
                         continue
                     
-                    consecutive_failures = 0  # reset on successful fetch
 
                     soup = BeautifulSoup(html, "html.parser")
+                    response_url=getattr(self,'last_response_url',None) or url
+                    if not primary_identity_matches(self,url,final_url=response_url,soup=soup):
+                        log.warning("[%s] Primary listing identity mismatch: %s",self.source,url)
+                        consecutive_failures += 1
+                        continue
+                    consecutive_failures = 0
                     try:
-                        listing = self.parse_listing(soup, url)
+                        listing = self.parse_listing(soup, response_url)
                         if listing:
                             page_results.append(listing)
                     except Exception as exc:    # null listing page
