@@ -5,13 +5,14 @@ dataset and its evidence; Supabase publishes the data other applications need.
 We preserve shared data locally too. Supabase will never be the only place holding
 a listing, a price event, a geocode result or a run log.
 
-**Status: this is the agreed data boundary and proposed migration contract, not a
-completed deployment.** Today the scraper still uses `DATABASE_URL` for its full
-database writes. Supabase still contains the audit tables. Local backups have been
-restored and checked in disposable databases; a permanent local working database
-and publisher have not yet been deployed. The test databases were removed.
+**Deployed on 19 November 2026.** The complete working database is local;
+Supabase publishes the four application tables below. The heavy audit tables and
+their dependent research views now live locally. The source data, IDs and history
+were verified before retiring their remote copies.
 
-The implementation and operator commands are in [local-publication.md](local-publication.md).
+Read [the deployment handoff](storage-handoff-2026-11-19.md) for actual locations,
+backup proofs and measured sizes. Read [local-publication.md](local-publication.md)
+for commands, services, retry behavior and recovery.
 
 ## The four tables applications currently share
 
@@ -66,8 +67,8 @@ verified parcel coordinates. The location-refresh limitations in
 `scrape_runs.id` identifies a run-log row; `source` identifies the portal. There is
 currently no per-listing foreign key to this table. Its numeric ID is not a listing
 ID, and its aggregate counts do not prove which exact listing changed. Audit UUIDs
-are a separate kind of identifier. A future publication ID can correlate a published
-batch, but it must not invent a historical relationship that was never recorded.
+are a separate kind of identifier. A publication UUID identifies a frozen four-table state. It does not invent a
+historical listing-to-scrape-run relationship that was never recorded.
 
 ## The complete local dataset
 
@@ -108,16 +109,15 @@ rules; a successful scrape does not imply that such an archive already exists.
 
 ### Files, database storage and published copies
 
-Choose a permanent archive root on the selected volume. The layout below is the
-target layout, not a set of directories already provisioned on this machine:
+The permanent archive root is `/run/media/isla-jr/ps-archive`. Its layout is:
 
 | Location relative to the archive root | Contents and connection to the database |
 | --- | --- |
 | `postgres/` | Persistent local PostgreSQL storage for all shared tables, full audit tables and the transactional publication journal. Access records through PostgreSQL, not by editing its data files. |
-| `backups/` | Consistent compressed database backups, schema/sequence definitions and checksums. A manifest records the dataset/schema version, capture time and event range. Keep an independent backup copy outside this volume. |
+| `backups/` | Consistent compressed database backups, schema/sequence definitions and checksums. A backup sidecar records capture time, SHA-256 and the independent copy path; the dump contains schema, sequences and the publication journal. Keep an independent backup copy outside this volume. |
 | `observations/` | Saved source evidence, keyed by portal identity, capture time and content hash; database evidence/publication records identify the matching artifact. |
 | `repair-artifacts/` | Frozen previews, selections, verification reports and historical run artifacts, tied to their run IDs and original database fingerprints. |
-| `published/` | Periodic compressed snapshots of all four shared tables and publication manifests. Retain intervening versions through the durable local journal rather than making a full database copy for every batch. |
+| `published/` | An initial full four-table baseline, then compressed changed-row deltas and immutable SHA-256 manifests under publication UUIDs. `publication_cache` holds the last published state; the local journal retains batch status. |
 
 The publication journal must commit inside the local database transaction; a loose
 file queued after that commit is insufficient to guarantee recovery. Files can
@@ -132,13 +132,11 @@ source files. Backup credentials and connection strings do not belong in manifes
 
 ## Accessing the right copy
 
-Connect a SQL client to Supabase for the shared application dataset. After the
-local working database is deployed, connect to it for full research, audits and
-recovery. Use separate saved connections and appropriately scoped reader roles.
+Connect a SQL client to Supabase for the shared application dataset. Connect to the local working database for full research, audits and recovery. Use separate saved connections and appropriately scoped reader roles.
 The local database contains the same shared table names, so choosing the connection
 is what chooses the dataset. Secrets belong in protected configuration.
 
-These queries work against the shared schema today and the local mirror after seeding:
+These queries work against both the shared schema and the local archive:
 
 ```sql
 -- An advert's lifecycle/pricing events: one listing, potentially many events.
@@ -158,7 +156,7 @@ ORDER BY run_at DESC, id DESC
 LIMIT 20;
 ```
 
-For deeper audit work, use the local connection after cutover:
+For deeper audit work, use the local connection:
 
 ```sql
 SELECT id, run_id, origin, recorded_at, old_classification, new_classification
@@ -167,10 +165,9 @@ WHERE listing_id = 123
 ORDER BY id;
 ```
 
-The split does not yet introduce runnable new configuration switches. Today the
-application reads `DATABASE_URL`. Implementation must explicitly distinguish the
-local working connection from the shared publication connection, rather than
-silently changing that variable's meaning for some commands.
+`DATABASE_URL` selects the complete local working database. `SHARED_DATABASE_URL`
+selects the published Supabase database. The publisher is the only normal writer
+that uses the shared connection. See [configuration](local-publication.md#protected-configuration).
 
 ## Preserving what was actually published
 
@@ -178,8 +175,9 @@ A local current row can be newer than its shared counterpart while publication i
 pending. Retain the published payload/version locally, as well as the newest local
 working state. That lets us reconstruct exactly what dependent applications saw.
 
-Each durable local publication record should identify the batch/event, table and
-stable key, payload hash, expected remote revision, source/rule versions and status.
+Each durable local publication record identifies the batch UUID, expected previous
+UUID, exact table schemas, row counts, content/payload hashes and status. Retained
+row payloads include stable keys and existing source/rule fields.
 Retain enough source/payload data to reproduce the version; a hash alone is not a
 backup. Keep the detailed journal locally. Remote metadata needs only bounded
 publication checkpoints and the latest revision needed for safe reconciliation.
@@ -217,39 +215,27 @@ overwrite a newer shared observation. Corrections need a new local audit and
 publication record. Historical quote corrections require explicit review, not a
 blanket assumption that today's billing period applied to earlier prices.
 
-## Cutover and operating checklist
+## Operating the split
 
-1. Choose permanent local storage with room for the database, WAL, backups, a
-   reconstruction copy and growth. The project filesystem had only about 1.4 GB
-   free when checked on 19 November. Free capacity or select a larger volume before
-   activating the local master. Temporary `/tmp` test clusters are not that archive.
-2. Pause every writer for a consistent final seed. Restore the full scraper
-   dataset and its definitions locally, including all four shared tables, audit
-   records and sequence state.
-   Verify logical row/content hashes, stable IDs, foreign keys and local readers.
-3. Build and test the durable publisher. Adapt discovery, health, reviews, repairs,
-   recovery, dashboards and schedules to their intended connections. Existing
-   GitHub scraper schedules are disabled; enabling one requires a durable route
-   to local archival or an explicitly designed staging service.
-4. Separate full local migrations from compact shared migrations. Today `run.sh`
-   and cloud wrappers replay the full schema; they must not recreate remote audit
-   tables after cleanup. Keep CI databases disposable and isolated from both stores.
-5. Rehearse publication, retries, interrupted acknowledgements, conflicting updates,
-   missing evidence, restored archives and rollback locally. Check every existing
-   column and row of the four-table contract, not only aggregate counts.
-6. Verify the permanent local archive and independent backup before removing any
-   remote history. Inventory scraper-internal view/FK dependencies too: downstream
-   use of four tables does not make the current writer independent of its audits.
-7. Remove only explicitly archived remote structures after the new path passes.
-   Preserve shared tables in place, their IDs, price/lifecycle history, constraints,
-   grants and referenced vocabulary. Avoid schema-wide cascading drops. Compact
-   afterward and measure the actual database footprint.
-8. Monitor publication lag, failed/conflicting events, local backup health and
-   remote growth. A below-300-MB project footprint is a working design budget,
-   not a measured guarantee. Future consumers get an explicit shared-contract
-   extension built from preserved local data, not an automatic copy of all audits.
+The seed, independent restore proof, publication baseline and explicit retirement
+are complete. The [handoff](storage-handoff-2026-11-19.md) records the results.
+The previous narrow proposal to archive 39,696 assessments was not applied;
+complete local retention replaced that selective-deletion approach.
 
-The previous narrow proposal to archive 39,696 superseded assessments remains
-unapplied. The broader split above is now the preferred direction. Production
-history remains online until the archive, replacement writer path and cutover
-checks are implemented and verified through incremental PRs to `master`.
+Full migrations run only against the local working database. The four published
+tables remain in place with all their existing columns, IDs, constraints and history;
+tiny vocabulary tables retain their FK role. The shared checkpoint has one row.
+No schema-wide cascading drops were used. Other applications' schemas were left alone.
+
+Keep these operational checks visible:
+
+- Confirm the archive service and publisher/backup timers are active before starting collection.
+- Check `ops.shared_publication_state.published_at` remotely and the local READY queue. Failed publication leaves the last successful shared dataset available.
+- Check backup sidecars and independent copies, and periodically restore a backup into a separate database.
+- Watch free space on both volumes. Three daily dumps are retained on each; publication payloads and evidence are retained and will grow.
+- Keep GitHub collection schedules disabled while the archive is reachable only on this laptop. A new remote runner needs an explicit archive/staging design.
+- Review schema/contract extensions before publishing them. Do not replay the full `schema/` directory against Supabase.
+
+A below-300-MB shared footprint remains a budget, not a permanent guarantee.
+Listings and full shared event history continue to grow. Monitor actual size and
+agree on any future retention changes with downstream consumers first.

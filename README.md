@@ -6,7 +6,7 @@
 
 ## Introduction
 
-**Property Scraper** is an autonomous lightweight python-based data pipeline that extracts real property listing data from public Nigerian property portals, cleans and geocodes the data, and persists them to a PostgreSQL instance on Supabase on a weekly schedule. When Telegram credentials are configured, completed runs send a summary. The GitHub workflow definitions provide weekly discovery and daily health checks; actual enabled schedules and local timers are deployment state, described in the codebase guide.
+**Property Scraper** is an autonomous lightweight python-based data pipeline that extracts real property listing data from public Nigerian property portals, cleans and geocodes the data, and stores the complete working dataset in local PostgreSQL and publishes four shared application tables to Supabase. When Telegram credentials are configured, completed runs send a summary. The GitHub workflow definitions provide weekly discovery and daily health checks; actual enabled schedules and local timers are deployment state, described in the codebase guide.
 
 ## Understand the project
 
@@ -143,16 +143,24 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+The current deployment uses a local working archive and a separate shared publication
+connection. Read [the storage handoff](docs/storage-handoff-2026-11-19.md) and
+[operator guide](docs/local-publication.md) before configuring production.
+
 **2. Create a `.env` file in the project root**
 
 ```
-DATABASE_URL=postgresql://postgres.[project-id]:[password]@...
+DATABASE_URL=postgresql:///your_local_working_database
 TELEGRAM_BOT_TOKEN=1234567890:ABCDEF...   # optional
 TELEGRAM_CHAT_ID=123456789                # optional
 NOMINATIM_CONTACT_EMAIL=you@example.com
 ```
 
-**3. Apply the database schema**
+**3. Apply the complete schema to the working database**
+
+The full migration set belongs on the local working database. Never run it against
+the published Supabase store. The snippet below is for a new development database;
+the deployed archive is already seeded.
 
 ```bash
 # Export DATABASE_URL in this shell first; psql does not load .env.

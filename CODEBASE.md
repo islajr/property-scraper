@@ -29,11 +29,13 @@ rule/operations guides are:
 - [Unified consumer contract](docs/property-unification.md): the supported research reader.
 - [Pricing](README.md#rental-prices-and-billing-periods): quote units and comparable rental data.
 
-The confirmed four-table consumer boundary and proposed local/archive-to-Supabase
-publication split are explained in [the storage layout guide](docs/storage-layout.md).
-It covers where every data group belongs, stable IDs, access, published snapshots,
-recovery and migration gates. That split is not deployed yet: the current writer
-still uses its full database through `DATABASE_URL`.
+The complete working database now lives in the local archive. Supabase publishes
+four application tables, with their full history and field evidence summaries.
+The heavy audit tables and research views remain local. Start with the
+[storage layout](docs/storage-layout.md), then the
+[deployment handoff](docs/storage-handoff-2026-11-19.md) and
+[operator commands](docs/local-publication.md). `DATABASE_URL` means the local
+working database; `SHARED_DATABASE_URL` is reserved for publication.
 
 Files under `docs/archive/` explain past proposals and snapshots. They remain
 useful evidence, but the current guides and installed schema determine behavior.
@@ -424,7 +426,8 @@ python -m scraper.orchestrator --health-check  # Normal health queue
 
 `run.sh` also initializes Python/dependencies, loads `.env`, installs browser
 assets and replays the numbered SQL files. The GitHub scraper workflows replay
-SQL too. Running a read-only preview command is different: it does not migrate
+SQL too, but now require a reachable archive and its identity. Full migration
+and collector paths reject the published shared store. Running a read-only preview command is different: it does not migrate
 the schema or repair production data.
 
 Telegram summaries are sent by normal orchestration when credentials are set.
@@ -560,18 +563,18 @@ exist in a fresh checkout:
 - `.local/room-counts/OPERATIONS.md` and `ops/`: restart context, archived helpers and their checksums.
 - `.local/room-counts/scheduler-restored.json`: post-rollout local schedule state.
 
-Validation includes **777 passing CI tests**, the local database export regression
+The earlier room/area validation included **777 passing CI tests**, the local database export regression
 test and six private operation checks for guarded observations, apply/retry/
 reversal and partial-pass blocking.
 
 The user's original raw-type review CSV remains unchanged. GitHub discovery and
 health workflows were already manually disabled and remain so; CI is enabled.
-The local hourly health timer was restored to its original active/enabled state
-at 03:18:52 WAT (02:18:52 UTC) on 19 November, after the final proofs and corrected
-worksheet export. Its Persistent setting triggered the normal scheduled service.
-The figures above are dated cutover snapshots; normal subsequent observations can
-change coverage. Check `systemctl --user status scraper-health.timer` and the
-saved schedule report when inspecting the current deployment.
+The local hourly health timer was paused during storage cutover and restored
+after the archive, publisher and independent restore checks. The publisher retries
+every fifteen minutes; full backups run daily at 04:30 local time. See the
+[storage handoff](docs/storage-handoff-2026-11-19.md) for the current service names,
+locations and recovery boundaries. The storage implementation passed **786 CI tests**.
+These figures are dated snapshots; subsequent observations can change coverage.
 
 ## Change the code with evidence
 
