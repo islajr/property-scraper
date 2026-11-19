@@ -174,6 +174,10 @@ identity-matched health observations. It works with dedicated stores:
 The stores are real database writers too; it is inaccurate to say every SQL write
 lives in `db_writer.py`. Their APIs generally use the caller's transaction. A
 listing update and its evidence should commit together, or roll back together.
+A successful page fetch still need not replace every field: an invalid new quote
+can leave the previous price intact while other supported facts are refreshed.
+Check each field's evidence and observation time before assuming they all describe
+one page version.
 
 Discovery deduplicates input by `(source, external_id)` before writing, and the
 database has the same unique key. An existing removed advert can be relisted;
@@ -444,7 +448,10 @@ publicly advertised contact details; keep artifacts private and out of PR bodies
 Some completed generated JSONL reports were archived as verified `.jsonl.gz`
 files during the November rollout. Decompress a copy before using a tool that
 expects the original JSONL bytes; preserve the recorded uncompressed checksum.
-Editable worksheets are separate from those frozen artifacts.
+Editable worksheets are separate from those frozen artifacts. Timestamped artifact
+filenames use UTC (`Z`); a file dated 23:35 UTC on 18 November was created at
+00:35 WAT on 19 November. Keep that distinction when comparing reports with local
+service logs.
 
 ### Getting a current room worksheet
 
@@ -463,35 +470,102 @@ audited repair. Work on the exceptional active listings first, then by action co
 
 ### Current operational handoff
 
-At 14:24 UTC on 18 November 2026, merged PR #17 had been deployed and verified
-across 28,955 listings. All original non-null room values and protected non-room
-fields survived the backfill; 729 bedroom gaps and seven bathroom gaps were filled.
-The v2 reader and all room assessments were current. That is the preservation
-baseline; later primary observations can legitimately correct supported values.
+The production cutover was verified on 19 November 2026 across **28,955 listings**.
+All room and area assessments apply to the saved source, and all 28,955 unified
+research contracts are current. The research reader returns one row per listing.
+This establishes interpretation freshness; it does not certify a recent fetch or
+a physical inspection of every property.
 
-The first live verification batch attempted 96 listings. Its canary exposed
-additional ratio/layout validation gates. PR #18 added the tested guards and bulk
-room-only observations and was merged/deployed. Two provisional bathroom writes
-were reversed/reassessed with prior values restored and advertised claims retained;
-293 potentially affected assessments were checked without other numeric changes.
-The restarted pass keeps the earlier checkpoint and excludes previously attempted
-records. Live verification progress, updates and unresolved outcomes are in:
+| Verified change | Bedrooms | Bathrooms |
+| --- | ---: | ---: |
+| Originally missing values filled | 750 | 187 |
+| Existing values corrected with primary-page evidence | 191 | 1,464 |
+| Original non-null values cleared | 0 | 0 |
+| Active listings with supported values at the final snapshot | 18,847 | 15,427 |
 
-- `.local/room-counts/active-rollout.json`: backup, canary, full repair and verification.
-- `.local/room-counts/active-verification.json`: the current primary verification pass.
-- `.local/room-counts/active-verification-initial.json`: the preserved first-batch checkpoint.
-- `.local/room-counts/ops/`: archived operation helpers and their checksums.
+Gap-fill and correction figures are measured against the original 18 November
+backup. A changed current advert does not prove its older advertised value was
+never valid. Every
+first pre-repair pair remains in history, and every corrected non-null value has
+a supporting primary-metric audit. There were verification attempts for 21,898
+distinct listings. An attempted but unavailable or incomplete page is an explicit
+outcome, not a successful verification of its missing facts.
 
-Do not mistake an initial preview or pilot for applied production improvements.
-For the latest field coverage, query the coverage view rather than adding dated
-report figures together. The original raw-type review CSV remains unchanged.
+The area rollout filled **357 floor-area gaps and 1,539 land-area gaps**, measured
+against its own pre-rollout snapshot. Earlier live observations had already
+collected some sizes. Final coverage contains 714 supported floor values and
+1,890 supported land values; raw/held claims remain separately inspectable.
+Every pre-existing non-null area and every unrelated listing field survived the
+area rollout unchanged. The 28,955-row local rehearsal also verified full reversal
+and repeated apply, and the production canary and completed retry passed.
 
-The local `scraper-health.timer` was active before rollout and was temporarily
-paused for the coordinated operation; restore it after verification. GitHub health
-and discovery workflows were already manually disabled when inspected. Preserve
-that pre-existing state unless deliberately changing the deployment schedule.
-CI remains enabled. A workflow file containing a cron schedule does not establish
-that the workflow is enabled or that a particular run succeeded.
+The historical room backfill preserved existing values. Later identity-matched
+full observations legitimately refreshed titles, descriptions, classification and
+accepted quote metadata as well as room evidence; those changes are journalled.
+Two provisional bathroom writes from the first canary were reversed/reassessed,
+and 293 potentially affected assessments were checked. The machine restart was
+reconciled against database audit: eleven committed but unlogged observations were
+recovered without repeating writes. The final bounded retry completed 763 checks
+from the earlier access backlog. Do not add those operation counters together as
+though they were distinct newly corrected properties.
+
+Migrations 014 and 015 are installed. Use `research.properties`,
+`research.review_queue`, `research.room_count_coverage` and
+`research.area_measurements` as the entry points. The 17 physical `raw_data` tables
+continue to store current observations, history and operational evidence; the
+research views provide the simpler reader without copying those tables.
+
+#### What remains unresolved
+
+The final room worksheet contains 12,234 listings needing some follow-up, including
+6,984 active listings. That does not mean every field on those listings is unusable.
+For example, a supported bedroom count remains useful when a bathroom is missing.
+There are 1,341 exceptional active listings, including 1,213 active listings with a
+100-plus value. All 1,271 such listings across active and removed inventory are
+from PropertyPro. These are review triggers, not 1,271 established errors.
+
+Use the current worksheet's action codes to work down the active backlog:
+
+| Active listings | Action | What to do |
+| ---: | --- | --- |
+| 183 | `RECONCILE_SUPPORTED_CANDIDATE` | Compare the retained number with the explicit candidate, primary metrics and unit basis; record source-bound evidence before correction. |
+| 445 | `LAND_OR_STRUCTURE_CONTEXT` | Establish whether a habitable structure is included; keep plot and building quantities separate. |
+| 2,163 | `RESOLVE_CHANGED_ASSET` | Resolve changes in advert identity, location, form or scope before a coherent source refresh. |
+| 8 | `RECHECK_INCOMPLETE_PRIMARY_BODY` | The matching page was fetched but its description was missing. Inspect the page/parser before replacing saved text. |
+| 3,475 | `PRIMARY_QUANTITY_STILL_MISSING` | The matching page did not settle the quantity. Seek an explicit statement or confirmation from the portal/agent; do not invent a value. |
+| 708 | `UNAVAILABLE_OR_REPLACED_PAGE` | Locate a matching primary/archive source or confirm the exact advert; this quality pass preserves lifecycle and values. |
+| 2 | `BOUNDED_ACCESS_RETRY` | Retry the exact IDs after backoff using the bounded primary-page tool and current row guards. |
+
+The 5,250 remaining worksheet listings are inactive inventory. Their unresolved
+history is retained separately from today's active research cohort. CSV annotations
+do not apply database decisions. Preserve the worksheet you edited, then turn a
+checked decision into a source-bound review or guarded repair.
+
+#### Where the evidence lives on this machine
+
+These ignored artifacts are private operational evidence, not files guaranteed to
+exist in a fresh checkout:
+
+- `.local/room-counts/final-integrity.json`: original-value preservation, correction audits and final room coverage.
+- `.local/room-counts/final-consumer-contract.json`: all 28,955 current unified contracts and the four research views.
+- `.local/areas/active-rollout.json`: pointer to the area snapshot, canary, receipts and final preservation report.
+- `.local/room-counts/review/current.json`: final uniquely named worksheets and checksums; earlier review notes remain in their files.
+- `.local/room-counts/active-verification*.json`: preserved selections and completed pass checkpoints.
+- `.local/room-counts/OPERATIONS.md` and `ops/`: restart context, archived helpers and their checksums.
+- `.local/room-counts/scheduler-restored.json`: post-rollout local schedule state.
+
+Validation includes **777 passing CI tests**, the local database export regression
+test and six private operation checks for guarded observations, apply/retry/
+reversal and partial-pass blocking.
+
+The user's original raw-type review CSV remains unchanged. GitHub discovery and
+health workflows were already manually disabled and remain so; CI is enabled.
+The local hourly health timer was restored to its original active/enabled state
+at 03:18:52 WAT (02:18:52 UTC) on 19 November, after the final proofs and corrected
+worksheet export. Its Persistent setting triggered the normal scheduled service.
+The figures above are dated cutover snapshots; normal subsequent observations can
+change coverage. Check `systemctl --user status scraper-health.timer` and the
+saved schedule report when inspecting the current deployment.
 
 ## Change the code with evidence
 

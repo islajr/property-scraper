@@ -2,7 +2,7 @@
 
 Start with [CODEBASE.md](CODEBASE.md) for the conversational walkthrough and
 [docs/database.md](docs/database.md) for the database dictionary. This page is the
-short map, checked against the project on 18 November 2026.
+short map, checked against the project on 19 November 2026.
 
 We collect adverts from three enabled portals: PropertyPro, Private Property and
 Nigeria Property Centre. Jiji has a parser but is disabled in normal orchestration.
