@@ -12,7 +12,7 @@ def quoted(path):
 def main():
     root=Path(__file__).resolve().parents[1];env=dotenv_values(root/'.env');archive=Path(env['ARCHIVE_ROOT'])
     target=Path.home()/'.config/systemd/user';target.mkdir(parents=True,exist_ok=True)
-    python=quoted(root/'.venv/bin/python');work=str(root).replace('%','%%');envfile=quoted(root/'.env')
+    python=quoted(root/'.venv/bin/python');work=str(root).replace('%','%%');envfile=str(root/'.env').replace('%','%%')
     common=f'WorkingDirectory={work}\nEnvironmentFile={envfile}\n'
     pgctl=quoted(shutil.which('pg_ctl'));data=quoted(archive/'postgres');log=quoted(archive/'postgres-server.log')
     units={
