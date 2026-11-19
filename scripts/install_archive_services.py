@@ -12,11 +12,11 @@ def quoted(path):
 def main():
     root=Path(__file__).resolve().parents[1];env=dotenv_values(root/'.env');archive=Path(env['ARCHIVE_ROOT'])
     target=Path.home()/'.config/systemd/user';target.mkdir(parents=True,exist_ok=True)
-    python=quoted(root/'.venv/bin/python');work=quoted(root);envfile=quoted(root/'.env')
+    python=quoted(root/'.venv/bin/python');work=str(root).replace('%','%%');envfile=quoted(root/'.env')
     common=f'WorkingDirectory={work}\nEnvironmentFile={envfile}\n'
     pgctl=quoted(shutil.which('pg_ctl'));data=quoted(archive/'postgres');log=quoted(archive/'postgres-server.log')
     units={
-      'property-scraper-archive.service':f'''[Unit]\nDescription=Property scraper permanent local archive\n[Service]\nType=forking\n{common}ExecStartPre={python} -m scripts.ensure_archive_mount\nExecStart={pgctl} -D {data} -l {log} -w start\nExecStop={pgctl} -D {data} -m fast -w stop\nPIDFile={quoted(archive/'postgres/postmaster.pid')}\nRestart=on-failure\nRestartSec=30\nTimeoutStartSec=120\nTimeoutStopSec=120\n[Install]\nWantedBy=default.target\n''',
+      'property-scraper-archive.service':f'''[Unit]\nDescription=Property scraper permanent local archive\n[Service]\nType=forking\n{common}ExecStartPre={python} -m scripts.ensure_archive_mount\nExecStart={pgctl} -D {data} -l {log} -w start\nExecStop={pgctl} -D {data} -m fast -w stop\nPIDFile={str(archive/'postgres/postmaster.pid').replace('%','%%')}\nRestart=on-failure\nRestartSec=30\nTimeoutStartSec=120\nTimeoutStopSec=120\n[Install]\nWantedBy=default.target\n''',
       'property-scraper-publisher.service':f'''[Unit]\nDescription=Publish current shared property data\nRequires=property-scraper-archive.service\nAfter=property-scraper-archive.service\n[Service]\nType=oneshot\n{common}ExecStart={python} -m scripts.publish_shared_data publish\nTimeoutStartSec=900\n''',
       'property-scraper-publisher.timer':'''[Unit]\nDescription=Retry shared property publication every fifteen minutes\n[Timer]\nOnCalendar=*:0/15\nPersistent=true\n[Install]\nWantedBy=timers.target\n''',
       'property-scraper-backup.service':f'''[Unit]\nDescription=Back up full property archive to independent storage\nRequires=property-scraper-archive.service\nAfter=property-scraper-archive.service\n[Service]\nType=oneshot\n{common}ExecStart={python} -m scripts.backup_local_archive\nTimeoutStartSec=1800\n''',
