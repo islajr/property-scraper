@@ -113,11 +113,15 @@ info "Ensuring Playwright Chromium is installed (cached after first run)..."
 playwright install chromium 2>&1 | grep -E "(Downloading|chromium|already|Browser)" || true
 
 # ── 7. Apply DB schema (idempotent — safe to run on every invocation) ─────────
-info "Applying DB schema migrations to Supabase..."
+info "Applying full schema migrations to the working database..."
 python3 - <<'PYEOF'
 import psycopg2, os, pathlib
 
 conn = psycopg2.connect(os.environ["DATABASE_URL"])
+from scraper.shared_publication import assert_working_target
+assert_working_target(conn, os.environ.get('ARCHIVE_DATABASE_ID'),
+                      require_archive=os.environ.get('PROPERTY_SCRAPER_STORAGE_MODE') == 'local-shared')
+conn.rollback()
 conn.autocommit = True
 
 schema_dir = pathlib.Path("schema")
@@ -176,4 +180,9 @@ else
     echo "──────────────────────────────────────────────────────────────────────"
 fi
 
+if [[ "$SCRAPER_EXIT" -eq 0 && "${PROPERTY_SCRAPER_STORAGE_MODE:-legacy}" == "local-shared" ]]; then
+    if ! python3 -m scripts.publish_shared_data publish; then
+        warn "Local collection is committed; shared publication remains pending for the publisher timer."
+    fi
+fi
 exit $SCRAPER_EXIT
