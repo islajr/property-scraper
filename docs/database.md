@@ -5,6 +5,13 @@ review, history and recovery work; they are not 17 competing versions of the sam
 property list. PostgreSQL schemas are namespaces, and views are saved queries.
 Adding a view does not duplicate the stored rows.
 
+Dependent applications currently use `raw_data.scraped_listings`,
+`raw_data.listing_history`, `raw_data.geocode_cache` and `raw_data.scrape_runs`.
+The proposed [storage split](storage-layout.md) preserves all four locally and
+remotely, while keeping the full audit/recovery dataset locally. That guide covers
+relationships, access and migration gates. The dictionary below describes the
+existing schema; the storage split has not yet been deployed.
+
 Before migration 014, the entry points are `raw_data.property_research_current`
 and `raw_data.property_review_queue`. Migration 014 adds three consumer views in
 `research`, describes the operational objects with database comments, and leaves
