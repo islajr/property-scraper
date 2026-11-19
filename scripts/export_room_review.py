@@ -39,6 +39,8 @@ def next_action(row,attempt):
         return 'REFRESH_STALE_SOURCE','Refresh the identity-matched primary listing and reassess before accepting a value from an old assessment.'
     if outcome in {'HTTP_404','HTTP_410','IDENTITY_CHANGED','PRIMARY_IDENTITY_UNAVAILABLE'}:
         return 'UNAVAILABLE_OR_REPLACED_PAGE','Locate a matching archived/primary advert or ask the agent for this exact listing. An unavailable page does not establish a room count or removal.'
+    if outcome=='DESCRIPTION_MISSING_REVIEW_REQUIRED':
+        return 'RECHECK_INCOMPLETE_PRIMARY_BODY','The matching page was fetched, but its description was missing and the saved source was preserved. Inspect the primary page and parser before a coherent refresh; do not replace saved text with an incomplete body.'
     if outcome.endswith('CHANGE_REVIEW_REQUIRED') or outcome=='ASSET_IDENTITY_REVIEW_REQUIRED':
         return 'RESOLVE_CHANGED_ASSET','Compare saved and current advert identity, location, type and unit scope; resolve the change before refreshing its counts.'
     if outcome.startswith(('HTTP_','ROBOTS_','SOURCE_PAUSED')) or outcome=='NETWORK_UNAVAILABLE':

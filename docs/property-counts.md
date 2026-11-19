@@ -401,3 +401,8 @@ bedrooms into bathrooms or turn missing/default zero into a measurement.
 The blank review columns are for recording checked values, basis and evidence.
 Editing them does not update production. Checked decisions must become a reviewed,
 source-bound repair with an audit; the worksheet is not a bypass around write guards.
+
+A fetched page whose description is missing is labelled
+`RECHECK_INCOMPLETE_PRIMARY_BODY` in the worksheet. The visit happened, but the
+coherent source refresh was held to preserve saved text. Inspect the page and
+parser before refreshing; this is different from a listing with no recorded visit.
