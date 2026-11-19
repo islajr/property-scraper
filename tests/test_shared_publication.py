@@ -14,7 +14,9 @@ def pair(tmp_path):
         pytest.skip('Disposable PostgreSQL required')
     admin = psycopg2.connect(url)
     admin.autocommit = True
-    params = admin.get_dsn_parameters()
+    # libpq omits the password from get_dsn_parameters(). Preserve the test
+    # URL credentials when connecting to the newly created databases.
+    params = psycopg2.extensions.parse_dsn(url)
     params = {k: params[k] for k in ('host', 'port', 'user', 'password') if params.get(k)}
     names = ['pub_local_' + uuid4().hex[:10], 'pub_shared_' + uuid4().hex[:10]]
     conns = []
