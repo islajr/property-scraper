@@ -16,7 +16,9 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      DATABASE_URL:          ${{ secrets.DATABASE_URL }}
+      DATABASE_URL:          ${{ secrets.ARCHIVE_DATABASE_URL }}
+      PROPERTY_SCRAPER_STORAGE_MODE: local-shared
+      ARCHIVE_DATABASE_ID:   ${{ secrets.ARCHIVE_DATABASE_ID }}
       TELEGRAM_BOT_TOKEN:    ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID:      ${{ secrets.TELEGRAM_CHAT_ID }}
       NOMINATIM_CONTACT_EMAIL: ${{ secrets.NOMINATIM_CONTACT_EMAIL }}
@@ -39,7 +41,12 @@ jobs:
           python - <<'EOF'
           import psycopg2, os
           from pathlib import Path
+          if not os.environ.get('DATABASE_URL') or not os.environ.get('ARCHIVE_DATABASE_ID'):
+              raise SystemExit('Configure a reachable permanent archive before enabling cloud collection')
+          from scraper.shared_publication import assert_archive
           conn = psycopg2.connect(os.environ["DATABASE_URL"])
+          assert_archive(conn, os.environ['ARCHIVE_DATABASE_ID'])
+          conn.rollback()
           conn.autocommit = True
           with conn.cursor() as cur:
               for migration in sorted(Path("schema").glob("*.sql")):

@@ -5,7 +5,8 @@ Reads from environment variables. In local development, populate a .env file.
 In GitHub Actions, these are injected as repository secrets.
 
 Required secrets:
-  DATABASE_URL          — Supabase PostgreSQL connection string
+  DATABASE_URL          — working PostgreSQL connection (local archive in split mode)
+  SHARED_DATABASE_URL   — Supabase publication connection, used only by the publisher
   TELEGRAM_BOT_TOKEN    — Telegram bot token for run summaries
   TELEGRAM_CHAT_ID      — Telegram chat/channel ID to receive summaries
 """
@@ -17,6 +18,8 @@ load_dotenv()  # no-op in GitHub Actions where vars are already in env
 
 # ── Database ──────────────────────────────────────────────────────────────────
 DATABASE_URL = os.environ["DATABASE_URL"]   # will raise immediately if missing
+STORAGE_MODE = os.environ.get('PROPERTY_SCRAPER_STORAGE_MODE', 'legacy')
+ARCHIVE_DATABASE_ID = os.environ.get('ARCHIVE_DATABASE_ID', '')
 
 # ── Telegram ──────────────────────────────────────────────────────────────────
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")

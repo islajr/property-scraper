@@ -11,6 +11,8 @@ database writes. Supabase still contains the audit tables. Local backups have be
 restored and checked in disposable databases; a permanent local working database
 and publisher have not yet been deployed. The test databases were removed.
 
+The implementation and operator commands are in [local-publication.md](local-publication.md).
+
 ## The four tables applications currently share
 
 The confirmed consumer contract is below. The actual run-log name is `scrape_runs`,

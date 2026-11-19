@@ -12,11 +12,16 @@ Run one class:        pytest tests/test_parsers.py::TestPropertyProParser -v
 Run one test:         pytest tests/test_parsers.py::TestPropertyProParser::test_price -v
 """
 
+import os
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 from bs4 import BeautifulSoup
+
+# A production .env may select the permanent archive. Guard-specific tests opt
+# back into that mode; ordinary tests use explicit disposable database URLs.
+os.environ.setdefault('PROPERTY_SCRAPER_STORAGE_MODE', 'legacy')
 
 from scraper.models import RawListing, NormalisedListing
 

@@ -22,7 +22,9 @@ import config
 def _make_writer():
     """DatabaseWriter with a fully mocked psycopg2 connection."""
     from scraper.db_writer import DatabaseWriter
-    with patch("scraper.db_writer.psycopg2.connect") as mock_connect:
+    with patch("scraper.db_writer.psycopg2.connect") as mock_connect, \
+             patch.object(DatabaseWriter, "_validate_storage"):
+        # Connection-target guards have separate real-database tests.
         mock_conn   = MagicMock()
         mock_cursor = MagicMock()
         mock_cursor.fetchone.return_value = None
@@ -261,7 +263,9 @@ class TestSuspectedSold:
     def _writer_with_price_history(self, has_reduction: bool):
         """Build a writer whose DB cursor reports presence/absence of a price reduction."""
         from scraper.db_writer import DatabaseWriter
-        with patch("scraper.db_writer.psycopg2.connect") as mock_connect:
+        with patch("scraper.db_writer.psycopg2.connect") as mock_connect, \
+                 patch.object(DatabaseWriter, "_validate_storage"):
+            # Connection-target guards have separate real-database tests.
             mock_conn   = MagicMock()
             mock_cursor = MagicMock()
             mock_cursor.fetchone.return_value = (1,) if has_reduction else None

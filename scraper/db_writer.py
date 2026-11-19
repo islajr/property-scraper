@@ -1,7 +1,8 @@
 """
 db_writer.py — All database write and read operations for PS-0 PropertyScraper.
 
-Writes EXCLUSIVELY to the raw_data schema on Supabase.
+Writes full listing state and evidence to the working raw_data archive.
+The separate guarded publisher copies only the four shared business tables.
 Never touches synthetic_properties, macro, geospatial, or any other schema.
 
 Core operations:
@@ -47,10 +48,22 @@ class DatabaseWriter:
         self.database_url = database_url
         self.conn = psycopg2.connect(database_url)
         self.conn.autocommit = False
+        self._validate_storage(self.conn)
+
+    def _validate_storage(self, conn):
+        from scraper.shared_publication import assert_working_target
+        try:
+            assert_working_target(conn, config.ARCHIVE_DATABASE_ID,
+                                  require_archive=config.STORAGE_MODE == 'local-shared')
+            conn.rollback()
+        except Exception:
+            conn.close()
+            raise
     
     def _connect(self):
         conn = psycopg2.connect(self.database_url)
         conn.autocommit = False
+        self._validate_storage(conn)
         return conn
 
     def _ensure_connection(self):
