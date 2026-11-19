@@ -1,16 +1,18 @@
 # Finding your way around the database
 
 Start with the research readers. The remaining objects make collection, evidence,
-review, history and recovery work; they are not 17 competing versions of the same
+review, history and recovery work; they are not competing versions of the same
 property list. PostgreSQL schemas are namespaces, and views are saved queries.
 Adding a view does not duplicate the stored rows.
 
 Dependent applications currently use `raw_data.scraped_listings`,
 `raw_data.listing_history`, `raw_data.geocode_cache` and `raw_data.scrape_runs`.
-The proposed [storage split](storage-layout.md) preserves all four locally and
-remotely, while keeping the full audit/recovery dataset locally. That guide covers
-relationships, access and migration gates. The dictionary below describes the
-existing schema; the storage split has not yet been deployed.
+The deployed [storage split](storage-layout.md) preserves all four locally and
+remotely, while full audit/recovery tables and research views live locally.
+The dictionary below describes the **complete local schema**. Supabase retains
+the four application tables, two vocabulary support tables and the small
+`ops.shared_publication_state` checkpoint. See the
+[handoff](storage-handoff-2026-11-19.md) for locations, access and verified results.
 
 Before migration 014, the entry points are `raw_data.property_research_current`
 and `raw_data.property_review_queue`. Migration 014 adds three consumer views in
@@ -233,3 +235,21 @@ measuring relation/index sizes and growth after normal runs; a one-time cleanup
 does not cap future history growth. PostgreSQL compaction can temporarily lock a
 table, so coordinate scheduled writers and use bounded lock waits. See the
 [Supabase storage guide](https://supabase.com/docs/guides/platform/database-size).
+
+## Local publication control
+
+These objects were added during the local/shared storage deployment. They do not
+represent another set of scraped properties.
+
+| Object | Location and purpose |
+| --- | --- |
+| `ops.local_archive_identity` | Local singleton UUID checked by collectors, backups and publisher |
+| `ops.publisher_state` | Local last-acknowledged publication UUID and four-table manifest |
+| `ops.shared_publications` | Local READY/PUBLISHED journal; links each UUID to its immutable payload directory and expected predecessor |
+| `publication_cache.scraped_listings`, `listing_history`, `geocode_cache`, `scrape_runs` | Local exact copy of the last published rows, independent of newer working state |
+| `ops.shared_publication_state` | Remote singleton archive/publication UUID, manifest and publication timestamp |
+
+The complete local database has the original 18 physical tables (17 in `raw_data`,
+one legacy `market` table), four cache tables and three local control tables. The
+remote store keeps six physical `raw_data` tables and its single checkpoint table.
+See [local-publication.md](local-publication.md) for transaction/retry behavior.

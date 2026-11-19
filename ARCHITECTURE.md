@@ -4,9 +4,10 @@ Start with [CODEBASE.md](CODEBASE.md) for the conversational walkthrough and
 [docs/database.md](docs/database.md) for the database dictionary. This page is the
 short map, checked against the project on 19 November 2026.
 
-For the confirmed shared-data boundary and the proposed local working/archive
-database, read [the storage layout guide](docs/storage-layout.md). It distinguishes
-the current deployment from the planned split and explains publication/recovery.
+The complete working database is local. Supabase publishes four application tables;
+full audits and research views remain in the local archive. Read the
+[storage layout](docs/storage-layout.md), [deployment handoff](docs/storage-handoff-2026-11-19.md)
+and [operator guide](docs/local-publication.md) for locations, publication and recovery.
 
 We collect adverts from three enabled portals: PropertyPro, Private Property and
 Nigeria Property Centre. Jiji has a parser but is disabled in normal orchestration.
@@ -20,9 +21,11 @@ flowchart TD
     N --> G[Discovery geocoder: neighbourhood coordinates]
     G --> W[Transactional writer and evidence stores]
     N --> W
-    W --> S[Latest listing state]
+    W --> S[Latest listing state in local archive]
     W --> A[Immutable claims, decisions and change history]
-    S --> V[Source-aware current views]
+    S --> PUB[Durable publication cache and deltas]
+    PUB --> CLOUD[Supabase: four application tables]
+    S --> V[Local source-aware current views]
     A --> V
     V --> C[Research readers and explicit quality filters]
     V --> Q[Review queue and field coverage]
@@ -78,7 +81,9 @@ controlled repairs also have database manifests and receipts. The rental recover
 runner has a separate local SQLite ledger. Private frozen reports and backups live
 under ignored `.local/`; they are not application tables.
 
-Normal local and cloud wrappers currently replay numbered migrations. The older
+Normal wrappers replay numbered migrations only against the working archive;
+shared-store guards reject full migrations there. Cloud collection stays disabled
+until it has a durable archive connection. The older
 view introductions must therefore preserve fields introduced later. A checksummed
 migration ledger is a future improvement that needs every entry point to change
 together. Installing a migration is not equivalent to backfilling or verifying data.
