@@ -184,3 +184,45 @@ apartment's floor area. Individual claim rows can be usable while the final fiel
 is ambiguous because another claim disagrees. Exact conversions remain in claim
 JSON; scalar storage rounds to two decimal places. These are advertised claims,
 not surveyed measurements.
+
+## Storage maintenance and retention
+
+On 19 November 2026, production occupied 583,765,139 bytes (583.8 MB decimal).
+The largest consumers were shared fact assessments (207 MB), current listings
+(127 MB) and classification history (109 MB). The evidence and audit histories
+added during the data-quality work account for much of the growth. Research views
+are saved queries and do not duplicate those stored rows.
+
+A compressed backup of `raw_data`, `research` and `market` was taken before
+maintenance. Ten large tables and their indexes were physically compacted.
+Every compacted table retained exactly the same row count and logical-content
+hash. Database size fell to 547,040,403 bytes (547.0 MB): **36.7 MB reclaimed**,
+with no listing, history or receipt rows deleted. The local hourly timer was
+paused during maintenance and restored afterward.
+
+This still exceeds the free allowance. The remaining space is predominantly
+live data; removing tables merely to shorten the schema browser would discard
+evidence. Disposable compression rehearsals did not produce useful additional
+savings, so those settings were not applied to production.
+
+An unapplied retention proposal identifies 39,696 superseded fact assessments
+from before the verified cutover: 10,399 feature/offer, 21,367 room and 7,930 area
+assessments. Their stored JSON payload totals approximately 41.2 MB; reclaimable
+physical space also depends on row/index overhead and subsequent compaction.
+The proposal excludes every currently applicable assessment, the latest per
+listing/rule family and every assessment referenced by a revocation. It preserves all
+listings, original values, classification and lifecycle history, manifests and
+receipts. Nothing in this cohort has been deleted.
+
+Archiving that cohort would move older derivation history out of online SQL.
+Historical inspection or rollback reconstruction would then require the cold
+backup. That is a retention decision requiring approval, followed by a reviewed,
+scoped archive operation with current-reader protection and verified restoration.
+Append-only protections must not be disabled ad hoc to satisfy a storage quota.
+
+Private measurements, backup checksums, restore checks and the exact candidate
+IDs are under `.local/storage/`. They do not belong in source control. Continue
+measuring relation/index sizes and growth after normal runs; a one-time cleanup
+does not cap future history growth. PostgreSQL compaction can temporarily lock a
+table, so coordinate scheduled writers and use bounded lock waits. See the
+[Supabase storage guide](https://supabase.com/docs/guides/platform/database-size).
