@@ -4,6 +4,10 @@ Start with [CODEBASE.md](CODEBASE.md) for the conversational walkthrough and
 [docs/database.md](docs/database.md) for the database dictionary. This page is the
 short map, checked against the project on 19 November 2026.
 
+For the confirmed shared-data boundary and the proposed local working/archive
+database, read [the storage layout guide](docs/storage-layout.md). It distinguishes
+the current deployment from the planned split and explains publication/recovery.
+
 We collect adverts from three enabled portals: PropertyPro, Private Property and
 Nigeria Property Centre. Jiji has a parser but is disabled in normal orchestration.
 The output is a set of portal listings and their evidence, not a certified register

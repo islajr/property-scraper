@@ -29,6 +29,12 @@ rule/operations guides are:
 - [Unified consumer contract](docs/property-unification.md): the supported research reader.
 - [Pricing](README.md#rental-prices-and-billing-periods): quote units and comparable rental data.
 
+The confirmed four-table consumer boundary and proposed local/archive-to-Supabase
+publication split are explained in [the storage layout guide](docs/storage-layout.md).
+It covers where every data group belongs, stable IDs, access, published snapshots,
+recovery and migration gates. That split is not deployed yet: the current writer
+still uses its full database through `DATABASE_URL`.
+
 Files under `docs/archive/` explain past proposals and snapshots. They remain
 useful evidence, but the current guides and installed schema determine behavior.
 The user's original review CSV is historical input; editing it is not a database
